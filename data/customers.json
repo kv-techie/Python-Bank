@@ -1,0 +1,26 @@
+[
+  {
+    "customerId": "CUST68944257",
+    "username": "kedvin",
+    "password": "kedvin",
+    "firstName": "Kedhar",
+    "lastName": "Vinod",
+    "dob": "2005-12-11",
+    "gender": "Male",
+    "phoneNumber": "7019092390",
+    "email": "bblehh317@gmail.com",
+    "accountNumbers": [
+      "562132892448"
+    ],
+    "failedAttempts": 0,
+    "locked": false,
+    "cibilScore": 750,
+    "salary": 170000.0,
+    "employerName": "ABC Pvt Ltd",
+    "employerType": "MNC",
+    "jobStartDate": "2023-11-25",
+    "employerCategory": "A",
+    "city": "Mumbai",
+    "kycCompleted": true
+  }
+]
