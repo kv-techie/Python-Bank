@@ -1,13 +1,13 @@
 from datetime import date
-from typing import Optional, List
-from Bank import Bank
+from typing import List
+
 from Account import Account
-from Customer import Customer
+from Bank import Bank
 from BankClock import BankClock
+from CIBIL import add_credit_inquiry, calculate_cibil_score
+from Customer import Customer
 from ExpenseSimulator import ExpenseSimulator
 from RecurringBill import RecurringBill
-from loan import Loan
-from CIBIL import calculate_cibil_score, add_credit_inquiry
 
 
 class BankingApp:
@@ -46,15 +46,19 @@ class BankingApp:
         """Read and validate gender input"""
         while True:
             user_input = input(prompt).strip().lower()
-            if user_input in ['male', 'm']:
+            if user_input in ["male", "m"]:
                 return "Male"
-            elif user_input in ['female', 'f']:
+            elif user_input in ["female", "f"]:
                 return "Female"
             else:
                 print("Invalid input. Please enter 'Male' or 'Female' (or 'M'/'F').")
 
     @staticmethod
-    def read_valid_choice(prompt: str, valid_choices: list, error_message: str = "Invalid choice. Please try again.") -> str:
+    def read_valid_choice(
+        prompt: str,
+        valid_choices: list,
+        error_message: str = "Invalid choice. Please try again.",
+    ) -> str:
         """Read and validate user choice from a list of valid options"""
         while True:
             choice = input(prompt).strip()
@@ -71,7 +75,7 @@ class BankingApp:
             "2": "Bespoke",
             "3": "Club",
             "4": "Delite",
-            "5": "Future"
+            "5": "Future",
         }
         while True:
             choice = input(prompt).strip()
@@ -102,7 +106,11 @@ class BankingApp:
         dob = self.read_date("Date of Birth (YYYY-MM-DD): ")
         dob_date = date.fromisoformat(dob)
         today = date.today()
-        age = today.year - dob_date.year - ((today.month, today.day) < (dob_date.month, dob_date.day))
+        age = (
+            today.year
+            - dob_date.year
+            - ((today.month, today.day) < (dob_date.month, dob_date.day))
+        )
 
         gender = self.read_valid_gender("Gender (Male/Female): ")
         phone_number = input("Phone Number: ").strip()
@@ -141,8 +149,15 @@ Choose Account Type:
                 break
 
         customer, account = self.bank.register_customer(
-            username, password, first_name, last_name, dob, gender,
-            phone_number, email, account_type
+            username,
+            password,
+            first_name,
+            last_name,
+            dob,
+            gender,
+            phone_number,
+            email,
+            account_type,
         )
 
         print(f"""
@@ -185,11 +200,13 @@ Customer ID: {customer.customer_id}
 You have {len(accounts)} accounts. Please select one:
             """)
             for idx, acc in enumerate(accounts, 1):
-                print(f"{idx}. {acc.account_type} - {acc.account_number} (Balance: Rs. {acc.balance:.2f} INR)")
+                print(
+                    f"{idx}. {acc.account_type} - {acc.account_number} (Balance: Rs. {acc.balance:.2f} INR)"
+                )
 
             choice = self.read_valid_choice(
                 f"Enter account number (1-{len(accounts)}): ",
-                [str(i) for i in range(1, len(accounts) + 1)]
+                [str(i) for i in range(1, len(accounts) + 1)],
             )
             selected_account = accounts[int(choice) - 1]
         else:
@@ -206,7 +223,9 @@ Customer ID: {customer.customer_id}
         # Account menu loop
         self.account_menu(customer, accounts, selected_account)
 
-    def account_menu(self, customer: Customer, accounts: List[Account], selected_account: Account):
+    def account_menu(
+        self, customer: Customer, accounts: List[Account], selected_account: Account
+    ):
         """Display and handle account menu options"""
         active = True
 
@@ -234,7 +253,7 @@ Choose an option:
             menu_choice = self.read_valid_choice(
                 "Enter your choice: ",
                 [str(i) for i in range(1, 15)],
-                "Invalid choice. Please enter a number from 1 to 14."
+                "Invalid choice. Please enter a number from 1 to 14.",
             )
 
             if menu_choice == "1":
@@ -276,7 +295,8 @@ Loan Menu:
 1  Apply for Loan
 2  View My Loans
 3  Pay Loan EMI
-4  Back to Account Menu
+4  CIBIL Score Report
+5  Back to Account Menu
             """)
             choice = self.read_valid_choice("Enter choice: ", ["1", "2", "3", "4"])
             if choice == "1":
@@ -286,11 +306,16 @@ Loan Menu:
             elif choice == "3":
                 self.pay_loan_emi_flow(customer, account)
             elif choice == "4":
+                self.view_cibil_report(customer)
+            elif choice == "5":
                 break
+
     def apply_for_loan(self, customer: Customer, account: Account):
         print("\n=== Loan Application ===")
         if not getattr(customer, "salary", None):
-            customer.salary = self.read_positive_double("Enter your Net Monthly Salary: ")
+            customer.salary = self.read_positive_double(
+                "Enter your Net Monthly Salary: "
+            )
         if not getattr(customer, "employer_name", None):
             customer.employer_name = input("Enter your Employer Name: ").strip()
         if not getattr(customer, "employer_type", None):
@@ -298,21 +323,23 @@ Loan Menu:
         if not getattr(customer, "job_start_date", None):
             customer.job_start_date = self.read_date("Job Start Date (YYYY-MM-DD): ")
         if not getattr(customer, "employer_category", None):
-            customer.employer_category = input("Employer Category (A/B/C): ").strip().upper()
+            customer.employer_category = (
+                input("Employer Category (A/B/C): ").strip().upper()
+            )
         if not getattr(customer, "city", None):
             customer.city = input("Working City: ").strip()
         if not getattr(customer, "kyc_completed", None):
             completed = input("Is your KYC complete? (y/n): ").strip().lower()
-        customer.kyc_completed = completed == "y"
+            customer.kyc_completed = completed == "y"
 
-    # Register hard inquiry for this loan application
+        # Register hard inquiry for this loan application
         add_credit_inquiry(customer)
-    
-    # Automatically calculate CIBIL score based on customer's credit history
+
+        # Automatically calculate CIBIL score based on customer's credit history
         print("\n🔍 Calculating your CIBIL score based on credit history...")
         customer.cibil_score = calculate_cibil_score(customer, self.bank)
-    
-    # Determine rating for display
+
+        # Determine rating for display
         if customer.cibil_score >= 750:
             rating = "Excellent ⭐⭐⭐⭐⭐"
         elif customer.cibil_score >= 650:
@@ -321,16 +348,20 @@ Loan Menu:
             rating = "Average ⭐⭐⭐"
         else:
             rating = "Poor ⭐⭐"
-    
+
         print(f"✓ Your current CIBIL Score: {customer.cibil_score} ({rating})")
-    
+
         principal = self.read_positive_double("\nEnter principal amount (Rs): ")
         interest_rate = self.read_positive_double("Enter annual interest rate (%): ")
         tenure_months = int(self.read_positive_double("Enter tenure (months): "))
 
-        approved, loan, msg = self.bank.evaluate_and_add_loan(customer, principal, interest_rate, tenure_months, account)
+        approved, loan, msg = self.bank.evaluate_and_add_loan(
+            customer, principal, interest_rate, tenure_months, account
+        )
         if approved:
-            print(f"\n✔ Loan approved! Amount Rs.{principal:,.2f} credited to your account.")
+            print(
+                f"\n✔ Loan approved! Amount Rs.{principal:,.2f} credited to your account."
+            )
             print(f"Loan ID: {loan.loan_id} | EMI: Rs.{loan.calculate_emi():.2f}/month")
         else:
             print(f"\n❌ Loan denied: {msg}")
@@ -343,13 +374,17 @@ Loan Menu:
         print("\nYour Loans:")
         for idx, loan in enumerate(loans, 1):
             outstanding = max(0, loan.tenure_months - getattr(loan, "emis_paid", 0))
-            print(f"{idx}. {loan.loan_id} | Status: {loan.status} | Outstanding EMIs: {outstanding}")
+            print(
+                f"{idx}. {loan.loan_id} | Status: {loan.status} | Outstanding EMIs: {outstanding}"
+            )
         choice = self.read_valid_choice(
             "Select loan number to pay EMI for: ",
-            [str(i) for i in range(1, len(loans) + 1)]
+            [str(i) for i in range(1, len(loans) + 1)],
         )
         selected_loan = loans[int(choice) - 1]
-        outstanding_emis = max(0, selected_loan.tenure_months - getattr(selected_loan, "emis_paid", 0))
+        outstanding_emis = max(
+            0, selected_loan.tenure_months - getattr(selected_loan, "emis_paid", 0)
+        )
         if outstanding_emis <= 0:
             print("All EMIs for this loan have already been paid.")
             return
@@ -358,14 +393,22 @@ Loan Menu:
         else:
             while True:
                 try:
-                    count = int(input(f"How many EMIs would you like to pay now? (1-{outstanding_emis}): "))
+                    count = int(
+                        input(
+                            f"How many EMIs would you like to pay now? (1-{outstanding_emis}): "
+                        )
+                    )
                     if 1 <= count <= outstanding_emis:
                         break
                     else:
-                        print(f"Please enter a number between 1 and {outstanding_emis}.")
+                        print(
+                            f"Please enter a number between 1 and {outstanding_emis}."
+                        )
                 except ValueError:
                     print("Please enter a valid number.")
-        self.bank.pay_multiple_emis_for_loan(selected_loan.loan_id, account.account_number, count)
+        self.bank.pay_multiple_emis_for_loan(
+            selected_loan.loan_id, account.account_number, count
+        )
         print(f"\nSuccessfully paid {count} EMI(s) for loan {selected_loan.loan_id}.")
 
     # ========== ORIGINAL BANKING METHODS CONTINUE BELOW ==========
@@ -406,7 +449,9 @@ Choose transfer type:
 2  NEFT (Up to Rs. 1,99,999.99)
 3  RTGS (From Rs. 2,00,000.00)
             """)
-            transfer_choice = self.read_valid_choice("Enter choice (1-3): ", ["1", "2", "3"])
+            transfer_choice = self.read_valid_choice(
+                "Enter choice (1-3): ", ["1", "2", "3"]
+            )
 
             if transfer_choice == "1":
                 self.inter_account_transfer(account, accounts)
@@ -428,11 +473,13 @@ Choose transfer mode:
         other_accounts = [acc for acc in accounts if acc != account]
 
         for idx, acc in enumerate(other_accounts, 1):
-            print(f"{idx}. {acc.account_type} - {acc.account_number} (Balance: Rs. {acc.balance:.2f} INR)")
+            print(
+                f"{idx}. {acc.account_type} - {acc.account_number} (Balance: Rs. {acc.balance:.2f} INR)"
+            )
 
         choice = self.read_valid_choice(
             f"Select recipient account (1-{len(other_accounts)}): ",
-            [str(i) for i in range(1, len(other_accounts) + 1)]
+            [str(i) for i in range(1, len(other_accounts) + 1)],
         )
         recipient = other_accounts[int(choice) - 1]
         amount = self.read_positive_double("Enter amount to transfer: Rs. ")
@@ -455,9 +502,13 @@ Choose transfer mode:
                 self.bank.save()
                 break
             elif recipient:
-                print("Cannot transfer to your own account. Please enter a different account number.")
+                print(
+                    "Cannot transfer to your own account. Please enter a different account number."
+                )
             else:
-                print("Recipient account not found. Please check the account number and try again.")
+                print(
+                    "Recipient account not found. Please check the account number and try again."
+                )
 
     def search_transaction(self):
         """Search for a transaction by ID"""
@@ -466,7 +517,11 @@ Choose transfer mode:
 
         if result:
             acc, txn = result
-            cheque_line = f"\nCheque ID: {txn.cheque_id}" if getattr(txn, "cheque_id", None) else ""
+            cheque_line = (
+                f"\nCheque ID: {txn.cheque_id}"
+                if getattr(txn, "cheque_id", None)
+                else ""
+            )
             print(f"""
 Transaction Found:
 Account Holder: {acc.first_name} {acc.last_name}
@@ -486,20 +541,26 @@ Timestamp: {txn.timestamp}{cheque_line}
         if len(accounts) > 1:
             print("\nSelect account to use:")
             for idx, acc in enumerate(accounts, 1):
-                print(f"{idx}. {acc.account_type} - {acc.account_number} (Balance: Rs. {acc.balance:.2f} INR)")
+                print(
+                    f"{idx}. {acc.account_type} - {acc.account_number} (Balance: Rs. {acc.balance:.2f} INR)"
+                )
 
             choice = self.read_valid_choice(
                 f"Enter account number (1-{len(accounts)}): ",
-                [str(i) for i in range(1, len(accounts) + 1)]
+                [str(i) for i in range(1, len(accounts) + 1)],
             )
             selected = accounts[int(choice) - 1]
-            print(f"Switched to account: {selected.account_type} - {selected.account_number}")
+            print(
+                f"Switched to account: {selected.account_type} - {selected.account_number}"
+            )
             return selected
         else:
             print("You only have one account.")
             return accounts[0]
 
-    def create_additional_account(self, customer: Customer, accounts: List[Account]) -> List[Account]:
+    def create_additional_account(
+        self, customer: Customer, accounts: List[Account]
+    ) -> List[Account]:
         """Create an additional account for the customer"""
         print("\n=== Create Additional Account ===")
         print("Available Account Types:")
@@ -559,17 +620,22 @@ Recurring Bills Management
 
         common_bills = RecurringBill.get_common_bills()
         for idx, (name, cat, min_amt, max_amt, freq) in enumerate(common_bills, 1):
-            print(f"{idx}. {name} ({cat}) - Rs. {min_amt:.2f}-Rs. {max_amt:.2f} ({freq})")
+            print(
+                f"{idx}. {name} ({cat}) - Rs. {min_amt:.2f}-Rs. {max_amt:.2f} ({freq})"
+            )
         print(f"{len(common_bills) + 1}. Custom Bill")
 
         template_choice = self.read_valid_choice(
-            "Select bill template: ",
-            [str(i) for i in range(1, len(common_bills) + 2)]
+            "Select bill template: ", [str(i) for i in range(1, len(common_bills) + 2)]
         )
 
         if int(template_choice) <= len(common_bills):
-            name, category, min_amt, max_amt, frequency = common_bills[int(template_choice) - 1]
-            amount = float(input(f"Enter amount (Rs. {min_amt:.2f}-Rs. {max_amt:.2f}): "))
+            name, category, min_amt, max_amt, frequency = common_bills[
+                int(template_choice) - 1
+            ]
+            amount = float(
+                input(f"Enter amount (Rs. {min_amt:.2f}-Rs. {max_amt:.2f}): ")
+            )
         else:
             name = input("Bill name: ").strip()
             category = input("Category: ").strip()
@@ -586,7 +652,7 @@ Recurring Bills Management
             frequency=frequency,
             day_of_month=day_of_month,
             category=category,
-            auto_debit=True
+            auto_debit=True,
         )
 
         account.add_recurring_bill(bill)
@@ -618,7 +684,9 @@ Salary Management
                 account.show_salary_details()
             elif choice == "2":
                 print("\n=== Configure Salary ===")
-                gross_salary = self.read_positive_double("Enter gross monthly salary: Rs. ")
+                gross_salary = self.read_positive_double(
+                    "Enter gross monthly salary: Rs. "
+                )
                 salary_day = int(input("Enter salary credit day (1-28): "))
                 account.set_salary(gross_salary, salary_day)
                 self.bank.save()
@@ -630,7 +698,7 @@ Salary Management
 
     def simulate_time(self, account: Account):
         """Simulate time passage with recurring bills and expenses"""
-        print(f"\nTime Simulation")
+        print("\nTime Simulation")
         print(f"Current Date/Time: {BankClock.get_formatted_datetime()}")
         print("1  Simulate 1 Day")
         print("2  Simulate 1 Week (7 days)")
@@ -660,7 +728,9 @@ Salary Management
             total_transactions += bills_processed + daily_txns
 
             if day % 7 == 0 or day == days:
-                print(f"Day {day:3d} [{BankClock.get_formatted_date()}]: Balance = Rs. {account.balance:,.2f} INR | Txns = {bills_processed + daily_txns}")
+                print(
+                    f"Day {day:3d} [{BankClock.get_formatted_date()}]: Balance = Rs. {account.balance:,.2f} INR | Txns = {bills_processed + daily_txns}"
+                )
 
         self.bank.save()
         balance_change = account.balance - start_balance
@@ -713,7 +783,7 @@ Choose an option:
             choice = self.read_valid_choice(
                 "Enter your choice: ",
                 ["1", "2", "3", "4"],
-                "Invalid option. Please enter 1, 2, 3, or 4."
+                "Invalid option. Please enter 1, 2, 3, or 4.",
             )
 
             if choice == "1":
@@ -725,6 +795,233 @@ Choose an option:
             elif choice == "4":
                 print("Thank you for using Scala Bank!")
                 self.running = False
+
+    def view_cibil_report(self, customer: Customer):
+        """View detailed CIBIL score report with history"""
+        from CIBIL import calculate_cibil_score
+
+        print("\n" + "=" * 70)
+        print("                    CIBIL SCORE REPORT")
+        print("=" * 70)
+        # Calculate current score
+        current_score = calculate_cibil_score(customer, self.bank)
+        customer.cibil_score = current_score
+        # Determine rating
+        if current_score >= 750:
+            rating = "Excellent ⭐⭐⭐⭐⭐"
+            color = "🟢"
+        elif current_score >= 650:
+            rating = "Good ⭐⭐⭐⭐"
+            color = "🟡"
+        elif current_score >= 550:
+            rating = "Average ⭐⭐⭐"
+            color = "🟠"
+        else:
+            rating = "Poor ⭐⭐"
+            color = "🔴"
+        print(f"\n{color} CIBIL Score: {current_score}/900")
+        print(f"Rating: {rating}")
+        print(f"Customer: {customer.first_name} {customer.last_name}")
+        print(f"Customer ID: {customer.customer_id}")
+        print(f"Report Generated: {BankClock.get_formatted_datetime()}")
+        print("\n" + "-" * 70)
+        print("SCORE BREAKDOWN")
+        print("-" * 70)
+        # Get loans for analysis
+        loans = self.bank.get_loans_for_customer(customer.customer_id)
+        today = BankClock.today()
+        # 1. Repayment History Analysis
+        print("\n📊 REPAYMENT HISTORY")
+        total_emis = 0
+        late_payments = 0
+        on_time_payments = 0
+        if loans:
+            for loan in loans:
+                emis_paid = getattr(loan, "emis_paid", 0)
+                total_emis += loan.tenure_months
+                # Calculate expected EMIs based on loan start date
+                if hasattr(loan, "start_date"):
+                    months_elapsed = (today.year - loan.start_date.year) * 12 + (
+                        today.month - loan.start_date.month
+                    )
+                    expected_emis = min(months_elapsed + 1, loan.tenure_months)
+                else:
+                    expected_emis = loan.tenure_months
+                missed = max(0, expected_emis - emis_paid)
+                on_time = emis_paid
+                late_payments += missed
+                on_time_payments += on_time
+            if late_payments == 0:
+                impact = "Excellent (+100 points)"
+                status = "✅ No late payments"
+            else:
+                penalty = min(200, 50 * late_payments)
+                impact = f"Poor (-{penalty} points)"
+                status = f"❌ {late_payments} late payment(s)"
+            print(f"  Status: {status}")
+            print(f"  Total EMIs Paid: {on_time_payments}")
+            print(f"  Late/Missed EMIs: {late_payments}")
+            print(f"  Impact on Score: {impact}")
+        else:
+            print("  Status: No loan history")
+            print("  Impact: Neutral (Base score)")
+        # 2. Credit Utilization
+        print("\n💳 CREDIT UTILIZATION")
+        credit_cards = getattr(customer, "credit_cards", [])
+        if credit_cards:
+            total_limit = sum(cc.get("limit", 0) for cc in credit_cards)
+            total_used = sum(cc.get("used", 0) for cc in credit_cards)
+            utilization = (total_used / total_limit * 100) if total_limit > 0 else 0
+            if utilization < 30:
+                impact = "Excellent (+50 points)"
+            elif utilization > 75:
+                impact = "Poor (-50 points)"
+            else:
+                impact = "Moderate (0 points)"
+            print(f"  Total Credit Limit: ₹{total_limit:,.2f}")
+            print(f"  Total Used: ₹{total_used:,.2f}")
+            print(f"  Utilization: {utilization:.1f}%")
+            print(f"  Impact: {impact}")
+        else:
+            print("  Status: No credit cards")
+            print("  Impact: Neutral")
+        # 3. Credit Accounts
+        print("\n📋 CREDIT ACCOUNTS")
+        n_loans = len(loans)
+        n_cards = len(credit_cards)
+        total_accounts = n_loans + n_cards
+        if total_accounts > 7:
+            impact = "Too many accounts (-20 points)"
+        elif 2 <= total_accounts <= 5:
+            impact = "Optimal (+10 points)"
+        else:
+            impact = "Neutral"
+        print(f"  Active Loans: {n_loans}")
+        print(f"  Credit Cards: {n_cards}")
+        print(f"  Total Accounts: {total_accounts}")
+        print(f"  Impact: {impact}")
+        # 4. Recent Hard Inquiries
+        print("\n🔍 CREDIT INQUIRIES (Last 12 Months)")
+        hard_inquiries = getattr(customer, "recent_hard_inquiries", [])
+        recent_inquiries = [d for d in hard_inquiries if (today - d).days <= 365]
+        n_recent = len(recent_inquiries)
+        if n_recent > 3:
+            impact = "Too many inquiries (-30 points)"
+        elif n_recent > 0:
+            impact = "Moderate impact"
+        else:
+            impact = "No recent inquiries"
+        print(f"  Recent Inquiries: {n_recent}")
+        if recent_inquiries:
+            for idx, inquiry_date in enumerate(recent_inquiries[-5:], 1):
+                days_ago = (today - inquiry_date).days
+                print(f"    {idx}. {days_ago} days ago ({inquiry_date})")
+        print(f"  Impact: {impact}")
+        # 5. Credit Mix
+        print("\n🎯 CREDIT MIX")
+        account_types = set()
+        for loan in loans:
+            account_types.add("Loan")
+        if n_cards > 0:
+            account_types.add("Credit Card")
+        if len(account_types) > 1:
+            impact = "Good mix (+30 points)"
+        else:
+            impact = "Limited variety"
+        print(
+            f"  Account Types: {', '.join(account_types) if account_types else 'None'}"
+        )
+        print(f"  Impact: {impact}")
+        # 6. Credit History Age
+        print("\n📅 CREDIT HISTORY AGE")
+        account_dates = []
+        for loan in loans:
+            if hasattr(loan, "start_date"):
+                account_dates.append(loan.start_date)
+        for cc in credit_cards:
+            if "opened" in cc:
+                account_dates.append(cc["opened"])
+        if account_dates:
+            oldest = min(account_dates)
+            age_years = (today - oldest).days // 365
+            age_months = ((today - oldest).days % 365) // 30
+            if age_years >= 3:
+                impact = "Excellent (+20 points)"
+            elif age_years >= 1:
+                impact = "Good"
+            else:
+                impact = "New credit history"
+            print(f"  Oldest Account: {age_years} years, {age_months} months")
+            print(f"  Opened On: {oldest}")
+            print(f"  Impact: {impact}")
+        else:
+            print("  Status: No credit history")
+            print("  Impact: New to credit")
+        # Loan History Details
+        if loans:
+            print("\n" + "-" * 70)
+            print("DETAILED LOAN HISTORY")
+            print("-" * 70)
+            for idx, loan in enumerate(loans, 1):
+                emis_paid = getattr(loan, "emis_paid", 0)
+                total_emi = loan.tenure_months
+                outstanding = total_emi - emis_paid
+                print(f"\n{idx}. Loan ID: {loan.loan_id}")
+                print(f"   Principal: ₹{loan.principal_amount:,.2f}")
+                print(f"   Interest Rate: {loan.annual_interest_rate}% p.a.")
+                print(f"   Tenure: {loan.tenure_months} months")
+                print(f"   EMI Amount: ₹{loan.calculate_emi():,.2f}")
+                if hasattr(loan, "start_date"):
+                    print(f"   Activation Date: {loan.start_date}")
+                print(f"   Status: {loan.status}")
+                print(f"   EMIs Paid: {emis_paid}/{total_emi}")
+                if loan.status == "Closed" or emis_paid >= total_emi:
+                    if hasattr(loan, "closure_date"):
+                        print(f"   ✅ Loan Closed On: {loan.closure_date}")
+                    else:
+                        print("   ✅ All EMIs Paid - Loan Fully Repaid")
+                elif outstanding > 0:
+                    print(f"   Outstanding EMIs: {outstanding}")
+                    if hasattr(loan, "start_date"):
+                        months_elapsed = (today.year - loan.start_date.year) * 12 + (
+                            today.month - loan.start_date.month
+                        )
+                        expected_emis = min(months_elapsed + 1, loan.tenure_months)
+                        if emis_paid < expected_emis:
+                            missed = expected_emis - emis_paid
+                            print(f"   ⚠️  Overdue EMIs: {missed}")
+        # Score Range Guide
+        print("\n" + "-" * 70)
+        print("SCORE RANGE GUIDE")
+        print("-" * 70)
+        print("  300-549: Poor       - High risk, loans often denied")
+        print("  550-649: Average    - Moderate risk, limited options")
+        print("  650-749: Good       - Low risk, favorable terms")
+        print("  750-900: Excellent  - Best rates and quick approvals")
+        # Recommendations
+        print("\n" + "-" * 70)
+        print("RECOMMENDATIONS TO IMPROVE YOUR SCORE")
+        print("-" * 70)
+        recommendations = []
+        if late_payments > 0:
+            recommendations.append("✓ Pay all pending EMIs on time")
+        if credit_cards and utilization > 50:
+            recommendations.append("✓ Reduce credit card utilization below 30%")
+        if n_recent > 3:
+            recommendations.append("✓ Avoid applying for new credit for 6 months")
+        if total_accounts < 2:
+            recommendations.append(
+                "✓ Consider diversifying credit types (loans + cards)"
+            )
+        if not recommendations:
+            recommendations.append("✓ Maintain current excellent credit behavior")
+            recommendations.append("✓ Continue making timely payments")
+        for rec in recommendations:
+            print(f"  {rec}")
+        print("\n" + "=" * 70)
+        # Save updated score
+        self.bank.save()
+
 
 if __name__ == "__main__":
     app = BankingApp()

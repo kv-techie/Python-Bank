@@ -1,12 +1,15 @@
 from typing import List, Optional, Tuple
+
 from Account import Account
+from BankClock import BankClock
 from Customer import Customer
-from Transaction import Transaction
 from DataStore import DataStore
 from loan import Loan  # Import Loan class
 
 # EXTENSION: Optional if using LoanEvaluator in your CLI
 from LoanEvaluator import LoanEvaluator
+from Transaction import Transaction
+
 
 class Bank:
     """Bank class for managing customers, accounts, and loans"""
@@ -26,18 +29,29 @@ class Bank:
 
     def authenticate(self, username: str, password: str) -> Optional[Customer]:
         for customer in self.customers:
-            if (customer.username == username and
-                customer.password == password and
-                not customer.locked):
+            if (
+                customer.username == username
+                and customer.password == password
+                and not customer.locked
+            ):
                 return customer
         return None
 
     def username_exists(self, username: str) -> bool:
         return any(cust.username == username for cust in self.customers)
 
-    def register_customer(self, username: str, password: str, first_name: str,
-                         last_name: str, dob: str, gender: str, phone_number: str,
-                         email: str, account_type: str) -> Tuple[Customer, Account]:
+    def register_customer(
+        self,
+        username: str,
+        password: str,
+        first_name: str,
+        last_name: str,
+        dob: str,
+        gender: str,
+        phone_number: str,
+        email: str,
+        account_type: str,
+    ) -> Tuple[Customer, Account]:
         account_number = Account.generate_account_number()
         customer = Customer.create_customer(
             username=username,
@@ -48,7 +62,7 @@ class Bank:
             gender=gender,
             phone_number=phone_number,
             email=email,
-            initial_account_number=account_number
+            initial_account_number=account_number,
         )
         account = Account.create_account(
             customer_id=customer.customer_id,
@@ -59,7 +73,7 @@ class Bank:
             dob=dob,
             gender=gender,
             account_type=account_type,
-            account_number=account_number
+            account_number=account_number,
         )
         self.customers.append(customer)
         self.accounts.append(account)
@@ -75,7 +89,7 @@ class Bank:
             last_name=customer.last_name,
             dob=customer.dob,
             gender=customer.gender,
-            account_type=account_type
+            account_type=account_type,
         )
         customer.add_account(account.account_number)
         self.accounts.append(account)
@@ -109,7 +123,9 @@ class Bank:
                 return account
         return None
 
-    def search_transaction_by_id(self, txn_id: str) -> Optional[Tuple[Account, Transaction]]:
+    def search_transaction_by_id(
+        self, txn_id: str
+    ) -> Optional[Tuple[Account, Transaction]]:
         for account in self.accounts:
             for transaction in account.transactions:
                 if transaction.id == txn_id:
@@ -120,15 +136,20 @@ class Bank:
         return self.get_account(account_number)
 
     def are_same_customer_accounts(self, acc1: Account, acc2: Account) -> bool:
-        return (acc1.customer_id == acc2.customer_id and
-                acc1.customer_id and
-                acc1.customer_id != "")
+        return (
+            acc1.customer_id == acc2.customer_id
+            and acc1.customer_id
+            and acc1.customer_id != ""
+        )
 
-    def search_transaction_by_cheque_id(self, cheque_id: str) -> Optional[Tuple[Account, Transaction]]:
+    def search_transaction_by_cheque_id(
+        self, cheque_id: str
+    ) -> Optional[Tuple[Account, Transaction]]:
         for account in self.accounts:
             for transaction in account.transactions:
-                if (transaction.cheque_id == cheque_id and
-                    transaction.type.endswith("_SENT")):
+                if transaction.cheque_id == cheque_id and transaction.type.endswith(
+                    "_SENT"
+                ):
                     return (account, transaction)
         return None
 
@@ -169,21 +190,16 @@ class Bank:
         return sum(account.balance for account in self.accounts)
 
     def get_accounts_by_type(self, account_type: str) -> List[Account]:
-        return [account for account in self.accounts if account.account_type == account_type]
+        return [
+            account for account in self.accounts if account.account_type == account_type
+        ]
 
     def get_minor_accounts(self) -> List[Account]:
-        return [account for account in self.accounts if account.account_type == "Future"]
+        return [
+            account for account in self.accounts if account.account_type == "Future"
+        ]
 
     # ========== LOAN MANAGEMENT ==========
-
-    def add_loan(self, loan: Loan):
-        """Add a new loan to the bank and persist."""
-        self.loans.append(loan)
-        DataStore.save_loans(self.loans)
-
-    def get_loans_for_customer(self, customer_id: str) -> List[Loan]:
-        """Retrieve all loans for a given customer_id."""
-        return [loan for loan in self.loans if loan.customer_id == customer_id]
 
     def pay_emi_for_loan(self, loan_id: str, account_number: str):
         """
@@ -203,12 +219,15 @@ class Bank:
         # Update loan and account
         account.balance -= emi_amount
         loan.emis_paid += 1
+
         if loan.emis_paid >= loan.tenure_months:
             loan.status = "Closed"
+            loan.closure_date = BankClock.today()  # Add closure date
             print("Loan fully repaid and closed.")
 
         # Log transaction
         from BankClock import BankClock
+
         ts = BankClock.get_formatted_datetime()
         txn_id = f"EMI{loan.loan_id}{loan.emis_paid:02d}"
         txn = Transaction(
@@ -218,11 +237,13 @@ class Bank:
             resulting_balance=account.balance,
             timestamp=ts,
             cheque_id=None,
-            metadata=f"loan_id={loan.loan_id};emi_no={loan.emis_paid}"
+            metadata=f"loan_id={loan.loan_id};emi_no={loan.emis_paid}",
         )
         account.transactions.append(txn)
         self.save()
-        print(f"EMI of Rs.{emi_amount} paid for loan {loan.loan_id}. Remaining EMIs: {loan.tenure_months - loan.emis_paid}")
+        print(
+            f"EMI of Rs.{emi_amount} paid for loan {loan.loan_id}. Remaining EMIs: {loan.tenure_months - loan.emis_paid}"
+        )
 
     def pay_multiple_emis_for_loan(self, loan_id: str, account_number: str, count: int):
         """
@@ -242,7 +263,9 @@ class Bank:
         emi_amount = loan.calculate_emi()
         total_amount = emi_amount * count
         if account.balance < total_amount:
-            print(f"Insufficient balance for {count} EMIs (You need Rs. {total_amount:.2f})")
+            print(
+                f"Insufficient balance for {count} EMIs (You need Rs. {total_amount:.2f})"
+            )
             return
 
         for _ in range(count):
@@ -255,23 +278,41 @@ class Bank:
             return
         print("\n=== Loan Summary ===")
         for loan in loans:
-            print(f"Loan ID: {loan.loan_id} | Principal: ₹{loan.principal:.2f} | EMI: ₹{loan.calculate_emi():.2f} | Tenure: {loan.tenure_months} months")
-            print(f"Status: {loan.status} | EMIs Paid: {loan.emis_paid}/{loan.tenure_months}")
-            if getattr(loan, 'approval_reason', None):
+            print(
+                f"Loan ID: {loan.loan_id} | Principal: ₹{loan.principal:.2f} | EMI: ₹{loan.calculate_emi():.2f} | Tenure: {loan.tenure_months} months"
+            )
+            print(
+                f"Status: {loan.status} | EMIs Paid: {loan.emis_paid}/{loan.tenure_months}"
+            )
+            if getattr(loan, "approval_reason", None):
                 print(f"Notes: {loan.approval_reason}")
             print("")
 
     # ========== LOAN APPLICATION (EVALUATOR/APPROVAL WRAPPER) ==========
 
-    def evaluate_and_add_loan(self, customer: Customer, principal: float, interest_rate: float, tenure_months: int, account: Account) -> Tuple[bool, Optional[Loan], str]:
+    def evaluate_and_add_loan(
+        self,
+        customer: Customer,
+        principal: float,
+        interest_rate: float,
+        tenure_months: int,
+        account: Account,
+    ) -> Tuple[bool, Optional[Loan], str]:
         """
         Evaluates, creates, and (if approved) adds/disburses the loan. Returns (approved, Loan/None, reason).
         """
-        approved, reason = LoanEvaluator.evaluate(customer, principal, tenure_months, interest_rate, self)
+        approved, reason = LoanEvaluator.evaluate(
+            customer, principal, tenure_months, interest_rate, self
+        )
         if not approved:
             return False, None, reason
 
+        from datetime import datetime
+
+        from BankClock import BankClock
+
         loan_id = f"LOAN{len(self.loans) + 1:06d}"
+
         loan = Loan(
             loan_id=loan_id,
             customer_id=customer.customer_id,
@@ -279,13 +320,43 @@ class Bank:
             interest_rate=interest_rate,
             tenure_months=tenure_months,
             approval_reason=reason,
-            status="Active"
+            status="Active",
+            start_date=BankClock.today(),
         )
 
-        # Disburse to account
+        # Disburse to account - FIXED VERSION
+        old_balance = account.balance
         account.balance += principal
+
+        # CREATE TRANSACTION RECORD FOR LOAN DISBURSEMENT
+        # Generate unique transaction ID using timestamp
+        timestamp_int = int(datetime.now().timestamp())
+        txn_id = f"TXN{timestamp_int}{len(account.transactions):04d}"
+
+        loan_disbursement = Transaction(
+            id=txn_id,
+            type="LOAN_CREDIT",
+            amount=principal,
+            resulting_balance=account.balance,
+            timestamp=BankClock.get_formatted_datetime(),
+            cheque_id=None,
+            metadata=f"loan_id={loan_id};principal={principal:.2f};tenure={tenure_months}months;rate={interest_rate}%",
+        )
+        account.transactions.append(loan_disbursement)
+
+        # Add loan to bank's loan list
         self.add_loan(loan)
+
+        # Save everything
         self.save()
+
+        print("\n✅ Loan Disbursed!")
+        print(f"Loan ID: {loan_id}")
+        print(f"Amount Credited: ₹{principal:,.2f}")
+        print(f"Previous Balance: ₹{old_balance:,.2f}")
+        print(f"New Balance: ₹{account.balance:,.2f}")
+
         return True, loan, "Loan approved and credited"
+
 
 # End of class
