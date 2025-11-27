@@ -967,8 +967,8 @@ Choose an option:
                 total_emi = loan.tenure_months
                 outstanding = total_emi - emis_paid
                 print(f"\n{idx}. Loan ID: {loan.loan_id}")
-                print(f"   Principal: ₹{loan.principal_amount:,.2f}")
-                print(f"   Interest Rate: {loan.annual_interest_rate}% p.a.")
+                print(f"   Principal: ₹{loan.principal:,.2f}")
+                print(f"   Interest Rate: {loan.interest_rate}% p.a.")
                 print(f"   Tenure: {loan.tenure_months} months")
                 print(f"   EMI Amount: ₹{loan.calculate_emi():,.2f}")
                 if hasattr(loan, "start_date"):

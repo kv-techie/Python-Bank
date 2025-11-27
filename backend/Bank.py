@@ -201,6 +201,17 @@ class Bank:
 
     # ========== LOAN MANAGEMENT ==========
 
+    # ========== LOAN MANAGEMENT ==========
+
+    def add_loan(self, loan: Loan):
+        """Add a new loan to the bank and persist."""
+        self.loans.append(loan)
+        DataStore.save_loans(self.loans)
+
+    def get_loans_for_customer(self, customer_id: str) -> List[Loan]:
+        """Retrieve all loans for a given customer_id."""
+        return [loan for loan in self.loans if loan.customer_id == customer_id]
+
     def pay_emi_for_loan(self, loan_id: str, account_number: str):
         """
         Process EMI payment for a loan, debiting account balance and updating loan.

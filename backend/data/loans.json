@@ -8,7 +8,8 @@
     "start_date": "2025-11-26",
     "status": "Closed",
     "emis_paid": 24,
-    "approval_reason": "Approved"
+    "approval_reason": "Approved",
+    "closure_date": null
   },
   {
     "loan_id": "LOAN000002",
@@ -19,6 +20,7 @@
     "start_date": "2025-11-27",
     "status": "Closed",
     "emis_paid": 24,
-    "approval_reason": "Approved"
+    "approval_reason": "Approved",
+    "closure_date": null
   }
 ]
