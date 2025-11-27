@@ -597,9 +597,11 @@ Loan Menu:
 3  Pay Loan EMI
 4  CIBIL Score Report
 5  Generate Loan Closure Certificate                  
-5  Back to Account Menu
+6  Back to Account Menu
             """)
-            choice = self.read_valid_choice("Enter choice: ", ["1", "2", "3", "4", "5"])
+            choice = self.read_valid_choice(
+                "Enter choice: ", ["1", "2", "3", "4", "5", "6"]
+            )
             if choice == "1":
                 self.apply_for_loan(customer, account)
             elif choice == "2":
