@@ -236,6 +236,7 @@ class Card:
             card.outstanding_balance = data.get("outstandingBalance", 0.0)
             card.minimum_due = data.get("minimumDue", 0.0)
             card.interest_rate = data.get("interestRate", 0.18)
+            card.reward_points = data.get("rewardPoints", 0.0)
         else:
             card = DebitCard.__new__(DebitCard)
             Card.__init__(
@@ -473,6 +474,7 @@ class CreditCard(Card):
         Returns:
             (success, message, transaction_id)
         """
+        self._ensure_all_attributes()
         # Validate transaction
         is_valid, msg = self.validate_transaction(amount)
         if not is_valid:
@@ -704,6 +706,7 @@ class CreditCard(Card):
 
     def to_dict(self) -> dict:
         """Serialize credit card to dictionary"""
+        self._ensure_all_attributes()
         base_dict = super().to_dict()
         base_dict.update(
             {
@@ -717,10 +720,23 @@ class CreditCard(Card):
                 "outstandingBalance": self.outstanding_balance,
                 "minimumDue": self.minimum_due,
                 "interestRate": self.interest_rate,
-                "rewardPoints": self.reward_points,
+                "rewardPoints": getattr(self, "reward_points", 0.0),  # USE GETATTR
             }
         )
         return base_dict
+
+    def _ensure_all_attributes(self):
+        """Ensure all required attributes exist (migration helper)"""
+        if not hasattr(self, "reward_points"):
+            self.reward_points = 0.0
+        if not hasattr(self, "network"):
+            self.network = "VISA"
+        if not hasattr(self, "interest_rate"):
+            self.interest_rate = 0.18
+        if not hasattr(self, "outstanding_balance"):
+            self.outstanding_balance = 0.0
+        if not hasattr(self, "minimum_due"):
+            self.minimum_due = 0.0
 
 
 # Example usage and testing

@@ -1412,7 +1412,8 @@ Choose an option:
             print(f"Credit Utilization: {card.credit_utilization():.1f}%")
             print(f"Billing Day: {card.billing_day} of each month")
             print(f"Interest Rate: {card.interest_rate * 100:.1f}% per annum")
-            print(f"Reward Points: {card.reward_points:.0f}")
+            reward_points = getattr(card, "reward_points", 0.0)
+            print(f"Reward Points: {reward_points:.0f}")
 
             if card.outstanding_balance > 0:
                 print("\nBilling Information:")

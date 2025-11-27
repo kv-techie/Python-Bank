@@ -9,7 +9,7 @@
     "gender": "Male",
     "accountType": "Pride",
     "accountNumber": "562132892448",
-    "balance": 283782.56000000006,
+    "balance": 282282.56000000006,
     "transactions": [
       {
         "id": "FHIC8821645427",
@@ -634,6 +634,20 @@
         "merchant": null,
         "paymentMethod": null,
         "metadata": "loan_id=LOAN000002;emi_no=24"
+      },
+      {
+        "id": "FHIC3466332599",
+        "type": "CREDIT_CARD_PAYMENT",
+        "amount": 1500.0,
+        "resultingBalance": 282282.56000000006,
+        "timestamp": "27-11-2025 22:36:18",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": {
+          "cardId": "CARD454931800"
+        }
       }
     ],
     "failedAttempts": 0,
@@ -670,7 +684,7 @@
         "blocked": false,
         "dailyLimit": 50000.0,
         "creditLimit": 64800,
-        "creditUsed": 1500.0,
+        "creditUsed": 0.0,
         "billingDay": 5,
         "lastBillDate": null,
         "dueDate": null,
