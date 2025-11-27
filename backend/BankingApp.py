@@ -4,7 +4,7 @@ from typing import List
 from Account import Account
 from Bank import Bank
 from BankClock import BankClock
-from Card import CreditCard, DebitCard
+from Card import Card, CreditCard, DebitCard
 from CIBIL import add_credit_inquiry, calculate_cibil_score
 from CreditEvaluator import CreditEvaluator
 from Customer import Customer
@@ -302,12 +302,13 @@ Choose an option:
             print("1. View All Cards")
             print("2. Apply for Debit Card")
             print("3. Apply for Credit Card")
-            print("4. Make Card Purchase")
-            print("5. Pay Credit Card Bill")
-            print("6. View Credit Card Statement")
-            print("7. Block Card")
-            print("8. Unblock Card")
-            print("9. Back to Main Menu")
+            print("4. View Card Details")  # NEW OPTION
+            print("5. Make Card Purchase")
+            print("6. Pay Credit Card Bill")
+            print("7. View Credit Card Statement")
+            print("8. Block Card")
+            print("9. Unblock Card")
+            print("10. Back to Main Menu")
             print("=" * 50)
 
             choice = input("Enter your choice: ").strip()
@@ -322,21 +323,24 @@ Choose an option:
                 self.apply_credit_card(account)
 
             elif choice == "4":
-                self.make_card_purchase(account)
+                self.view_card_details(account)  # NEW METHOD
 
             elif choice == "5":
-                self.pay_credit_card(account)
+                self.make_card_purchase(account)
 
             elif choice == "6":
-                self.view_credit_statement(account)
+                self.pay_credit_card(account)
 
             elif choice == "7":
-                self.block_card(account)
+                self.view_credit_statement(account)
 
             elif choice == "8":
-                self.unblock_card(account)
+                self.block_card(account)
 
             elif choice == "9":
+                self.unblock_card(account)
+
+            elif choice == "10":
                 break
 
             else:
@@ -353,14 +357,24 @@ Choose an option:
                 return
 
         confirm = input("Apply for debit card? (yes/no): ").strip().lower()
-        if confirm != "yes":
+        if confirm not in ["yes", "y"]:
             print("Application cancelled")
             return
 
-        debit_card = DebitCard(account.customer_id, account.account_number)
+        # Ask user to select card network
+        print("\nSelect Card Network:")
+        print("1. VISA")
+        print("2. Mastercard")
+        print("3. RuPay (Indian domestic)")
+
+        network_choice = self.read_valid_choice("Enter choice (1-3): ", ["1", "2", "3"])
+        network_map = {"1": "VISA", "2": "MASTERCARD", "3": "RUPAY"}
+        network = network_map[network_choice]
+
+        debit_card = DebitCard(account.customer_id, account.account_number, network)
         account.add_card(debit_card)
         self.bank.save()
-        print("\n✓ Debit card issued successfully!")
+        print(f"\n✓ {network} Debit card issued successfully!")
 
     def apply_credit_card(self, account: Account):
         """Apply for a new credit card"""
@@ -381,14 +395,18 @@ Choose an option:
             )
             return
 
+        # Get customer object
+        customer = self.bank.get_customer_by_id(account.customer_id)
+        if not customer:
+            print("✗ Error: Customer information not found")
+            return
+
         # Calculate age
         dob = datetime.strptime(account.dob, "%Y-%m-%d")
         age = (datetime.now() - dob).days // 365
 
         # Get CIBIL score
-        cibil_score = calculate_cibil_score(
-            None, self.bank
-        )  # Pass None or appropriate customer object
+        cibil_score = calculate_cibil_score(customer, self.bank)
         annual_income = account.salary_profile.gross_salary * 12
 
         eligible, reason = CreditEvaluator.is_eligible_for_credit_card(
@@ -405,20 +423,35 @@ Choose an option:
 
         # Calculate credit limit
         credit_limit = CreditEvaluator.calculate_credit_limit(
-            cibil_score=cibil_score, annual_income=annual_income, age=age
+            cibil_score=cibil_score,
+            annual_income=annual_income,
+            age=age,
+            existing_debt=0.0,
+            employer_category=getattr(customer, "employer_category", "pvt"),
+            has_salary_account=True,
         )
         print(f"\nApproved Credit Limit: Rs. {credit_limit:,.2f} INR")
 
         confirm = (
             input("\nProceed with credit card application? (yes/no): ").strip().lower()
         )
-        if confirm != "yes":
+        if confirm not in ["yes", "y"]:
             print("Application cancelled")
             return
 
+        # Ask user to select card network
+        print("\nSelect Card Network:")
+        print("1. VISA")
+        print("2. Mastercard")
+        print("3. RuPay (Indian domestic)")
+
+        network_choice = self.read_valid_choice("Enter choice (1-3): ", ["1", "2", "3"])
+        network_map = {"1": "VISA", "2": "MASTERCARD", "3": "RUPAY"}
+        network = network_map[network_choice]
+
         # Get billing day preference
         while True:
-            billing_day = input("Preferred billing day (1-28): ").strip()
+            billing_day = input("\nPreferred billing day (1-28): ").strip()
             try:
                 billing_day = int(billing_day)
                 if 1 <= billing_day <= 28:
@@ -429,11 +462,15 @@ Choose an option:
                 print("Invalid input")
 
         credit_card = CreditCard(
-            account.customer_id, account.account_number, credit_limit, billing_day
+            account.customer_id,
+            account.account_number,
+            credit_limit,
+            billing_day,
+            network,
         )
         account.add_card(credit_card)
         self.bank.save()
-        print("\n✓ Credit card issued successfully!")
+        print(f"\n✓ {network} Credit card issued successfully!")
         print(f"Billing Day: {billing_day} of each month")
 
     def make_card_purchase(self, account: Account):
@@ -1140,11 +1177,23 @@ Choose an option:
 
         # 2. Credit Utilization
         print("\n💳 CREDIT UTILIZATION")
-        credit_cards = getattr(customer, "credit_cards", [])
+        # Get credit cards from customer's accounts
+        credit_cards = []
+        customer_accounts = self.bank.get_customer_accounts(customer)
+        for acc in customer_accounts:
+            for card in acc.cards:
+                if isinstance(card, CreditCard):
+                    credit_cards.append(
+                        {
+                            "limit": card.credit_limit,
+                            "used": card.credit_used,
+                            "opened": getattr(card, "start_date", BankClock.today()),
+                        }
+                    )
 
         if credit_cards:
-            total_limit = sum(cc.get("limit", 0) for cc in credit_cards)
-            total_used = sum(cc.get("used", 0) for cc in credit_cards)
+            total_limit = sum(cc["limit"] for cc in credit_cards)
+            total_used = sum(cc["used"] for cc in credit_cards)
             utilization = (total_used / total_limit * 100) if total_limit > 0 else 0
 
             if utilization < 30:
@@ -1165,7 +1214,7 @@ Choose an option:
         # 3. Credit Accounts
         print("\n📋 CREDIT ACCOUNTS")
         n_loans = len(loans)
-        n_cards = len(credit_cards)
+        n_cards = len(credit_cards)  # Use the credit_cards list from above
         total_accounts = n_loans + n_cards
 
         if total_accounts > 7:
@@ -1205,7 +1254,7 @@ Choose an option:
         account_types = set()
         for loan in loans:
             account_types.add("Loan")
-        if n_cards > 0:
+        if n_cards > 0:  # Use n_cards from above
             account_types.add("Credit Card")
 
         if len(account_types) > 1:
@@ -1224,9 +1273,13 @@ Choose an option:
         for loan in loans:
             if hasattr(loan, "start_date"):
                 account_dates.append(loan.start_date)
-        for cc in credit_cards:
-            if "opened" in cc:
-                account_dates.append(cc["opened"])
+        # Add credit card dates
+        for acc in customer_accounts:
+            for card in acc.cards:
+                if isinstance(card, CreditCard):
+                    # Cards don't have start_date, so use today as approximation
+                    # or you can add a created_date attribute to cards
+                    account_dates.append(BankClock.today())
 
         if account_dates:
             oldest = min(account_dates)
@@ -1317,6 +1370,72 @@ Choose an option:
 
         # Save updated score
         self.bank.save()
+
+    def view_card_details(self, account: Account):
+        """View detailed information about a specific card"""
+        if not account.cards:
+            print("No cards available")
+            return
+
+        print("\n--- View Card Details ---")
+        account.list_cards()
+
+        card_id = input("\nEnter Card ID or last 4 digits: ").strip()
+        card = account.get_card_by_id(card_id) or account.get_card_by_number(card_id)
+
+        if not card:
+            print("Card not found")
+            return
+
+        print("\n" + "=" * 60)
+        print("CARD DETAILS")
+        print("=" * 60)
+        print(f"Card Type: {card.card_type}")
+        print(f"Card Network: {card.network}")
+        print(f"Card Number: **** **** **** {card.card_number[-4:]}")
+        print(
+            f"Full Card Number: {card.card_number}"
+        )  # Show full number (in real banking, never show this!)
+        print(f"CVV: {card.cvv}")  # Show CVV (in real banking, never show this!)
+        print(f"Card ID: {card.card_id}")
+        print(f"Expiry Date: {card.expiry_date.strftime('%m/%Y')}")
+        print(
+            f"Status: {'Blocked' if card.blocked else ('Expired' if card.is_expired() else 'Active')}"
+        )
+        print(f"Daily Limit: Rs. {card.daily_limit:,.2f} INR")
+
+        if isinstance(card, CreditCard):
+            print("\nCredit Card Specific Details:")
+            print(f"Credit Limit: Rs. {card.credit_limit:,.2f} INR")
+            print(f"Credit Used: Rs. {card.credit_used:,.2f} INR")
+            print(f"Available Credit: Rs. {card.available_credit():,.2f} INR")
+            print(f"Credit Utilization: {card.credit_utilization():.1f}%")
+            print(f"Billing Day: {card.billing_day} of each month")
+            print(f"Interest Rate: {card.interest_rate * 100:.1f}% per annum")
+            print(f"Reward Points: {card.reward_points:.0f}")
+
+            if card.outstanding_balance > 0:
+                print("\nBilling Information:")
+                print(f"Outstanding Balance: Rs. {card.outstanding_balance:,.2f} INR")
+                print(f"Minimum Due: Rs. {card.minimum_due:,.2f} INR")
+                if card.due_date:
+                    from BankClock import BankClock
+
+                    days_remaining = (card.due_date - BankClock.today()).days
+                    print(
+                        f"Due Date: {card.due_date.strftime('%d-%m-%Y')} ({days_remaining} days)"
+                    )
+
+        print("=" * 60)
+
+        # Card validation
+        is_valid = Card.validate_card_number(card.card_number)
+        detected_network = Card.get_card_network(card.card_number)
+        print(
+            f"\n✓ Card Number Validation: {'Valid' if is_valid else 'Invalid'} (Luhn Check)"
+        )
+        print(f"✓ Detected Network from Number: {detected_network}")
+        print("=" * 60)
 
 
 if __name__ == "__main__":

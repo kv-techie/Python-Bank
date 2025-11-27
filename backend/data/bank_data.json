@@ -644,6 +644,41 @@
       "grossSalary": 200000.0,
       "salaryDay": 5,
       "lastSalaryDate": null
-    }
+    },
+    "cards": [
+      {
+        "cardId": "CARD525814261",
+        "cardNumber": "4506213086699030",
+        "customerId": "CUST68944257",
+        "accountNumber": "562132892448",
+        "cardType": "DEBIT",
+        "network": "VISA",
+        "expiryDate": "2029-11-26",
+        "cvv": "579",
+        "blocked": false,
+        "dailyLimit": 50000.0
+      },
+      {
+        "cardId": "CARD454931800",
+        "cardNumber": "4506228357729985",
+        "customerId": "CUST68944257",
+        "accountNumber": "562132892448",
+        "cardType": "CREDIT",
+        "network": "VISA",
+        "expiryDate": "2029-11-26",
+        "cvv": "844",
+        "blocked": false,
+        "dailyLimit": 50000.0,
+        "creditLimit": 64800,
+        "creditUsed": 1500.0,
+        "billingDay": 5,
+        "lastBillDate": null,
+        "dueDate": null,
+        "outstandingBalance": 0.0,
+        "minimumDue": 0.0,
+        "interestRate": 0.18,
+        "rewardPoints": 15.0
+      }
+    ]
   }
 ]

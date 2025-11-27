@@ -591,6 +591,199 @@ class Account:
         print(f"{'TOTAL':<25} Rs. {total:>14.2f} {100.0:>11.1f}%")
         print("=" * 60)
 
+    # ========== CARD MANAGEMENT METHODS ==========
+
+    def add_card(self, card: Card):
+        """Add a card to this account"""
+        self.cards.append(card)
+        print(f"{card.card_type} card added successfully")
+        print(f"Card Number: {card.card_number[-4:].rjust(16, '*')}")
+        print(f"Expiry: {card.expiry_date.strftime('%m/%Y')}")
+        if isinstance(card, CreditCard):
+            print(f"Credit Limit: Rs. {card.credit_limit:,.2f} INR")
+
+    def get_card_by_id(self, card_id: str) -> Optional[Card]:
+        """Get card by card ID"""
+        for card in self.cards:
+            if card.card_id == card_id:
+                return card
+        return None
+
+    def get_card_by_number(self, card_number: str) -> Optional[Card]:
+        """Get card by card number (last 4 digits also works)"""
+        for card in self.cards:
+            if card.card_number == card_number or card.card_number.endswith(
+                card_number
+            ):
+                return card
+        return None
+
+    def list_cards(self):
+        """Display all cards linked to this account"""
+        if not self.cards:
+            print("No cards linked to this account")
+            return
+
+        print("\nLinked Cards")
+        print("=" * 95)
+        print(
+            f"{'Type':<10} {'Network':<12} {'Card Number':<20} {'Expiry':<12} {'Status':<10} {'Details':<25}"
+        )
+        print("=" * 95)
+
+        for card in self.cards:
+            card_num = "**** **** **** " + card.card_number[-4:]
+            expiry = card.expiry_date.strftime("%m/%Y")
+            status = (
+                "Blocked"
+                if card.blocked
+                else ("Expired" if card.is_expired() else "Active")
+            )
+            network = card.network  # Display the network (VISA/MASTERCARD/RUPAY)
+
+            details = ""
+            if isinstance(card, CreditCard):
+                details = f"Limit: Rs. {card.credit_limit:,.0f} | Used: Rs. {card.credit_used:,.0f}"
+
+            print(
+                f"{card.card_type:<10} {network:<12} {card_num:<20} {expiry:<12} {status:<10} {details:<25}"
+            )
+
+        print("=" * 95)
+
+    def block_card(self, card_id: str):
+        """Block a card"""
+        card = self.get_card_by_id(card_id)
+        if not card:
+            print("Card not found")
+            return
+
+        card.block()
+        print(f"Card ending in {card.card_number[-4:]} has been blocked")
+
+    def unblock_card(self, card_id: str):
+        """Unblock a card"""
+        card = self.get_card_by_id(card_id)
+        if not card:
+            print("Card not found")
+            return
+
+        card.unblock()
+        print(f"Card ending in {card.card_number[-4:]} has been unblocked")
+
+    def make_card_purchase(
+        self, card_id: str, amount: float, merchant: str, category: str = "Shopping"
+    ):
+        """Make a purchase using a card"""
+        card = self.get_card_by_id(card_id)
+        if not card:
+            print("Card not found")
+            return
+
+        if isinstance(card, DebitCard):
+            success, message, txn_id = card.make_purchase(
+                amount, self, merchant, category
+            )
+        elif isinstance(card, CreditCard):
+            success, message, txn_id = card.make_purchase(amount, merchant, category)
+        else:
+            print("Invalid card type")
+            return
+
+        if success:
+            print(f"✓ {message}")
+            print(f"Transaction ID: {txn_id}")
+            print(f"Amount: Rs. {amount:.2f} INR")
+            if isinstance(card, CreditCard):
+                print(f"Available Credit: Rs. {card.available_credit():.2f} INR")
+        else:
+            print(f"✗ Transaction failed: {message}")
+
+    def pay_credit_card_bill(self, card_id: str, amount: float):
+        """Pay credit card bill from account balance"""
+        card = self.get_card_by_id(card_id)
+        if not card:
+            print("Card not found")
+            return
+
+        if not isinstance(card, CreditCard):
+            print("This is not a credit card")
+            return
+
+        success, message, txn_id = card.pay_bill(amount, self)
+
+        if success:
+            print(f"✓ {message}")
+            print(f"Transaction ID: {txn_id}")
+        else:
+            print(f"✗ Payment failed: {message}")
+
+    def show_credit_card_statement(self, card_id: str):
+        """Display credit card statement"""
+        card = self.get_card_by_id(card_id)
+        if not card:
+            print("Card not found")
+            return
+
+        if not isinstance(card, CreditCard):
+            print("This is not a credit card")
+            return
+
+        print("\nCredit Card Statement")
+        print("=" * 60)
+        print(f"Card Number: **** **** **** {card.card_number[-4:]}")
+        print(f"Credit Limit: Rs. {card.credit_limit:,.2f} INR")
+        print(f"Credit Used: Rs. {card.credit_used:,.2f} INR")
+        print(f"Available Credit: Rs. {card.available_credit():,.2f} INR")
+        print(f"Credit Utilization: {card.credit_utilization():.1f}%")
+        print("=" * 60)
+
+        if card.outstanding_balance > 0:
+            print(f"\nOutstanding Balance: Rs. {card.outstanding_balance:,.2f} INR")
+            print(f"Minimum Due: Rs. {card.minimum_due:,.2f} INR")
+            if card.due_date:
+                days_remaining = (card.due_date - BankClock.today()).days
+                print(
+                    f"Due Date: {card.due_date.strftime('%d-%m-%Y')} ({days_remaining} days)"
+                )
+                if days_remaining < 0:
+                    print("⚠ PAYMENT OVERDUE!")
+        else:
+            print("\n✓ No outstanding balance")
+
+        print("=" * 60)
+
+    def process_credit_card_bills(self, today):
+        """Process credit card bill generation for all credit cards"""
+        for card in self.cards:
+            if isinstance(card, CreditCard) and card.check_bill_generation(today):
+                bill = card.generate_bill(today)
+                if bill["success"]:
+                    print(f"\n{'=' * 60}")
+                    print("CREDIT CARD BILL GENERATED")
+                    print(f"{'=' * 60}")
+                    print(f"Card: **** **** **** {card.card_number[-4:]}")
+                    print(f"Bill Date: {bill['billDate']}")
+                    print(f"Due Date: {bill['dueDate']}")
+                    print(f"Total Outstanding: Rs. {bill['totalOutstanding']:,.2f} INR")
+                    print(f"Minimum Due: Rs. {bill['minimumDue']:,.2f} INR")
+                    if bill["interestCharged"] > 0:
+                        print(
+                            f"Interest Charged: Rs. {bill['interestCharged']:,.2f} INR"
+                        )
+                    print(f"{'=' * 60}\n")
+
+                    # Log activity
+                    DataStore.append_activity(
+                        timestamp=BankClock.get_formatted_datetime(),
+                        username=self.username,
+                        account_number=self.account_number,
+                        action="CREDIT_CARD_BILL_GENERATED",
+                        amount=bill["totalOutstanding"],
+                        resulting_balance=None,
+                        metadata=f"cardId={card.card_id};dueDate={bill['dueDate']}",
+                    )
+
     # ========== STATIC METHODS AND UTILITIES ==========
 
     @staticmethod
@@ -737,6 +930,7 @@ Branch Code: {Account.ACCOUNT_NUMBER_PREFIX}"""
             "salaryProfile": self.salary_profile.to_dict()
             if self.salary_profile
             else None,
+            "cards": [c.to_dict() for c in self.cards],
         }
 
     @staticmethod
@@ -770,267 +964,10 @@ Branch Code: {Account.ACCOUNT_NUMBER_PREFIX}"""
         if data.get("salaryProfile"):
             acc.salary_profile = SalaryProfile.from_dict(data["salaryProfile"])
 
+        # Load cards
+        acc.cards = [Card.from_dict(c) for c in data.get("cards", [])]
+
         return acc
-
-
-def add_card(self, card: Card):
-    """Add a card to this account"""
-    self.cards.append(card)
-    print(f"{card.card_type} card added successfully")
-    print(f"Card Number: {card.card_number[-4:].rjust(16, '*')}")
-    print(f"Expiry: {card.expiry_date.strftime('%m/%Y')}")
-    if isinstance(card, CreditCard):
-        print(f"Credit Limit: Rs. {card.credit_limit:,.2f} INR")
-
-
-def get_card_by_id(self, card_id: str) -> Optional[Card]:
-    """Get card by card ID"""
-    for card in self.cards:
-        if card.card_id == card_id:
-            return card
-    return None
-
-
-def get_card_by_number(self, card_number: str) -> Optional[Card]:
-    """Get card by card number (last 4 digits also works)"""
-    for card in self.cards:
-        if card.card_number == card_number or card.card_number.endswith(card_number):
-            return card
-    return None
-
-
-def list_cards(self):
-    """Display all cards linked to this account"""
-    if not self.cards:
-        print("No cards linked to this account")
-        return
-
-    print("\nLinked Cards")
-    print("=" * 80)
-    print(
-        f"{'Type':<10} {'Card Number':<20} {'Expiry':<12} {'Status':<10} {'Details':<25}"
-    )
-    print("=" * 80)
-
-    for card in self.cards:
-        card_num = "**** **** **** " + card.card_number[-4:]
-        expiry = card.expiry_date.strftime("%m/%Y")
-        status = (
-            "Blocked"
-            if card.blocked
-            else ("Expired" if card.is_expired() else "Active")
-        )
-
-        details = ""
-        if isinstance(card, CreditCard):
-            details = f"Limit: Rs. {card.credit_limit:,.0f} | Used: Rs. {card.credit_used:,.0f}"
-
-        print(
-            f"{card.card_type:<10} {card_num:<20} {expiry:<12} {status:<10} {details:<25}"
-        )
-
-    print("=" * 80)
-
-
-def block_card(self, card_id: str):
-    """Block a card"""
-    card = self.get_card_by_id(card_id)
-    if not card:
-        print("Card not found")
-        return
-
-    card.block()
-    print(f"Card ending in {card.card_number[-4:]} has been blocked")
-
-
-def unblock_card(self, card_id: str):
-    """Unblock a card"""
-    card = self.get_card_by_id(card_id)
-    if not card:
-        print("Card not found")
-        return
-
-    card.unblock()
-    print(f"Card ending in {card.card_number[-4:]} has been unblocked")
-
-
-def make_card_purchase(
-    self, card_id: str, amount: float, merchant: str, category: str = "Shopping"
-):
-    """Make a purchase using a card"""
-    card = self.get_card_by_id(card_id)
-    if not card:
-        print("Card not found")
-        return
-
-    if isinstance(card, DebitCard):
-        success, message, txn_id = card.make_purchase(amount, self, merchant, category)
-    elif isinstance(card, CreditCard):
-        success, message, txn_id = card.make_purchase(amount, merchant, category)
-    else:
-        print("Invalid card type")
-        return
-
-    if success:
-        print(f"✓ {message}")
-        print(f"Transaction ID: {txn_id}")
-        print(f"Amount: Rs. {amount:.2f} INR")
-        if isinstance(card, CreditCard):
-            print(f"Available Credit: Rs. {card.available_credit():.2f} INR")
-    else:
-        print(f"✗ Transaction failed: {message}")
-
-
-def pay_credit_card_bill(self, card_id: str, amount: float):
-    """Pay credit card bill from account balance"""
-    card = self.get_card_by_id(card_id)
-    if not card:
-        print("Card not found")
-        return
-
-    if not isinstance(card, CreditCard):
-        print("This is not a credit card")
-        return
-
-    success, message, txn_id = card.pay_bill(amount, self)
-
-    if success:
-        print(f"✓ {message}")
-        print(f"Transaction ID: {txn_id}")
-    else:
-        print(f"✗ Payment failed: {message}")
-
-
-def show_credit_card_statement(self, card_id: str):
-    """Display credit card statement"""
-    card = self.get_card_by_id(card_id)
-    if not card:
-        print("Card not found")
-        return
-
-    if not isinstance(card, CreditCard):
-        print("This is not a credit card")
-        return
-
-    print("\nCredit Card Statement")
-    print("=" * 60)
-    print(f"Card Number: **** **** **** {card.card_number[-4:]}")
-    print(f"Credit Limit: Rs. {card.credit_limit:,.2f} INR")
-    print(f"Credit Used: Rs. {card.credit_used:,.2f} INR")
-    print(f"Available Credit: Rs. {card.available_credit():,.2f} INR")
-    print(f"Credit Utilization: {card.credit_utilization():.1f}%")
-    print("=" * 60)
-
-    if card.outstanding_balance > 0:
-        print(f"\nOutstanding Balance: Rs. {card.outstanding_balance:,.2f} INR")
-        print(f"Minimum Due: Rs. {card.minimum_due:,.2f} INR")
-        if card.due_date:
-            from BankClock import BankClock
-
-            days_remaining = (card.due_date - BankClock.today()).days
-            print(
-                f"Due Date: {card.due_date.strftime('%d-%m-%Y')} ({days_remaining} days)"
-            )
-            if days_remaining < 0:
-                print("⚠ PAYMENT OVERDUE!")
-    else:
-        print("\n✓ No outstanding balance")
-
-    print("=" * 60)
-
-
-def process_credit_card_bills(self, today):
-    """Process credit card bill generation for all credit cards"""
-    from DataStore import DataStore
-
-    for card in self.cards:
-        if isinstance(card, CreditCard) and card.check_bill_generation(today):
-            bill = card.generate_bill(today)
-            if bill["success"]:
-                print(f"\n{'=' * 60}")
-                print("CREDIT CARD BILL GENERATED")
-                print(f"{'=' * 60}")
-                print(f"Card: **** **** **** {card.card_number[-4:]}")
-                print(f"Bill Date: {bill['billDate']}")
-                print(f"Due Date: {bill['dueDate']}")
-                print(f"Total Outstanding: Rs. {bill['totalOutstanding']:,.2f} INR")
-                print(f"Minimum Due: Rs. {bill['minimumDue']:,.2f} INR")
-                if bill["interestCharged"] > 0:
-                    print(f"Interest Charged: Rs. {bill['interestCharged']:,.2f} INR")
-                print(f"{'=' * 60}\n")
-
-                # Log activity
-                DataStore.append_activity(
-                    timestamp=BankClock.get_formatted_datetime(),
-                    username=self.username,
-                    account_number=self.account_number,
-                    action="CREDIT_CARD_BILL_GENERATED",
-                    amount=bill["totalOutstanding"],
-                    resulting_balance=None,
-                    metadata=f"cardId={card.card_id};dueDate={bill['dueDate']}",
-                )
-
-
-# Update to_dict method to include cards
-def to_dict(self) -> dict:
-    """Convert account to dictionary for JSON serialization"""
-    return {
-        "customerId": self.customer_id,
-        "username": self.username,
-        "password": self.password,
-        "firstName": self.first_name,
-        "lastName": self.last_name,
-        "dob": self.dob,
-        "gender": self.gender,
-        "accountType": self.account_type,
-        "accountNumber": self.account_number,
-        "balance": self.balance,
-        "transactions": [t.to_dict() for t in self.transactions],
-        "failedAttempts": self.failed_attempts,
-        "locked": self.locked,
-        "pendingAmbFees": self.pending_amb_fees,
-        "recurringBills": [b.to_dict() for b in self.recurring_bills],
-        "salaryProfile": self.salary_profile.to_dict() if self.salary_profile else None,
-        "cards": [c.to_dict() for c in self.cards],  # Add this line
-    }
-
-
-# Update from_dict method to load cards
-@staticmethod
-def from_dict(data: dict) -> "Account":
-    """Create an Account instance from dictionary"""
-    transactions = [Transaction.from_dict(t) for t in data.get("transactions", [])]
-
-    acc = Account.from_storage(
-        customer_id=data["customerId"],
-        username=data["username"],
-        password=data["password"],
-        first_name=data["firstName"],
-        last_name=data["lastName"],
-        dob=data["dob"],
-        gender=data["gender"],
-        account_type=data["accountType"],
-        account_number=data["accountNumber"],
-        balance=data["balance"],
-        transactions=transactions,
-        failed_attempts=data.get("failedAttempts", 0),
-        locked=data.get("locked", False),
-        pending_amb_fees=data.get("pendingAmbFees", 0.0),
-    )
-
-    # Load recurring bills
-    acc.recurring_bills = [
-        RecurringBill.from_dict(b) for b in data.get("recurringBills", [])
-    ]
-
-    # Load salary profile
-    if data.get("salaryProfile"):
-        acc.salary_profile = SalaryProfile.from_dict(data["salaryProfile"])
-
-    # Load cards - Add this section
-    acc.cards = [Card.from_dict(c) for c in data.get("cards", [])]
-
-    return acc
 
 
 # Initialize used numbers on module load
