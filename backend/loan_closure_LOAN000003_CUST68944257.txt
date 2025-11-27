@@ -1,0 +1,64 @@
+================================================================================
+                    SCALA BANK - LOAN CLOSURE CERTIFICATE
+================================================================================
+
+Branch Details:
+IFSC Code: SCBA0005621
+Branch Name: Jakkasandra
+Branch Code: 5621
+
+--------------------------------------------------------------------------------
+CUSTOMER INFORMATION
+--------------------------------------------------------------------------------
+Customer Name          : Kedhar Vinod
+Customer ID            : CUST68944257
+Date of Birth          : 2005-12-11
+Contact Number         : 7019092390
+Email Address          : bblehh317@gmail.com
+
+--------------------------------------------------------------------------------
+LOAN DETAILS
+--------------------------------------------------------------------------------
+Loan ID                : LOAN000003
+Loan Account Number    : 562132892448
+Loan Sanction Date     : 27-11-2025
+Loan Closure Date      : 27-11-2025
+Loan Status            : Closed
+
+--------------------------------------------------------------------------------
+FINANCIAL DETAILS
+--------------------------------------------------------------------------------
+Principal Amount       : Rs.      100,000.00 INR
+Interest Rate          :            7.00% per annum
+Loan Tenure            :              12 months
+Monthly EMI            : Rs.        8,652.67 INR
+Total EMIs Paid        :              12 / 12
+
+Total Interest Paid    : Rs.        3,832.04 INR
+Total Amount Paid      : Rs.      103,832.04 INR
+                         (Principal + Interest)
+
+--------------------------------------------------------------------------------
+CLOSURE CONFIRMATION
+--------------------------------------------------------------------------------
+
+This is to certify that the above-mentioned loan has been fully repaid and
+closed. All outstanding dues, including principal and interest, have been
+settled in full. No further payments are due on this loan account.
+
+The customer, Kedhar Vinod, has no liability
+with respect to this loan (ID: LOAN000003) as of 27-11-2025.
+
+--------------------------------------------------------------------------------
+AUTHORIZATION
+--------------------------------------------------------------------------------
+
+Issued by              : Scala Bank, Jakkasandra Branch
+Certificate Date       : 27-11-2025
+Generated At           : 27-11-2025 23:06:55
+Reference Number       : CLOSURE/LOAN000003/20251127
+
+================================================================================
+               *** This is a system-generated certificate ***
+                    No signature required
+================================================================================

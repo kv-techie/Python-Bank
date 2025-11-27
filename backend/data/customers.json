@@ -24,5 +24,32 @@
     "kycCompleted": true,
     "hasSalaryAccount": false,
     "creditCards": []
+  },
+  {
+    "customerId": "CUST70257412",
+    "username": "tester",
+    "password": "tester",
+    "firstName": "User",
+    "lastName": "Name",
+    "dob": "2000-01-01",
+    "gender": "Male",
+    "phoneNumber": "9876543210",
+    "email": "user@username.com",
+    "accountNumbers": [
+      "562172236658",
+      "562187377732"
+    ],
+    "failedAttempts": 0,
+    "locked": false,
+    "cibilScore": null,
+    "salary": null,
+    "employerName": null,
+    "employerType": null,
+    "jobStartDate": null,
+    "employerCategory": null,
+    "city": null,
+    "kycCompleted": false,
+    "hasSalaryAccount": false,
+    "creditCards": []
   }
 ]

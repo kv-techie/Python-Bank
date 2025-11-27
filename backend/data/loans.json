@@ -22,5 +22,17 @@
     "emis_paid": 24,
     "approval_reason": "Approved",
     "closure_date": null
+  },
+  {
+    "loan_id": "LOAN000003",
+    "customer_id": "CUST68944257",
+    "principal": 100000.0,
+    "interest_rate": 7.0,
+    "tenure_months": 12,
+    "start_date": "2025-11-27",
+    "status": "Closed",
+    "emis_paid": 12,
+    "approval_reason": "Excellent credit profile - Loan approved at best rate",
+    "closure_date": "2025-11-27"
   }
 ]

@@ -9,7 +9,7 @@
     "gender": "Male",
     "accountType": "Pride",
     "accountNumber": "562132892448",
-    "balance": 282282.56000000006,
+    "balance": 278550.52000000025,
     "transactions": [
       {
         "id": "FHIC8821645427",
@@ -648,6 +648,198 @@
         "metadata": {
           "cardId": "CARD454931800"
         }
+      },
+      {
+        "id": "FHIC2999868976",
+        "type": "DEPOSIT",
+        "amount": 5000.0,
+        "resultingBalance": 287282.56000000006,
+        "timestamp": "27-11-2025 22:45:05",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "FHIC3689298404",
+        "type": "WITHDRAW",
+        "amount": 5000.0,
+        "resultingBalance": 282282.56000000006,
+        "timestamp": "27-11-2025 22:45:05",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "FHIC6928995318",
+        "type": "NEFT_RECEIVED",
+        "amount": 100.0,
+        "resultingBalance": 282382.56000000006,
+        "timestamp": "27-11-2025 22:46:54",
+        "chequeId": "CHQ2681172752",
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "TXN17642645890056",
+        "type": "LOAN_CREDIT",
+        "amount": 100000.0,
+        "resultingBalance": 382382.56000000006,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;principal=100000.00;tenure=12months;rate=7.0%"
+      },
+      {
+        "id": "EMILOAN00000301",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 373729.8900000001,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=1"
+      },
+      {
+        "id": "EMILOAN00000302",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 365077.2200000001,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=2"
+      },
+      {
+        "id": "EMILOAN00000303",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 356424.5500000001,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=3"
+      },
+      {
+        "id": "EMILOAN00000304",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 347771.8800000001,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=4"
+      },
+      {
+        "id": "EMILOAN00000305",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 339119.21000000014,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=5"
+      },
+      {
+        "id": "EMILOAN00000306",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 330466.54000000015,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=6"
+      },
+      {
+        "id": "EMILOAN00000307",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 321813.87000000017,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=7"
+      },
+      {
+        "id": "EMILOAN00000308",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 313161.2000000002,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=8"
+      },
+      {
+        "id": "EMILOAN00000309",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 304508.5300000002,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=9"
+      },
+      {
+        "id": "EMILOAN00000310",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 295855.8600000002,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=10"
+      },
+      {
+        "id": "EMILOAN00000311",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 287203.19000000024,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=11"
+      },
+      {
+        "id": "EMILOAN00000312",
+        "type": "LOAN_EMI",
+        "amount": 8652.67,
+        "resultingBalance": 278550.52000000025,
+        "timestamp": "27-11-2025 22:59:28",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "loan_id=LOAN000003;emi_no=12"
       }
     ],
     "failedAttempts": 0,
@@ -694,5 +886,92 @@
         "rewardPoints": 15.0
       }
     ]
+  },
+  {
+    "customerId": "CUST70257412",
+    "username": "tester",
+    "password": "tester",
+    "firstName": "User",
+    "lastName": "Name",
+    "dob": "2000-01-01",
+    "gender": "Male",
+    "accountType": "Delite",
+    "accountNumber": "562172236658",
+    "balance": 4600.0,
+    "transactions": [
+      {
+        "id": "FHIC7161004265",
+        "type": "DEPOSIT",
+        "amount": 5500.0,
+        "resultingBalance": 5500.0,
+        "timestamp": "27-11-2025 22:46:54",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "FHIC6451699773",
+        "type": "WITHDRAW",
+        "amount": 500.0,
+        "resultingBalance": 5000.0,
+        "timestamp": "27-11-2025 22:46:54",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "FHIC0980893087",
+        "type": "NEFT_SENT",
+        "amount": 100.0,
+        "resultingBalance": 4900.0,
+        "timestamp": "27-11-2025 22:46:54",
+        "chequeId": "CHQ2681172752",
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "FHIC8988255139",
+        "type": "AMB_FEE",
+        "amount": 300.0,
+        "resultingBalance": 4600.0,
+        "timestamp": "27-11-2025 22:46:54",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      }
+    ],
+    "failedAttempts": 0,
+    "locked": false,
+    "pendingAmbFees": 0.0,
+    "recurringBills": [],
+    "salaryProfile": null,
+    "cards": []
+  },
+  {
+    "customerId": "CUST70257412",
+    "username": "tester",
+    "password": "tester",
+    "firstName": "User",
+    "lastName": "Name",
+    "dob": "2000-01-01",
+    "gender": "Male",
+    "accountType": "Pride",
+    "accountNumber": "562187377732",
+    "balance": 0.0,
+    "transactions": [],
+    "failedAttempts": 0,
+    "locked": false,
+    "pendingAmbFees": 0.0,
+    "recurringBills": [],
+    "salaryProfile": null,
+    "cards": []
   }
 ]

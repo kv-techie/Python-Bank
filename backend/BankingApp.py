@@ -596,6 +596,7 @@ Loan Menu:
 2  View My Loans
 3  Pay Loan EMI
 4  CIBIL Score Report
+5  Generate Loan Closure Certificate                  
 5  Back to Account Menu
             """)
             choice = self.read_valid_choice("Enter choice: ", ["1", "2", "3", "4", "5"])
@@ -608,6 +609,8 @@ Loan Menu:
             elif choice == "4":
                 self.view_cibil_report(customer)
             elif choice == "5":
+                self.generate_loan_closure_certificate(customer, account)
+            elif choice == "6":
                 break
 
     def apply_for_loan(self, customer: Customer, account: Account):
@@ -1370,6 +1373,226 @@ Choose an option:
 
         # Save updated score
         self.bank.save()
+
+    def generate_loan_closure_certificate(self, customer: Customer, account: Account):
+        """Generate loan closure certificate for closed loans"""
+        loans = self.bank.get_loans_for_customer(customer.customer_id)
+        closed_loans = [loan for loan in loans if loan.status == "Closed"]
+
+        if not closed_loans:
+            print(
+                "\n❌ No closed loans found. You can only generate certificates for fully repaid loans."
+            )
+            return
+
+        print("\n=== Your Closed Loans ===")
+        for idx, loan in enumerate(closed_loans, 1):
+            closure_date = getattr(loan, "closure_date", "Not recorded")
+            if closure_date != "Not recorded" and hasattr(closure_date, "strftime"):
+                closure_date = closure_date.strftime("%d-%m-%Y")
+            print(
+                f"{idx}. Loan ID: {loan.loan_id} | Principal: Rs. {loan.principal:,.2f} | Closed: {closure_date}"
+            )
+
+        choice = self.read_valid_choice(
+            f"\nSelect loan number (1-{len(closed_loans)}): ",
+            [str(i) for i in range(1, len(closed_loans) + 1)],
+        )
+
+        selected_loan = closed_loans[int(choice) - 1]
+
+        # Calculate total amount paid
+        total_emi_payments = selected_loan.tenure_months * selected_loan.calculate_emi()
+        total_interest = total_emi_payments - selected_loan.principal
+
+        # Format dates
+        start_date = getattr(selected_loan, "start_date", "Not available")
+        if start_date != "Not available" and hasattr(start_date, "strftime"):
+            start_date_str = start_date.strftime("%d-%m-%Y")
+        else:
+            start_date_str = "Not available"
+
+        closure_date = getattr(selected_loan, "closure_date", "Not recorded")
+        if closure_date != "Not recorded" and hasattr(closure_date, "strftime"):
+            closure_date_str = closure_date.strftime("%d-%m-%Y")
+        else:
+            closure_date_str = "Not recorded"
+
+        # Generate certificate
+        print("\n")
+        print("=" * 80)
+        print(" " * 20 + "SCALA BANK - LOAN CLOSURE CERTIFICATE")
+        print("=" * 80)
+        print(f"\n{Account.get_branch_details()}")
+        print("\n" + "-" * 80)
+        print("CUSTOMER INFORMATION")
+        print("-" * 80)
+        print(f"Customer Name          : {customer.first_name} {customer.last_name}")
+        print(f"Customer ID            : {customer.customer_id}")
+        print(f"Date of Birth          : {customer.dob}")
+        print(f"Contact Number         : {customer.phone_number}")
+        print(f"Email Address          : {customer.email}")
+
+        print("\n" + "-" * 80)
+        print("LOAN DETAILS")
+        print("-" * 80)
+        print(f"Loan ID                : {selected_loan.loan_id}")
+        print(f"Loan Account Number    : {account.account_number}")
+        print(f"Loan Sanction Date     : {start_date_str}")
+        print(f"Loan Closure Date      : {closure_date_str}")
+        print(f"Loan Status            : {selected_loan.status}")
+
+        print("\n" + "-" * 80)
+        print("FINANCIAL DETAILS")
+        print("-" * 80)
+        print(f"Principal Amount       : Rs. {selected_loan.principal:>15,.2f} INR")
+        print(
+            f"Interest Rate          : {selected_loan.interest_rate:>15.2f}% per annum"
+        )
+        print(f"Loan Tenure            : {selected_loan.tenure_months:>15} months")
+        print(
+            f"Monthly EMI            : Rs. {selected_loan.calculate_emi():>15,.2f} INR"
+        )
+        print(
+            f"Total EMIs Paid        : {selected_loan.tenure_months:>15} / {selected_loan.tenure_months}"
+        )
+        print(f"\nTotal Interest Paid    : Rs. {total_interest:>15,.2f} INR")
+        print(f"Total Amount Paid      : Rs. {total_emi_payments:>15,.2f} INR")
+        print("                         (Principal + Interest)")
+
+        print("\n" + "-" * 80)
+        print("CLOSURE CONFIRMATION")
+        print("-" * 80)
+        print(
+            "\nThis is to certify that the above-mentioned loan has been fully repaid and"
+        )
+        print(
+            "closed. All outstanding dues, including principal and interest, have been"
+        )
+        print("settled in full. No further payments are due on this loan account.")
+
+        print(
+            f"\nThe customer, {customer.first_name} {customer.last_name}, has no liability"
+        )
+        print(
+            f"with respect to this loan (ID: {selected_loan.loan_id}) as of {closure_date_str}."
+        )
+
+        print("\n" + "-" * 80)
+        print("AUTHORIZATION")
+        print("-" * 80)
+        print(f"\nIssued by              : Scala Bank, {Account.BRANCH_NAME} Branch")
+        print(f"Certificate Date       : {BankClock.get_formatted_date()}")
+        print(f"Generated At           : {BankClock.get_formatted_datetime()}")
+        print(
+            f"Reference Number       : CLOSURE/{selected_loan.loan_id}/{BankClock.today().strftime('%Y%m%d')}"
+        )
+
+        print("\n" + "=" * 80)
+        print(" " * 15 + "*** This is a system-generated certificate ***")
+        print(" " * 20 + "No signature required")
+        print("=" * 80)
+        print("\n")
+
+        # Ask if user wants to save
+        save = (
+            input("Would you like to save this certificate? (yes/no): ").strip().lower()
+        )
+        if save in ["yes", "y"]:
+            filename = (
+                f"loan_closure_{selected_loan.loan_id}_{customer.customer_id}.txt"
+            )
+            try:
+                with open(filename, "w") as f:
+                    f.write("=" * 80 + "\n")
+                    f.write(" " * 20 + "SCALA BANK - LOAN CLOSURE CERTIFICATE\n")
+                    f.write("=" * 80 + "\n")
+                    f.write(f"\n{Account.get_branch_details()}\n")
+                    f.write("\n" + "-" * 80 + "\n")
+                    f.write("CUSTOMER INFORMATION\n")
+                    f.write("-" * 80 + "\n")
+                    f.write(
+                        f"Customer Name          : {customer.first_name} {customer.last_name}\n"
+                    )
+                    f.write(f"Customer ID            : {customer.customer_id}\n")
+                    f.write(f"Date of Birth          : {customer.dob}\n")
+                    f.write(f"Contact Number         : {customer.phone_number}\n")
+                    f.write(f"Email Address          : {customer.email}\n")
+                    f.write("\n" + "-" * 80 + "\n")
+                    f.write("LOAN DETAILS\n")
+                    f.write("-" * 80 + "\n")
+                    f.write(f"Loan ID                : {selected_loan.loan_id}\n")
+                    f.write(f"Loan Account Number    : {account.account_number}\n")
+                    f.write(f"Loan Sanction Date     : {start_date_str}\n")
+                    f.write(f"Loan Closure Date      : {closure_date_str}\n")
+                    f.write(f"Loan Status            : {selected_loan.status}\n")
+                    f.write("\n" + "-" * 80 + "\n")
+                    f.write("FINANCIAL DETAILS\n")
+                    f.write("-" * 80 + "\n")
+                    f.write(
+                        f"Principal Amount       : Rs. {selected_loan.principal:>15,.2f} INR\n"
+                    )
+                    f.write(
+                        f"Interest Rate          : {selected_loan.interest_rate:>15.2f}% per annum\n"
+                    )
+                    f.write(
+                        f"Loan Tenure            : {selected_loan.tenure_months:>15} months\n"
+                    )
+                    f.write(
+                        f"Monthly EMI            : Rs. {selected_loan.calculate_emi():>15,.2f} INR\n"
+                    )
+                    f.write(
+                        f"Total EMIs Paid        : {selected_loan.tenure_months:>15} / {selected_loan.tenure_months}\n"
+                    )
+                    f.write(
+                        f"\nTotal Interest Paid    : Rs. {total_interest:>15,.2f} INR\n"
+                    )
+                    f.write(
+                        f"Total Amount Paid      : Rs. {total_emi_payments:>15,.2f} INR\n"
+                    )
+                    f.write("                         (Principal + Interest)\n")
+                    f.write("\n" + "-" * 80 + "\n")
+                    f.write("CLOSURE CONFIRMATION\n")
+                    f.write("-" * 80 + "\n")
+                    f.write(
+                        "\nThis is to certify that the above-mentioned loan has been fully repaid and\n"
+                    )
+                    f.write(
+                        "closed. All outstanding dues, including principal and interest, have been\n"
+                    )
+                    f.write(
+                        "settled in full. No further payments are due on this loan account.\n"
+                    )
+                    f.write(
+                        f"\nThe customer, {customer.first_name} {customer.last_name}, has no liability\n"
+                    )
+                    f.write(
+                        f"with respect to this loan (ID: {selected_loan.loan_id}) as of {closure_date_str}.\n"
+                    )
+                    f.write("\n" + "-" * 80 + "\n")
+                    f.write("AUTHORIZATION\n")
+                    f.write("-" * 80 + "\n")
+                    f.write(
+                        f"\nIssued by              : Scala Bank, {Account.BRANCH_NAME} Branch\n"
+                    )
+                    f.write(
+                        f"Certificate Date       : {BankClock.get_formatted_date()}\n"
+                    )
+                    f.write(
+                        f"Generated At           : {BankClock.get_formatted_datetime()}\n"
+                    )
+                    f.write(
+                        f"Reference Number       : CLOSURE/{selected_loan.loan_id}/{BankClock.today().strftime('%Y%m%d')}\n"
+                    )
+                    f.write("\n" + "=" * 80 + "\n")
+                    f.write(
+                        " " * 15 + "*** This is a system-generated certificate ***\n"
+                    )
+                    f.write(" " * 20 + "No signature required\n")
+                    f.write("=" * 80 + "\n")
+                print(f"\n✓ Certificate saved as: {filename}")
+            except Exception as e:
+                print(f"\n❌ Error saving certificate: {e}")
 
     def view_card_details(self, account: Account):
         """View detailed information about a specific card"""
