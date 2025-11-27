@@ -2,23 +2,23 @@ from typing import List, Optional, Tuple
 
 from Account import Account
 from BankClock import BankClock
-from CreditEvaluator import assign_credit_card_limit
+from Card import CreditCard, DebitCard
+from CreditEvaluator import CreditEvaluator
 from Customer import Customer
 from DataStore import DataStore
-from loan import Loan  # Import Loan class
-
-# EXTENSION: Optional if using LoanEvaluator in your CLI
+from loan import Loan
 from LoanEvaluator import LoanEvaluator
 from Transaction import Transaction
 
 
 class Bank:
-    """Bank class for managing customers, accounts, and loans"""
+    """Bank class for managing customers, accounts, loans, and cards"""
 
     def __init__(self):
         self.accounts: List[Account] = DataStore.load_accounts()
         self.customers: List[Customer] = DataStore.load_customers()
         self.loans: List[Loan] = DataStore.load_loans()
+        self.credit_cards: List[CreditCard] = []  # Initialize credit cards list
 
     def save(self):
         """Save all accounts, customers, and loans to persistent storage"""
@@ -26,7 +26,11 @@ class Bank:
         DataStore.save_customers(self.customers)
         DataStore.save_loans(self.loans)
 
-    # ... Existing authentication, registration, account, and transaction methods ...
+    def save_data(self):
+        """Alias for save() method for compatibility"""
+        self.save()
+
+    # ========== AUTHENTICATION AND REGISTRATION ==========
 
     def authenticate(self, username: str, password: str) -> Optional[Customer]:
         for customer in self.customers:
@@ -97,6 +101,8 @@ class Bank:
         self.save()
         return account
 
+    # ========== CUSTOMER MANAGEMENT ==========
+
     def get_customer(self, username: str) -> Optional[Customer]:
         for customer in self.customers:
             if customer.username == username:
@@ -118,19 +124,12 @@ class Bank:
                 customer_accounts.append(account)
         return customer_accounts
 
+    # ========== ACCOUNT MANAGEMENT ==========
+
     def get_account(self, account_number: str) -> Optional[Account]:
         for account in self.accounts:
             if account.account_number == account_number:
                 return account
-        return None
-
-    def search_transaction_by_id(
-        self, txn_id: str
-    ) -> Optional[Tuple[Account, Transaction]]:
-        for account in self.accounts:
-            for transaction in account.transactions:
-                if transaction.id == txn_id:
-                    return (account, transaction)
         return None
 
     def find_account_by_number(self, account_number: str) -> Optional[Account]:
@@ -142,6 +141,17 @@ class Bank:
             and acc1.customer_id
             and acc1.customer_id != ""
         )
+
+    # ========== TRANSACTION MANAGEMENT ==========
+
+    def search_transaction_by_id(
+        self, txn_id: str
+    ) -> Optional[Tuple[Account, Transaction]]:
+        for account in self.accounts:
+            for transaction in account.transactions:
+                if transaction.id == txn_id:
+                    return (account, transaction)
+        return None
 
     def search_transaction_by_cheque_id(
         self, cheque_id: str
@@ -202,8 +212,6 @@ class Bank:
 
     # ========== LOAN MANAGEMENT ==========
 
-    # ========== LOAN MANAGEMENT ==========
-
     def add_loan(self, loan: Loan):
         """Add a new loan to the bank and persist."""
         self.loans.append(loan)
@@ -234,12 +242,10 @@ class Bank:
 
         if loan.emis_paid >= loan.tenure_months:
             loan.status = "Closed"
-            loan.closure_date = BankClock.today()  # Add closure date
+            loan.closure_date = BankClock.today()
             print("Loan fully repaid and closed.")
 
         # Log transaction
-        from BankClock import BankClock
-
         ts = BankClock.get_formatted_datetime()
         txn_id = f"EMI{loan.loan_id}{loan.emis_paid:02d}"
         txn = Transaction(
@@ -300,8 +306,6 @@ class Bank:
                 print(f"Notes: {loan.approval_reason}")
             print("")
 
-    # ========== LOAN APPLICATION (EVALUATOR/APPROVAL WRAPPER) ==========
-
     def evaluate_and_add_loan(
         self,
         customer: Customer,
@@ -321,8 +325,6 @@ class Bank:
 
         from datetime import datetime
 
-        from BankClock import BankClock
-
         loan_id = f"LOAN{len(self.loans) + 1:06d}"
 
         loan = Loan(
@@ -336,12 +338,11 @@ class Bank:
             start_date=BankClock.today(),
         )
 
-        # Disburse to account - FIXED VERSION
+        # Disburse to account
         old_balance = account.balance
         account.balance += principal
 
-        # CREATE TRANSACTION RECORD FOR LOAN DISBURSEMENT
-        # Generate unique transaction ID using timestamp
+        # Create transaction record for loan disbursement
         timestamp_int = int(datetime.now().timestamp())
         txn_id = f"TXN{timestamp_int}{len(account.transactions):04d}"
 
@@ -370,86 +371,102 @@ class Bank:
 
         return True, loan, "Loan approved and credited"
 
-    def assign_credit_card_limit(customer, bank) -> float:
-        base_limit = 10000  # minimum limit
+    # ========== CREDIT CARD MANAGEMENT ==========
 
-        salary = customer.salary or 30000  # fallback if missing
-        cibil = customer.cibil_score or 650
-        loans = bank.get_loans_for_customer(customer.customer_id)
-        credit_cards = bank.get_credit_cards_for_customer(customer.customer_id)
+    def get_credit_cards_for_customer(self, customer_id: str) -> List[CreditCard]:
+        """Get all credit cards for a specific customer"""
+        all_cards = []
+        for account in self.accounts:
+            if account.customer_id == customer_id:
+                for card in account.cards:
+                    if isinstance(card, CreditCard):
+                        all_cards.append(card)
+        return all_cards
 
-        existing_emis = sum(
-            loan.calculate_emi() for loan in loans if loan.status == "Active"
-        )
-        existing_min_due = sum(
-            cc.credit_used * 0.05 for cc in credit_cards
-        )  # assuming 5% min due
-
-        dti = (existing_emis + existing_min_due) / salary if salary > 0 else 1.0
-
-        limit = base_limit + (salary * 0.2)  # 20% of monthly salary
-
-        if cibil < 550:
-            limit = base_limit
-        elif cibil < 650:
-            limit *= 0.6
-        elif cibil < 700:
-            limit *= 0.8
-        else:
-            limit *= 1.0
-
-        if dti > 0.5:
-            limit *= 0.5
-        elif dti > 0.4:
-            limit *= 0.75
-
-        emp_cat = customer.employer_category or "Pvt"
-        if emp_cat.lower() == "govt":
-            limit *= 1.3
-        elif emp_cat.lower() == "mnc":
-            limit *= 1.15
-
-        if getattr(customer, "has_salary_account", False):
-            limit *= 1.2
-
-        age = customer.calculate_age()
-        if age < 25:
-            limit *= 0.7
-        elif age > 60:
-            limit *= 0.8
-
-        RBI_MAX_LIMIT = 500000
-        limit = min(limit, RBI_MAX_LIMIT)
-        limit = round(limit / 100) * 100
-
-        return max(limit, base_limit)
-
-    # Update issue_credit_card method
+    def issue_debit_card(self, customer: Customer, account: Account) -> DebitCard:
+        """Issue a new debit card for an account"""
+        debit_card = DebitCard(customer.customer_id, account.account_number)
+        account.add_card(debit_card)
+        self.save()
+        return debit_card
 
     def issue_credit_card(
         self, customer: Customer, account: Account, credit_limit: float = None
-    ):
+    ) -> CreditCard:
+        """Issue a new credit card for an account"""
         if credit_limit is None:
-            credit_limit = assign_credit_card_limit(customer, self)
+            # Calculate credit limit using CreditEvaluator
+            from datetime import datetime
 
-        card = CreditCard(customer.customer_id, account.account_number, credit_limit)
+            dob = datetime.strptime(customer.dob, "%Y-%m-%d")
+            age = (datetime.now() - dob).days // 365
 
-        self.credit_cards.append(card)
+            if hasattr(customer, "salary") and customer.salary:
+                annual_income = customer.salary * 12
+            else:
+                annual_income = 180000  # Default minimum
+
+            cibil_score = getattr(customer, "cibil_score", 650)
+
+            credit_limit = CreditEvaluator.calculate_credit_limit(
+                cibil_score=cibil_score,
+                annual_income=annual_income,
+                age=age,
+                existing_debt=0.0,
+                employer_category=getattr(customer, "employer_category", "pvt"),
+                has_salary_account=getattr(customer, "has_salary_account", False),
+            )
+
+        credit_card = CreditCard(
+            customer.customer_id, account.account_number, credit_limit
+        )
+        account.add_card(credit_card)
 
         # Link card info under customer for utilization tracking
         if not hasattr(customer, "credit_cards"):
             customer.credit_cards = []
-        customer.credit_cards.append(card)
+        customer.credit_cards.append(
+            {
+                "card_id": credit_card.card_id,
+                "limit": credit_limit,
+                "used": 0.0,
+                "opened": BankClock.today(),
+            }
+        )
 
         self.save()
         print(
-            f"Credit card issued with limit: Rs. {credit_limit:,}, Number: {card.card_number}"
+            f"Credit card issued with limit: Rs. {credit_limit:,}, Number: {credit_card.card_number}"
         )
+        return credit_card
 
-        return card
+    # ========== DAILY AUTOMATED TASKS ==========
 
-    def get_credit_cards_for_customer(self, customer_id: str):
-        return [card for card in self.credit_cards if card.customer_id == customer_id]
+    def process_daily_tasks(self):
+        """Process all daily automated tasks"""
+        today = BankClock.today()
+
+        print(f"\n{'=' * 60}")
+        print(f"Processing Daily Tasks for {today.strftime('%d-%m-%Y')}")
+        print(f"{'=' * 60}\n")
+
+        for account in self.accounts:
+            # Process recurring bills
+            bills_processed = account.process_recurring_bills(today, self)
+
+            # Process salary credits
+            if account.salary_profile and account.salary_profile.should_credit_today(
+                today
+            ):
+                account.salary_profile.credit_salary(account)
+
+            # Process credit card bills
+            account.process_credit_card_bills(today)
+
+        self.save()
+        print(f"\n{'=' * 60}")
+        print("Daily tasks completed")
+        print(f"{'=' * 60}\n")
 
 
-# End of class
+# End of Bank class

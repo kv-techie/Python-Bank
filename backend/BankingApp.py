@@ -4,8 +4,9 @@ from typing import List
 from Account import Account
 from Bank import Bank
 from BankClock import BankClock
+from Card import CreditCard, DebitCard
 from CIBIL import add_credit_inquiry, calculate_cibil_score
-from CreditEvaluator import assign_credit_card_limit
+from CreditEvaluator import CreditEvaluator
 from Customer import Customer
 from ExpenseSimulator import ExpenseSimulator
 from RecurringBill import RecurringBill
@@ -248,13 +249,14 @@ Choose an option:
 11  Simulate Time (Fast Forward)
 12  View Expense Analysis
 13  Loan Menu
-14  Logout
+14  Card Management
+15  Logout
             """)
 
             menu_choice = self.read_valid_choice(
                 "Enter your choice: ",
-                [str(i) for i in range(1, 15)],
-                "Invalid choice. Please enter a number from 1 to 14.",
+                [str(i) for i in range(1, 16)],
+                "Invalid choice. Please enter a number from 1 to 15.",
             )
 
             if menu_choice == "1":
@@ -284,8 +286,268 @@ Choose an option:
             elif menu_choice == "13":
                 self.loan_menu(customer, selected_account)
             elif menu_choice == "14":
+                self.card_management_menu(selected_account)
+            elif menu_choice == "15":
                 print("Logged out successfully.")
                 active = False
+
+    # ========== CARD MANAGEMENT ==========
+
+    def card_management_menu(self, account: Account):
+        """Card management submenu"""
+        while True:
+            print("\n" + "=" * 50)
+            print("CARD MANAGEMENT")
+            print("=" * 50)
+            print("1. View All Cards")
+            print("2. Apply for Debit Card")
+            print("3. Apply for Credit Card")
+            print("4. Make Card Purchase")
+            print("5. Pay Credit Card Bill")
+            print("6. View Credit Card Statement")
+            print("7. Block Card")
+            print("8. Unblock Card")
+            print("9. Back to Main Menu")
+            print("=" * 50)
+
+            choice = input("Enter your choice: ").strip()
+
+            if choice == "1":
+                account.list_cards()
+
+            elif choice == "2":
+                self.apply_debit_card(account)
+
+            elif choice == "3":
+                self.apply_credit_card(account)
+
+            elif choice == "4":
+                self.make_card_purchase(account)
+
+            elif choice == "5":
+                self.pay_credit_card(account)
+
+            elif choice == "6":
+                self.view_credit_statement(account)
+
+            elif choice == "7":
+                self.block_card(account)
+
+            elif choice == "8":
+                self.unblock_card(account)
+
+            elif choice == "9":
+                break
+
+            else:
+                print("Invalid choice")
+
+    def apply_debit_card(self, account: Account):
+        """Apply for a new debit card"""
+        print("\n--- Apply for Debit Card ---")
+
+        # Check if already has debit card
+        for card in account.cards:
+            if isinstance(card, DebitCard):
+                print("You already have a debit card linked to this account")
+                return
+
+        confirm = input("Apply for debit card? (yes/no): ").strip().lower()
+        if confirm != "yes":
+            print("Application cancelled")
+            return
+
+        debit_card = DebitCard(account.customer_id, account.account_number)
+        account.add_card(debit_card)
+        self.bank.save()
+        print("\n✓ Debit card issued successfully!")
+
+    def apply_credit_card(self, account: Account):
+        """Apply for a new credit card"""
+        from datetime import datetime
+
+        print("\n--- Apply for Credit Card ---")
+
+        # Check if already has credit card
+        for card in account.cards:
+            if isinstance(card, CreditCard):
+                print("You already have a credit card linked to this account")
+                return
+
+        # Check eligibility
+        if not account.salary_profile:
+            print(
+                "✗ Credit card requires a salary profile. Please set up salary first."
+            )
+            return
+
+        # Calculate age
+        dob = datetime.strptime(account.dob, "%Y-%m-%d")
+        age = (datetime.now() - dob).days // 365
+
+        # Get CIBIL score
+        cibil_score = calculate_cibil_score(
+            None, self.bank
+        )  # Pass None or appropriate customer object
+        annual_income = account.salary_profile.gross_salary * 12
+
+        eligible, reason = CreditEvaluator.is_eligible_for_credit_card(
+            cibil_score, annual_income, age
+        )
+
+        if not eligible:
+            print(f"✗ Not eligible for credit card: {reason}")
+            return
+
+        print(f"✓ {reason}")
+        print(f"CIBIL Score: {cibil_score:.0f}")
+        print(f"Annual Income: Rs. {annual_income:,.2f} INR")
+
+        # Calculate credit limit
+        credit_limit = CreditEvaluator.calculate_credit_limit(
+            cibil_score=cibil_score, annual_income=annual_income, age=age
+        )
+        print(f"\nApproved Credit Limit: Rs. {credit_limit:,.2f} INR")
+
+        confirm = (
+            input("\nProceed with credit card application? (yes/no): ").strip().lower()
+        )
+        if confirm != "yes":
+            print("Application cancelled")
+            return
+
+        # Get billing day preference
+        while True:
+            billing_day = input("Preferred billing day (1-28): ").strip()
+            try:
+                billing_day = int(billing_day)
+                if 1 <= billing_day <= 28:
+                    break
+                else:
+                    print("Billing day must be between 1 and 28")
+            except ValueError:
+                print("Invalid input")
+
+        credit_card = CreditCard(
+            account.customer_id, account.account_number, credit_limit, billing_day
+        )
+        account.add_card(credit_card)
+        self.bank.save()
+        print("\n✓ Credit card issued successfully!")
+        print(f"Billing Day: {billing_day} of each month")
+
+    def make_card_purchase(self, account: Account):
+        """Make a purchase using a card"""
+        if not account.cards:
+            print("No cards available")
+            return
+
+        print("\n--- Make Card Purchase ---")
+        account.list_cards()
+
+        card_id = input("\nEnter Card ID or last 4 digits: ").strip()
+        card = account.get_card_by_id(card_id) or account.get_card_by_number(card_id)
+
+        if not card:
+            print("Card not found")
+            return
+
+        try:
+            amount = float(input("Enter amount: ").strip())
+            merchant = input("Merchant name: ").strip()
+            category = (
+                input(
+                    "Category (Shopping/Dining/Travel/Entertainment/Bills/Other): "
+                ).strip()
+                or "Shopping"
+            )
+
+            account.make_card_purchase(card.card_id, amount, merchant, category)
+            self.bank.save()
+
+        except ValueError:
+            print("Invalid amount")
+
+    def pay_credit_card(self, account: Account):
+        """Pay credit card bill"""
+        credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
+
+        if not credit_cards:
+            print("No credit cards available")
+            return
+
+        print("\n--- Pay Credit Card Bill ---")
+
+        for card in credit_cards:
+            print(f"\nCard: **** **** **** {card.card_number[-4:]}")
+            print(f"Outstanding: Rs. {card.credit_used:,.2f} INR")
+            if card.outstanding_balance > 0:
+                print(f"Bill Amount: Rs. {card.outstanding_balance:,.2f} INR")
+                print(f"Minimum Due: Rs. {card.minimum_due:,.2f} INR")
+
+        card_id = input("\nEnter Card ID or last 4 digits: ").strip()
+        card = account.get_card_by_id(card_id) or account.get_card_by_number(card_id)
+
+        if not card or not isinstance(card, CreditCard):
+            print("Credit card not found")
+            return
+
+        print(f"\nAccount Balance: Rs. {account.balance:,.2f} INR")
+        print(f"Amount to Pay (Outstanding: Rs. {card.credit_used:,.2f} INR)")
+
+        try:
+            amount = float(input("Enter payment amount: ").strip())
+            account.pay_credit_card_bill(card.card_id, amount)
+            self.bank.save()
+
+        except ValueError:
+            print("Invalid amount")
+
+    def view_credit_statement(self, account: Account):
+        """View credit card statement"""
+        credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
+
+        if not credit_cards:
+            print("No credit cards available")
+            return
+
+        if len(credit_cards) == 1:
+            account.show_credit_card_statement(credit_cards[0].card_id)
+        else:
+            print("\n--- Select Credit Card ---")
+            for i, card in enumerate(credit_cards, 1):
+                print(f"{i}. **** **** **** {card.card_number[-4:]}")
+
+            try:
+                choice = int(input("Enter choice: ").strip())
+                if 1 <= choice <= len(credit_cards):
+                    account.show_credit_card_statement(credit_cards[choice - 1].card_id)
+                else:
+                    print("Invalid choice")
+            except ValueError:
+                print("Invalid input")
+
+    def block_card(self, account: Account):
+        """Block a card"""
+        if not account.cards:
+            print("No cards available")
+            return
+
+        account.list_cards()
+        card_id = input("\nEnter Card ID to block: ").strip()
+        account.block_card(card_id)
+        self.bank.save()
+
+    def unblock_card(self, account: Account):
+        """Unblock a card"""
+        if not account.cards:
+            print("No cards available")
+            return
+
+        account.list_cards()
+        card_id = input("\nEnter Card ID to unblock: ").strip()
+        account.unblock_card(card_id)
+        self.bank.save()
 
     # ========== LOAN MENU AND OPERATIONS ==========
 
@@ -799,14 +1061,14 @@ Choose an option:
 
     def view_cibil_report(self, customer: Customer):
         """View detailed CIBIL score report with history"""
-        from CIBIL import calculate_cibil_score
-
         print("\n" + "=" * 70)
         print("                    CIBIL SCORE REPORT")
         print("=" * 70)
+
         # Calculate current score
         current_score = calculate_cibil_score(customer, self.bank)
         customer.cibil_score = current_score
+
         # Determine rating
         if current_score >= 750:
             rating = "Excellent ⭐⭐⭐⭐⭐"
@@ -820,26 +1082,32 @@ Choose an option:
         else:
             rating = "Poor ⭐⭐"
             color = "🔴"
+
         print(f"\n{color} CIBIL Score: {current_score}/900")
         print(f"Rating: {rating}")
         print(f"Customer: {customer.first_name} {customer.last_name}")
         print(f"Customer ID: {customer.customer_id}")
         print(f"Report Generated: {BankClock.get_formatted_datetime()}")
+
         print("\n" + "-" * 70)
         print("SCORE BREAKDOWN")
         print("-" * 70)
+
         # Get loans for analysis
         loans = self.bank.get_loans_for_customer(customer.customer_id)
         today = BankClock.today()
+
         # 1. Repayment History Analysis
         print("\n📊 REPAYMENT HISTORY")
         total_emis = 0
         late_payments = 0
         on_time_payments = 0
+
         if loans:
             for loan in loans:
                 emis_paid = getattr(loan, "emis_paid", 0)
                 total_emis += loan.tenure_months
+
                 # Calculate expected EMIs based on loan start date
                 if hasattr(loan, "start_date"):
                     months_elapsed = (today.year - loan.start_date.year) * 12 + (
@@ -848,10 +1116,12 @@ Choose an option:
                     expected_emis = min(months_elapsed + 1, loan.tenure_months)
                 else:
                     expected_emis = loan.tenure_months
+
                 missed = max(0, expected_emis - emis_paid)
                 on_time = emis_paid
                 late_payments += missed
                 on_time_payments += on_time
+
             if late_payments == 0:
                 impact = "Excellent (+100 points)"
                 status = "✅ No late payments"
@@ -859,6 +1129,7 @@ Choose an option:
                 penalty = min(200, 50 * late_payments)
                 impact = f"Poor (-{penalty} points)"
                 status = f"❌ {late_payments} late payment(s)"
+
             print(f"  Status: {status}")
             print(f"  Total EMIs Paid: {on_time_payments}")
             print(f"  Late/Missed EMIs: {late_payments}")
@@ -866,19 +1137,23 @@ Choose an option:
         else:
             print("  Status: No loan history")
             print("  Impact: Neutral (Base score)")
+
         # 2. Credit Utilization
         print("\n💳 CREDIT UTILIZATION")
         credit_cards = getattr(customer, "credit_cards", [])
+
         if credit_cards:
             total_limit = sum(cc.get("limit", 0) for cc in credit_cards)
             total_used = sum(cc.get("used", 0) for cc in credit_cards)
             utilization = (total_used / total_limit * 100) if total_limit > 0 else 0
+
             if utilization < 30:
                 impact = "Excellent (+50 points)"
             elif utilization > 75:
                 impact = "Poor (-50 points)"
             else:
                 impact = "Moderate (0 points)"
+
             print(f"  Total Credit Limit: ₹{total_limit:,.2f}")
             print(f"  Total Used: ₹{total_used:,.2f}")
             print(f"  Utilization: {utilization:.1f}%")
@@ -886,38 +1161,45 @@ Choose an option:
         else:
             print("  Status: No credit cards")
             print("  Impact: Neutral")
+
         # 3. Credit Accounts
         print("\n📋 CREDIT ACCOUNTS")
         n_loans = len(loans)
         n_cards = len(credit_cards)
         total_accounts = n_loans + n_cards
+
         if total_accounts > 7:
             impact = "Too many accounts (-20 points)"
         elif 2 <= total_accounts <= 5:
             impact = "Optimal (+10 points)"
         else:
             impact = "Neutral"
+
         print(f"  Active Loans: {n_loans}")
         print(f"  Credit Cards: {n_cards}")
         print(f"  Total Accounts: {total_accounts}")
         print(f"  Impact: {impact}")
+
         # 4. Recent Hard Inquiries
         print("\n🔍 CREDIT INQUIRIES (Last 12 Months)")
         hard_inquiries = getattr(customer, "recent_hard_inquiries", [])
         recent_inquiries = [d for d in hard_inquiries if (today - d).days <= 365]
         n_recent = len(recent_inquiries)
+
         if n_recent > 3:
             impact = "Too many inquiries (-30 points)"
         elif n_recent > 0:
             impact = "Moderate impact"
         else:
             impact = "No recent inquiries"
+
         print(f"  Recent Inquiries: {n_recent}")
         if recent_inquiries:
             for idx, inquiry_date in enumerate(recent_inquiries[-5:], 1):
                 days_ago = (today - inquiry_date).days
                 print(f"    {idx}. {days_ago} days ago ({inquiry_date})")
         print(f"  Impact: {impact}")
+
         # 5. Credit Mix
         print("\n🎯 CREDIT MIX")
         account_types = set()
@@ -925,14 +1207,17 @@ Choose an option:
             account_types.add("Loan")
         if n_cards > 0:
             account_types.add("Credit Card")
+
         if len(account_types) > 1:
             impact = "Good mix (+30 points)"
         else:
             impact = "Limited variety"
+
         print(
             f"  Account Types: {', '.join(account_types) if account_types else 'None'}"
         )
         print(f"  Impact: {impact}")
+
         # 6. Credit History Age
         print("\n📅 CREDIT HISTORY AGE")
         account_dates = []
@@ -942,22 +1227,26 @@ Choose an option:
         for cc in credit_cards:
             if "opened" in cc:
                 account_dates.append(cc["opened"])
+
         if account_dates:
             oldest = min(account_dates)
             age_years = (today - oldest).days // 365
             age_months = ((today - oldest).days % 365) // 30
+
             if age_years >= 3:
                 impact = "Excellent (+20 points)"
             elif age_years >= 1:
                 impact = "Good"
             else:
                 impact = "New credit history"
+
             print(f"  Oldest Account: {age_years} years, {age_months} months")
             print(f"  Opened On: {oldest}")
             print(f"  Impact: {impact}")
         else:
             print("  Status: No credit history")
             print("  Impact: New to credit")
+
         # Loan History Details
         if loans:
             print("\n" + "-" * 70)
@@ -991,6 +1280,7 @@ Choose an option:
                         if emis_paid < expected_emis:
                             missed = expected_emis - emis_paid
                             print(f"   ⚠️  Overdue EMIs: {missed}")
+
         # Score Range Guide
         print("\n" + "-" * 70)
         print("SCORE RANGE GUIDE")
@@ -999,11 +1289,13 @@ Choose an option:
         print("  550-649: Average    - Moderate risk, limited options")
         print("  650-749: Good       - Low risk, favorable terms")
         print("  750-900: Excellent  - Best rates and quick approvals")
+
         # Recommendations
         print("\n" + "-" * 70)
         print("RECOMMENDATIONS TO IMPROVE YOUR SCORE")
         print("-" * 70)
         recommendations = []
+
         if late_payments > 0:
             recommendations.append("✓ Pay all pending EMIs on time")
         if credit_cards and utilization > 50:
@@ -1017,62 +1309,14 @@ Choose an option:
         if not recommendations:
             recommendations.append("✓ Maintain current excellent credit behavior")
             recommendations.append("✓ Continue making timely payments")
+
         for rec in recommendations:
             print(f"  {rec}")
+
         print("\n" + "=" * 70)
+
         # Save updated score
         self.bank.save()
-
-    def manage_cards_menu(self, customer: Customer, accounts: List[Account]):
-        print("""
-Card Management Menu:
-1  Issue Debit Card
-2  Issue Credit Card
-3  View My Cards
-4  Back to Main Menu
-""")
-        choice = self.read_valid_choice("Enter choice: ", ["1", "2", "3", "4"])
-        if choice == "1":
-            account = self.select_account(accounts)
-            card = self.bank.issue_debit_card(customer, account)
-            print(f"Debit card issued: {card.card_number} Expiry: {card.expiry_date}")
-        elif choice == "2":
-            account = self.select_account(accounts)
-            limit = self.read_positive_double("Enter credit limit amount: Rs. ")
-            card = self.bank.issue_credit_card(customer, account, limit)
-            print(f"Credit card issued: {card.card_number}, Limit: Rs. {limit}")
-        elif choice == "3":
-            debit_cards = self.bank.get_debit_cards_for_customer(customer.customer_id)
-            credit_cards = self.bank.get_credit_cards_for_customer(customer.customer_id)
-            print("Debit Cards:")
-            for card in debit_cards:
-                print(
-                    f"  Number: {card.card_number}, Expiry: {card.expiry_date}, Blocked: {card.blocked}"
-                )
-            print("Credit Cards:")
-            for card in credit_cards:
-                print(
-                    f"  Number: {card.card_number}, Expiry: {card.expiry_date}, Limit: {card.credit_limit}, Used: {card.credit_used}, Blocked: {card.blocked}"
-                )
-        elif choice == "4":
-            return
-
-    def issue_credit_card_cli(self, customer: Customer, accounts: List[Account]):
-        account = self.select_account(accounts)
-        credit_limit = assign_credit_card_limit(customer, self.bank)
-        print(f"Calculated credit card limit: Rs. {credit_limit:,}")
-        confirm = (
-            input("Proceed with issuing credit card with this limit? (y/n): ")
-            .strip()
-            .lower()
-        )
-        if confirm == "y":
-            card = self.bank.issue_credit_card(customer, account, credit_limit)
-            print(
-                f"Credit card issued with number: {card.card_number} and limit Rs. {card.credit_limit}"
-            )
-        else:
-            print("Credit card issuance canceled.")
 
 
 if __name__ == "__main__":
