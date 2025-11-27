@@ -224,12 +224,19 @@ Each operation prints the results + audit logs.
 ## 🔮 Future Enhancements
 
 Web interface (React)
+
 MongoDB migration
+
 ATM + cheque book simulation
+
 Investments (FD, MF, SIP)
+
 Multi-currency support
+
 PDF statements
+
 CI/CD & Docker
+
 AI-powered fraud detection
 
 
