@@ -21,6 +21,8 @@
     "jobStartDate": "2023-11-25",
     "employerCategory": "A",
     "city": "Mumbai",
-    "kycCompleted": true
+    "kycCompleted": true,
+    "hasSalaryAccount": false,
+    "creditCards": []
   }
 ]

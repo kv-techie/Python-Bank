@@ -5,6 +5,7 @@ from Account import Account
 from Bank import Bank
 from BankClock import BankClock
 from CIBIL import add_credit_inquiry, calculate_cibil_score
+from CreditEvaluator import assign_credit_card_limit
 from Customer import Customer
 from ExpenseSimulator import ExpenseSimulator
 from RecurringBill import RecurringBill
@@ -298,7 +299,7 @@ Loan Menu:
 4  CIBIL Score Report
 5  Back to Account Menu
             """)
-            choice = self.read_valid_choice("Enter choice: ", ["1", "2", "3", "4"])
+            choice = self.read_valid_choice("Enter choice: ", ["1", "2", "3", "4", "5"])
             if choice == "1":
                 self.apply_for_loan(customer, account)
             elif choice == "2":
@@ -1021,6 +1022,57 @@ Choose an option:
         print("\n" + "=" * 70)
         # Save updated score
         self.bank.save()
+
+    def manage_cards_menu(self, customer: Customer, accounts: List[Account]):
+        print("""
+Card Management Menu:
+1  Issue Debit Card
+2  Issue Credit Card
+3  View My Cards
+4  Back to Main Menu
+""")
+        choice = self.read_valid_choice("Enter choice: ", ["1", "2", "3", "4"])
+        if choice == "1":
+            account = self.select_account(accounts)
+            card = self.bank.issue_debit_card(customer, account)
+            print(f"Debit card issued: {card.card_number} Expiry: {card.expiry_date}")
+        elif choice == "2":
+            account = self.select_account(accounts)
+            limit = self.read_positive_double("Enter credit limit amount: Rs. ")
+            card = self.bank.issue_credit_card(customer, account, limit)
+            print(f"Credit card issued: {card.card_number}, Limit: Rs. {limit}")
+        elif choice == "3":
+            debit_cards = self.bank.get_debit_cards_for_customer(customer.customer_id)
+            credit_cards = self.bank.get_credit_cards_for_customer(customer.customer_id)
+            print("Debit Cards:")
+            for card in debit_cards:
+                print(
+                    f"  Number: {card.card_number}, Expiry: {card.expiry_date}, Blocked: {card.blocked}"
+                )
+            print("Credit Cards:")
+            for card in credit_cards:
+                print(
+                    f"  Number: {card.card_number}, Expiry: {card.expiry_date}, Limit: {card.credit_limit}, Used: {card.credit_used}, Blocked: {card.blocked}"
+                )
+        elif choice == "4":
+            return
+
+    def issue_credit_card_cli(self, customer: Customer, accounts: List[Account]):
+        account = self.select_account(accounts)
+        credit_limit = assign_credit_card_limit(customer, self.bank)
+        print(f"Calculated credit card limit: Rs. {credit_limit:,}")
+        confirm = (
+            input("Proceed with issuing credit card with this limit? (y/n): ")
+            .strip()
+            .lower()
+        )
+        if confirm == "y":
+            card = self.bank.issue_credit_card(customer, account, credit_limit)
+            print(
+                f"Credit card issued with number: {card.card_number} and limit Rs. {card.credit_limit}"
+            )
+        else:
+            print("Credit card issuance canceled.")
 
 
 if __name__ == "__main__":

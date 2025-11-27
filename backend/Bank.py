@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple
 
 from Account import Account
 from BankClock import BankClock
+from CreditEvaluator import assign_credit_card_limit
 from Customer import Customer
 from DataStore import DataStore
 from loan import Loan  # Import Loan class
@@ -368,6 +369,87 @@ class Bank:
         print(f"New Balance: ₹{account.balance:,.2f}")
 
         return True, loan, "Loan approved and credited"
+
+    def assign_credit_card_limit(customer, bank) -> float:
+        base_limit = 10000  # minimum limit
+
+        salary = customer.salary or 30000  # fallback if missing
+        cibil = customer.cibil_score or 650
+        loans = bank.get_loans_for_customer(customer.customer_id)
+        credit_cards = bank.get_credit_cards_for_customer(customer.customer_id)
+
+        existing_emis = sum(
+            loan.calculate_emi() for loan in loans if loan.status == "Active"
+        )
+        existing_min_due = sum(
+            cc.credit_used * 0.05 for cc in credit_cards
+        )  # assuming 5% min due
+
+        dti = (existing_emis + existing_min_due) / salary if salary > 0 else 1.0
+
+        limit = base_limit + (salary * 0.2)  # 20% of monthly salary
+
+        if cibil < 550:
+            limit = base_limit
+        elif cibil < 650:
+            limit *= 0.6
+        elif cibil < 700:
+            limit *= 0.8
+        else:
+            limit *= 1.0
+
+        if dti > 0.5:
+            limit *= 0.5
+        elif dti > 0.4:
+            limit *= 0.75
+
+        emp_cat = customer.employer_category or "Pvt"
+        if emp_cat.lower() == "govt":
+            limit *= 1.3
+        elif emp_cat.lower() == "mnc":
+            limit *= 1.15
+
+        if getattr(customer, "has_salary_account", False):
+            limit *= 1.2
+
+        age = customer.calculate_age()
+        if age < 25:
+            limit *= 0.7
+        elif age > 60:
+            limit *= 0.8
+
+        RBI_MAX_LIMIT = 500000
+        limit = min(limit, RBI_MAX_LIMIT)
+        limit = round(limit / 100) * 100
+
+        return max(limit, base_limit)
+
+    # Update issue_credit_card method
+
+    def issue_credit_card(
+        self, customer: Customer, account: Account, credit_limit: float = None
+    ):
+        if credit_limit is None:
+            credit_limit = assign_credit_card_limit(customer, self)
+
+        card = CreditCard(customer.customer_id, account.account_number, credit_limit)
+
+        self.credit_cards.append(card)
+
+        # Link card info under customer for utilization tracking
+        if not hasattr(customer, "credit_cards"):
+            customer.credit_cards = []
+        customer.credit_cards.append(card)
+
+        self.save()
+        print(
+            f"Credit card issued with limit: Rs. {credit_limit:,}, Number: {card.card_number}"
+        )
+
+        return card
+
+    def get_credit_cards_for_customer(self, customer_id: str):
+        return [card for card in self.credit_cards if card.customer_id == customer_id]
 
 
 # End of class
