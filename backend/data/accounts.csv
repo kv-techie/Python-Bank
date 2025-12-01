@@ -1,4 +1,4 @@
 username,password,firstName,lastName,dob,gender,accountType,accountNumber,balance,failedAttempts,locked
-kedvin,kedvin,Kedhar,Vinod,2005-12-11,Male,Pride,562132892448,278550.52000000025,0,False
-tester,tester,User,Name,2000-01-01,Male,Delite,562172236658,4600.0,0,False
+kedvin,kedvin,Kedhar,Vinod,2005-12-11,Male,Pride,562132892448,438308.28999999986,0,False
+tester,tester,User,Name,2000-01-01,Male,Delite,562172236658,4601.0,0,False
 tester,tester,User,Name,2000-01-01,Male,Pride,562187377732,0.0,0,False
