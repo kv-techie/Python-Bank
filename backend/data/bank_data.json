@@ -9,7 +9,7 @@
     "gender": "Male",
     "accountType": "Pride",
     "accountNumber": "562132892448",
-    "balance": 438308.28999999986,
+    "balance": 408007.28999999986,
     "transactions": [
       {
         "id": "FHIC8821645427",
@@ -1176,6 +1176,130 @@
         "merchant": "Cafe Coffee Day",
         "paymentMethod": "Net Banking",
         "metadata": null
+      },
+      {
+        "id": "FHIC0046961662",
+        "type": "DEPOSIT",
+        "amount": 50.0,
+        "resultingBalance": 433358.28999999986,
+        "timestamp": "01-12-2025 18:42:14",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "cardId=CARD525814261;cardNumber=9030;network=VISA"
+      },
+      {
+        "id": "FHIC8502666273",
+        "type": "WITHDRAW",
+        "amount": 50.0,
+        "resultingBalance": 433308.28999999986,
+        "timestamp": "01-12-2025 18:42:14",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "cardId=CARD525814261;cardNumber=9030;network=VISA"
+      },
+      {
+        "id": "FHIC4600012355",
+        "type": "INTER_ACCOUNT_SENT",
+        "amount": 10000.0,
+        "resultingBalance": 423308.28999999986,
+        "timestamp": "01-12-2025 18:44:19",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "requestedMode=INTER_ACCOUNT;routedMode=INTER_ACCOUNT"
+      },
+      {
+        "id": "FHIC3388887306",
+        "type": "INTER_ACCOUNT_RECEIVED",
+        "amount": 10000.0,
+        "resultingBalance": 10000.0,
+        "timestamp": "01-12-2025 18:44:19",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": ""
+      },
+      {
+        "id": "FHIC9795073087",
+        "type": "DEPOSIT",
+        "amount": 5000.0,
+        "resultingBalance": 15000.0,
+        "timestamp": "01-12-2025 21:07:42",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "cardId=CARD199364306;cardNumber=7092;network=MASTERCARD"
+      },
+      {
+        "id": "FHIC1688919643",
+        "type": "INTER_ACCOUNT_SENT",
+        "amount": 14700.0,
+        "resultingBalance": 300.0,
+        "timestamp": "01-12-2025 21:12:17",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": "requestedMode=INTER_ACCOUNT;routedMode=INTER_ACCOUNT"
+      },
+      {
+        "id": "FHIC8084364974",
+        "type": "INTER_ACCOUNT_RECEIVED",
+        "amount": 14700.0,
+        "resultingBalance": 438008.28999999986,
+        "timestamp": "01-12-2025 21:12:17",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": ""
+      },
+      {
+        "id": "FHIC7593361668",
+        "type": "NEFT_SENT",
+        "amount": 1.0,
+        "resultingBalance": 438007.28999999986,
+        "timestamp": "01-12-2025 21:20:33",
+        "chequeId": "CHQ1469815871",
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "FHIC8667885120",
+        "type": "CREDIT_CARD_PAYMENT",
+        "amount": 20000.0,
+        "resultingBalance": 418007.28999999986,
+        "timestamp": "01-12-2025 21:20:33",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": {
+          "cardId": "CARD454931800"
+        }
+      },
+      {
+        "id": "FHIC7254500509",
+        "type": "CREDIT_CARD_PAYMENT",
+        "amount": 10000.0,
+        "resultingBalance": 408007.28999999986,
+        "timestamp": "01-12-2025 21:20:33",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": {
+          "cardId": "CARD454931800"
+        }
       }
     ],
     "failedAttempts": 0,
@@ -1219,7 +1343,40 @@
         "outstandingBalance": 0.0,
         "minimumDue": 0.0,
         "interestRate": 0.18,
-        "rewardPoints": 15.0
+        "rewardPoints": 315.0
+      },
+      {
+        "cardId": "CARD489632888",
+        "cardNumber": "5506213851851334",
+        "customerId": "CUST68944257",
+        "accountNumber": "562132892448",
+        "cardType": "DEBIT",
+        "network": "MASTERCARD",
+        "expiryDate": "2029-11-30",
+        "cvv": "257",
+        "blocked": false,
+        "dailyLimit": 50000.0
+      },
+      {
+        "cardId": "CARD824327783",
+        "cardNumber": "6506228170972825",
+        "customerId": "CUST68944257",
+        "accountNumber": "562132892448",
+        "cardType": "CREDIT",
+        "network": "RUPAY",
+        "expiryDate": "2029-11-30",
+        "cvv": "890",
+        "blocked": false,
+        "dailyLimit": 50000.0,
+        "creditLimit": 64800,
+        "creditUsed": 0.0,
+        "billingDay": 1,
+        "lastBillDate": null,
+        "dueDate": null,
+        "outstandingBalance": 0.0,
+        "minimumDue": 0.0,
+        "interestRate": 0.18,
+        "rewardPoints": 0.0
       }
     ]
   },
@@ -1233,7 +1390,7 @@
     "gender": "Male",
     "accountType": "Delite",
     "accountNumber": "562172236658",
-    "balance": 4601.0,
+    "balance": 4602.0,
     "transactions": [
       {
         "id": "FHIC7161004265",
@@ -1290,6 +1447,18 @@
         "resultingBalance": 4601.0,
         "timestamp": "28-11-2025 23:25:09",
         "chequeId": "CHQ8281381025",
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "FHIC8418139806",
+        "type": "NEFT_RECEIVED",
+        "amount": 1.0,
+        "resultingBalance": 4602.0,
+        "timestamp": "01-12-2025 21:20:33",
+        "chequeId": "CHQ1469815871",
         "category": null,
         "merchant": null,
         "paymentMethod": null,

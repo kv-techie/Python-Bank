@@ -6,6 +6,7 @@ from Bank import Bank
 from BankClock import BankClock
 from Card import Card, CreditCard, DebitCard
 from CIBIL import add_credit_inquiry, calculate_cibil_score
+from ClosureFormalities import ClosureFormalities
 from CreditEvaluator import CreditEvaluator
 from Customer import Customer
 from ExpenseSimulator import ExpenseSimulator
@@ -250,13 +251,14 @@ Choose an option:
 12  View Expense Analysis
 13  Loan Menu
 14  Card Management
-15  Logout
-            """)
-
+15  Close Card
+16  Close Account
+17  Logout
+        """)
             menu_choice = self.read_valid_choice(
                 "Enter your choice: ",
-                [str(i) for i in range(1, 16)],
-                "Invalid choice. Please enter a number from 1 to 15.",
+                [str(i) for i in range(1, 18)],
+                "Invalid choice. Please enter a number from 1 to 17.",
             )
 
             if menu_choice == "1":
@@ -288,6 +290,15 @@ Choose an option:
             elif menu_choice == "14":
                 self.card_management_menu(selected_account)
             elif menu_choice == "15":
+                ClosureFormalities.close_card_menu(selected_account, self.bank)
+            elif menu_choice == "16":
+                closure_success = ClosureFormalities.close_account_menu(
+                    selected_account, customer, accounts, self.bank
+                )
+                if closure_success:
+                    # Account was closed, exit to main menu
+                    active = False
+            elif menu_choice == "17":
                 print("Logged out successfully.")
                 active = False
 
@@ -350,13 +361,24 @@ Choose an option:
         """Apply for a new debit card"""
         print("\n--- Apply for Debit Card ---")
 
-        # Check if already has debit card
-        for card in account.cards:
-            if isinstance(card, DebitCard):
-                print("You already have a debit card linked to this account")
-                return
+        # Show existing debit cards (if any)
+        existing_debit = [c for c in account.cards if isinstance(c, DebitCard)]
+        if existing_debit:
+            print(
+                f"\nYou currently have {len(existing_debit)} debit card(s) linked to this account:"
+            )
+            for idx, card in enumerate(existing_debit, 1):
+                status = (
+                    "Blocked"
+                    if card.blocked
+                    else ("Expired" if card.is_expired() else "Active")
+                )
+                print(
+                    f"  {idx}. {card.network} **** {card.card_number[-4:]} ({status})"
+                )
+            print()
 
-        confirm = input("Apply for debit card? (yes/no): ").strip().lower()
+        confirm = input("Apply for a new debit card? (yes/no): ").strip().lower()
         if confirm not in ["yes", "y"]:
             print("Application cancelled")
             return
@@ -375,6 +397,9 @@ Choose an option:
         account.add_card(debit_card)
         self.bank.save()
         print(f"\n✓ {network} Debit card issued successfully!")
+        print(
+            f"Total debit cards: {len([c for c in account.cards if isinstance(c, DebitCard)])}"
+        )
 
     def apply_credit_card(self, account: Account):
         """Apply for a new credit card"""
@@ -382,11 +407,22 @@ Choose an option:
 
         print("\n--- Apply for Credit Card ---")
 
-        # Check if already has credit card
-        for card in account.cards:
-            if isinstance(card, CreditCard):
-                print("You already have a credit card linked to this account")
-                return
+        # Show existing credit cards (if any)
+        existing_credit = [c for c in account.cards if isinstance(c, CreditCard)]
+        if existing_credit:
+            print(
+                f"\nYou currently have {len(existing_credit)} credit card(s) linked to this account:"
+            )
+            for idx, card in enumerate(existing_credit, 1):
+                status = (
+                    "Blocked"
+                    if card.blocked
+                    else ("Expired" if card.is_expired() else "Active")
+                )
+                print(
+                    f"  {idx}. {card.network} **** {card.card_number[-4:]} - Limit: Rs. {card.credit_limit:,.0f} ({status})"
+                )
+            print()
 
         # Check eligibility
         if not account.salary_profile:
@@ -472,6 +508,9 @@ Choose an option:
         self.bank.save()
         print(f"\n✓ {network} Credit card issued successfully!")
         print(f"Billing Day: {billing_day} of each month")
+        print(
+            f"Total credit cards: {len([c for c in account.cards if isinstance(c, CreditCard)])}"
+        )
 
     def make_card_purchase(self, account: Account):
         """Make a purchase using a card"""
@@ -733,16 +772,84 @@ Account Number: {account.account_number}
 Current Balance: Rs. {account.balance:.2f} INR
         """)
 
+    # In BankingApp.py, replace deposit_money() and withdraw_money():
+
     def deposit_money(self, account: Account):
-        """Handle deposit transaction"""
-        amount = self.read_positive_double("Enter amount to deposit: Rs. ")
-        account.deposit(amount)
+        """Handle deposit transaction - requires debit card"""
+        # Check if account has debit cards
+        debit_cards = [c for c in account.cards if isinstance(c, DebitCard)]
+
+        if not debit_cards:
+            print("\n❌ No debit card found. You need a debit card to deposit money.")
+            print("Please apply for a debit card first from Card Management menu.")
+            return
+
+        # Show available debit cards
+        print("\n--- Select Debit Card for Deposit ---")
+        for idx, card in enumerate(debit_cards, 1):
+            status = (
+                "Blocked"
+                if card.blocked
+                else ("Expired" if card.is_expired() else "Active")
+            )
+            print(
+                f"{idx}. {card.network} **** **** **** {card.card_number[-4:]} ({status})"
+            )
+
+        # Card selection
+        if len(debit_cards) == 1:
+            selected_card = debit_cards[0]
+            print(
+                f"Using: {selected_card.network} **** **** **** {selected_card.card_number[-4:]}"
+            )
+        else:
+            choice = self.read_valid_choice(
+                f"Select card (1-{len(debit_cards)}): ",
+                [str(i) for i in range(1, len(debit_cards) + 1)],
+            )
+            selected_card = debit_cards[int(choice) - 1]
+
+        amount = self.read_positive_double("\nEnter amount to deposit: Rs. ")
+        account.deposit(amount, card=selected_card)
         self.bank.save()
 
     def withdraw_money(self, account: Account):
-        """Handle withdrawal transaction"""
-        amount = self.read_positive_double("Enter amount to withdraw: Rs. ")
-        account.withdraw(amount)
+        """Handle withdrawal transaction - requires debit card"""
+        # Check if account has debit cards
+        debit_cards = [c for c in account.cards if isinstance(c, DebitCard)]
+
+        if not debit_cards:
+            print("\n❌ No debit card found. You need a debit card to withdraw money.")
+            print("Please apply for a debit card first from Card Management menu.")
+            return
+
+        # Show available debit cards
+        print("\n--- Select Debit Card for Withdrawal ---")
+        for idx, card in enumerate(debit_cards, 1):
+            status = (
+                "Blocked"
+                if card.blocked
+                else ("Expired" if card.is_expired() else "Active")
+            )
+            print(
+                f"{idx}. {card.network} **** **** **** {card.card_number[-4:]} ({status})"
+            )
+
+        # Card selection
+        if len(debit_cards) == 1:
+            selected_card = debit_cards[0]
+            print(
+                f"Using: {selected_card.network} **** **** **** {selected_card.card_number[-4:]}"
+            )
+        else:
+            choice = self.read_valid_choice(
+                f"Select card (1-{len(debit_cards)}): ",
+                [str(i) for i in range(1, len(debit_cards) + 1)],
+            )
+            selected_card = debit_cards[int(choice) - 1]
+
+        amount = self.read_positive_double("\nEnter amount to withdraw: Rs. ")
+        account.withdraw(amount, card=selected_card)
         self.bank.save()
 
     def transfer_funds(self, account: Account, accounts: List[Account]):

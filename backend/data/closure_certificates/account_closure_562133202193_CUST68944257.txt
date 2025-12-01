@@ -1,0 +1,48 @@
+
+======================================================================
+                    ACCOUNT CLOSURE CERTIFICATE
+======================================================================
+
+Closure Date:           01-12-2025
+Closure Time:           01-12-2025 21:12:17
+
+ACCOUNT HOLDER DETAILS
+----------------------------------------------------------------------
+Customer ID:            CUST68944257
+Name:                   Kedhar Vinod
+Account Number:         562133202193
+Account Type:           Delite
+Date of Birth:          2005-12-11
+Gender:                 Male
+
+BRANCH DETAILS
+----------------------------------------------------------------------
+Branch Name:            Jakkasandra
+IFSC Code:              SCBA0005621
+Branch Code:            5621
+
+CLOSURE SUMMARY
+----------------------------------------------------------------------
+Final Account Balance:  Rs. 300.00 INR
+Total Transactions:     3
+Pending AMB Fees:       Rs. 0.00 INR
+Active Recurring Bills: 0
+
+CARDS TERMINATED
+----------------------------------------------------------------------
+  - Debit Card MASTERCARD ending in 7092
+
+======================================================================
+
+This certificate confirms that the above account has been closed
+and all linked cards have been terminated. The final balance of
+Rs. 300.00 INR will be disbursed as per RBI guidelines.
+
+All recurring payments, loans, and outstanding dues have been cleared.
+
+This is a system-generated certificate and does not require a signature.
+
+======================================================================
+Generated on: 01-12-2025 21:12:17
+System: Python Bank Management System v1.0
+======================================================================

@@ -174,8 +174,10 @@ class Account:
             print(f"Pending AMB fees of Rs. {self.pending_amb_fees:.2f} INR settled.")
             self.pending_amb_fees = 0.0
 
-    def deposit(self, amount: float):
-        """Deposit money into account"""
+    # In Account.py, replace the deposit() and withdraw() methods:
+
+    def deposit(self, amount: float, card: Optional[DebitCard] = None):
+        """Deposit money into account (requires debit card)"""
         if amount <= 0:
             print("Amount must be positive.")
             return
@@ -184,6 +186,27 @@ class Account:
             print(
                 f"Maximum allowed per deposit is Rs. {self._max_deposit_per_txn:.2f} INR. Please split large deposits."
             )
+            return
+
+        # Validate debit card
+        if card is None:
+            print("Debit card required for deposit. Please provide a valid debit card.")
+            return
+
+        if not isinstance(card, DebitCard):
+            print("Only debit cards can be used for deposits.")
+            return
+
+        if card not in self.cards:
+            print("Card not linked to this account.")
+            return
+
+        if card.blocked:
+            print("Card is blocked. Cannot proceed with deposit.")
+            return
+
+        if card.is_expired():
+            print("Card has expired. Cannot proceed with deposit.")
             return
 
         self.balance += amount
@@ -198,14 +221,37 @@ class Account:
             amount=amount,
             resulting_balance=self.balance,
             txn_id=txn.id,
+            metadata=f"cardId={card.card_id};cardNumber={card.card_number[-4:]};network={card.network}",
         )
         print(f"Deposit successful! Transaction ID: {txn.id}")
+        print(f"Card used: {card.network} **** **** **** {card.card_number[-4:]}")
         self._settle_pending_fees()
 
-    def withdraw(self, amount: float):
-        """Withdraw money from account"""
+    def withdraw(self, amount: float, card: Optional[DebitCard] = None):
+        """Withdraw money from account (requires debit card)"""
         if amount <= 0:
             print("Amount must be positive.")
+            return
+
+        # Validate debit card
+        if card is None:
+            print(
+                "Debit card required for withdrawal. Please provide a valid debit card."
+            )
+            return
+
+        if not isinstance(card, DebitCard):
+            print("Only debit cards can be used for withdrawals.")
+            return
+
+        if card not in self.cards:
+            print("Card not linked to this account.")
+            return
+
+        # Card validations
+        is_valid, msg = card.validate_transaction(amount)
+        if not is_valid:
+            print(f"Transaction failed: {msg}")
             return
 
         if self.is_minor_account:
@@ -253,7 +299,10 @@ class Account:
         )
         self.transactions.append(txn)
 
-        metadata = "minorAccount=true" if self.is_minor_account else None
+        metadata = f"cardId={card.card_id};cardNumber={card.card_number[-4:]};network={card.network}"
+        if self.is_minor_account:
+            metadata += ";minorAccount=true"
+
         DataStore.append_activity(
             timestamp=txn.timestamp,
             username=self.username,
@@ -265,6 +314,7 @@ class Account:
             metadata=metadata,
         )
         print(f"Withdraw successful! Transaction ID: {txn.id}")
+        print(f"Card used: {card.network} **** **** **** {card.card_number[-4:]}")
 
         if self.is_minor_account:
             new_withdrawals = self.get_today_withdrawals()
