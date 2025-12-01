@@ -52,7 +52,7 @@ A comprehensive, feature-rich **banking simulation system** written in Python, m
 
 * 5 account types with different rules & minimum balances:
 
-  * Pride (₹2,000), Bespoke (₹2,00,000), Club (₹10,000), Delite (₹5,000), Future (₹0)
+* Pride (₹2,000), Bespoke (₹2,00,000), Club (₹10,000), Delite (₹5,000), Future (₹0)
 * AMB enforcement, cheque tracking
 * Minor account protection (daily usage limits)
 * Internal & NEFT/RTGS transfers
@@ -73,14 +73,15 @@ A comprehensive, feature-rich **banking simulation system** written in Python, m
   * Salary profile
   * Employer category
   * Debt-to-Income ratio
-* Billing cycles, grace periods, rewards, and interest
-* **Luhn algorithm** validation
+  * Billing cycles, grace periods, rewards, and interest
+  * **Luhn algorithm** validation
 
 ### 💰 Loan Management
 
 * EMI calculation (compound interest)
 * Automated approval rules (score, income, DTI)
 * Transaction-linked repayment history
+* Loan Closure Certificate
 
 ### 📊 CIBIL Credit Scoring
 
@@ -257,5 +258,3 @@ AI-powered fraud detection
 *For educational use only. Not connected to real banks.*
 
 ---
-
-
