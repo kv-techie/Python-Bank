@@ -9,7 +9,7 @@
     "gender": "Male",
     "accountType": "Pride",
     "accountNumber": "562132892448",
-    "balance": 408007.28999999986,
+    "balance": 453106.28999999986,
     "transactions": [
       {
         "id": "FHIC8821645427",
@@ -1300,6 +1300,73 @@
         "metadata": {
           "cardId": "CARD454931800"
         }
+      },
+      {
+        "id": "FHIC5969499161",
+        "type": "CREDIT_CARD_PAYMENT",
+        "amount": 1.0,
+        "resultingBalance": 408006.28999999986,
+        "timestamp": "02-12-2025 14:42:58",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": {
+          "cardId": "CARD824327783"
+        }
+      },
+      {
+        "id": "FHIC9622130667",
+        "type": "DEPOSIT",
+        "amount": 10000.0,
+        "resultingBalance": 418006.28999999986,
+        "timestamp": "02-12-2025 14:42:58",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "FHIC8577239413",
+        "type": "DEPOSIT",
+        "amount": 20000.0,
+        "resultingBalance": 438006.28999999986,
+        "timestamp": "02-12-2025 14:42:58",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "FHIC8016071110",
+        "type": "DEPOSIT",
+        "amount": 100.0,
+        "resultingBalance": 438106.28999999986,
+        "timestamp": "02-12-2025 14:59:29",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": null
+      },
+      {
+        "id": "FHIC5036071849",
+        "type": "DEPOSIT",
+        "amount": 15000.0,
+        "resultingBalance": 453106.28999999986,
+        "timestamp": "02-12-2025 15:19:35",
+        "chequeId": null,
+        "category": null,
+        "merchant": null,
+        "paymentMethod": null,
+        "metadata": {
+          "card_number": "4506213086699030",
+          "card_type": "DEBIT",
+          "card_id": "CARD525814261",
+          "network": "VISA"
+        }
       }
     ],
     "failedAttempts": 0,
@@ -1376,7 +1443,7 @@
         "outstandingBalance": 0.0,
         "minimumDue": 0.0,
         "interestRate": 0.18,
-        "rewardPoints": 0.0
+        "rewardPoints": 0.01
       }
     ]
   },

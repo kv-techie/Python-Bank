@@ -270,7 +270,7 @@ Choose an option:
             elif menu_choice == "4":
                 self.transfer_funds(selected_account, accounts)
             elif menu_choice == "5":
-                selected_account.show_transactions()
+                self.view_transaction_history_menu(selected_account)
             elif menu_choice == "6":
                 self.search_transaction()
             elif menu_choice == "7":
@@ -1769,6 +1769,179 @@ Choose an option:
         )
         print(f"✓ Detected Network from Number: {detected_network}")
         print("=" * 60)
+
+    def view_transaction_history_menu(self, account: Account):
+        """Interactive menu for viewing transaction history"""
+
+        while True:
+            print("\n" + "=" * 60)
+            print("TRANSACTION HISTORY")
+            print("=" * 60)
+
+            # Quick View Options
+            print("\n📊 QUICK VIEW:")
+            print("1. Mini Statement (Last 10 transactions)")
+            print("2. Last 20 transactions")
+            print("3. Last 30 transactions")
+            print("4. Last 50 transactions")
+            print("5. All transactions")
+
+            # Filter by Category
+            print("\n🔍 FILTER BY CATEGORY:")
+            print("6. Debit Card Transactions")
+            print("7. Credit Card Transactions")
+            print("8. Legacy Banking (No card)")
+            print("9. Loan EMI Payments")
+            print("10. NEFT Transactions")
+            print("11. RTGS Transactions")
+            print("12. Inter-Account Transfers")
+            print("13. Salary & Tax")
+            print("14. Expenses")
+
+            print("\n15. Back to Account Menu")
+            print("=" * 60)
+
+            choice = input("Enter your choice: ").strip()
+
+            if choice == "1":
+                account.show_transactions(limit=10)
+            elif choice == "2":
+                account.show_transactions(limit=20)
+            elif choice == "3":
+                account.show_transactions(limit=30)
+            elif choice == "4":
+                account.show_transactions(limit=50)
+            elif choice == "5":
+                account.show_transactions(limit=None)
+            elif choice == "6":
+                self.view_debit_card_transactions(account)
+            elif choice == "7":
+                self.view_credit_card_transactions(account)
+            elif choice == "8":
+                self.view_legacy_transactions(account)
+            elif choice == "9":
+                self.view_loan_emi_transactions(account)
+            elif choice == "10":
+                self.view_neft_transactions(account)
+            elif choice == "11":
+                self.view_rtgs_transactions(account)
+            elif choice == "12":
+                self.view_inter_account_transactions(account)
+            elif choice == "13":
+                self.view_salary_tax_transactions(account)
+            elif choice == "14":
+                self.view_expense_transactions(account)
+            elif choice == "15":
+                break
+            else:
+                print("Invalid choice")
+
+    def view_debit_card_transactions(self, account: Account):
+        """View transactions by specific debit card"""
+        from Card import DebitCard
+
+        debit_cards = [c for c in account.cards if isinstance(c, DebitCard)]
+
+        if not debit_cards:
+            print("\n❌ No debit cards found")
+            return
+
+        print("\n--- Select Debit Card ---")
+        print("0. All Debit Cards")
+        for idx, card in enumerate(debit_cards, 1):
+            print(f"{idx}. {card.network} **** **** **** {card.card_number[-4:]}")
+
+        choice_input = input("\nEnter choice: ").strip()
+
+        # Get limit preference
+        limit = self._get_transaction_limit()
+
+        if choice_input == "0":
+            # Show all debit card transactions
+            account.show_transactions(limit=limit, transaction_type_filter="DEBIT_CARD")
+        else:
+            # Find specific card
+            selected_card = None
+            if choice_input.isdigit() and 1 <= int(choice_input) <= len(debit_cards):
+                selected_card = debit_cards[int(choice_input) - 1]
+            else:
+                for card in debit_cards:
+                    if card.card_number[-4:] == choice_input:
+                        selected_card = card
+                        break
+
+            if not selected_card:
+                print("❌ Card not found")
+                return
+
+            print(
+                f"\n💳 Transactions for debit card ending in {selected_card.card_number[-4:]}:"
+            )
+            account.show_transactions(
+                limit=limit, card_filter=selected_card.card_number[-4:]
+            )
+
+    def view_credit_card_transactions(self, account: Account):
+        """View credit card payment transactions"""
+        limit = self._get_transaction_limit()
+        print("\n💳 Credit Card Payments:")
+        account.show_transactions(
+            limit=limit, transaction_type_filter="CREDIT_CARD_PAYMENT"
+        )
+
+    def view_legacy_transactions(self, account: Account):
+        """View legacy banking transactions (no card)"""
+        limit = self._get_transaction_limit()
+        print("\n🏛️ Legacy Banking Transactions (No Card):")
+        account.show_transactions(limit=limit, transaction_type_filter="LEGACY_BANKING")
+
+    def view_loan_emi_transactions(self, account: Account):
+        """View only loan EMI transactions"""
+        limit = self._get_transaction_limit()
+        print("\n🏦 Loan EMI Payments:")
+        account.show_transactions(limit=limit, transaction_type_filter="LOAN_EMI")
+
+    def view_neft_transactions(self, account: Account):
+        """View NEFT transactions"""
+        limit = self._get_transaction_limit()
+        print("\n💸 NEFT Transactions:")
+        account.show_transactions(limit=limit, transaction_type_filter="NEFT")
+
+    def view_rtgs_transactions(self, account: Account):
+        """View RTGS transactions"""
+        limit = self._get_transaction_limit()
+        print("\n💰 RTGS Transactions:")
+        account.show_transactions(limit=limit, transaction_type_filter="RTGS")
+
+    def view_inter_account_transactions(self, account: Account):
+        """View inter-account transfers"""
+        limit = self._get_transaction_limit()
+        print("\n🔄 Inter-Account Transfers:")
+        account.show_transactions(limit=limit, transaction_type_filter="INTER_ACCOUNT")
+
+    def view_salary_tax_transactions(self, account: Account):
+        """View salary and tax transactions"""
+        limit = self._get_transaction_limit()
+        print("\n💵 Salary & Tax Transactions:")
+        account.show_transactions(limit=limit, transaction_type_filter="SALARY_TAX")
+
+    def view_expense_transactions(self, account: Account):
+        """View expense transactions"""
+        limit = self._get_transaction_limit()
+        print("\n🛒 Expense Transactions:")
+        account.show_transactions(limit=limit, transaction_type_filter="EXPENSE")
+
+    def _get_transaction_limit(self) -> int:
+        """Helper method to get transaction limit preference"""
+        print("\nHow many transactions?")
+        print("1. Last 10")
+        print("2. Last 20")
+        print("3. Last 50")
+        print("4. All")
+
+        choice = input("Enter choice (default: 10): ").strip()
+        limit_map = {"1": 10, "2": 20, "3": 50, "4": None}
+        return limit_map.get(choice, 10)
 
 
 if __name__ == "__main__":

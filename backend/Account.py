@@ -176,16 +176,10 @@ class Account:
 
     # In Account.py, replace the deposit() and withdraw() methods:
 
-    def deposit(self, amount: float, card: Optional[DebitCard] = None):
-        """Deposit money into account (requires debit card)"""
+    def deposit(self, amount: float, card: DebitCard):
+        """Deposit money to account (requires debit card)"""
         if amount <= 0:
             print("Amount must be positive.")
-            return
-
-        if amount > self._max_deposit_per_txn:
-            print(
-                f"Maximum allowed per deposit is Rs. {self._max_deposit_per_txn:.2f} INR. Please split large deposits."
-            )
             return
 
         # Validate debit card
@@ -201,17 +195,49 @@ class Account:
             print("Card not linked to this account.")
             return
 
-        if card.blocked:
-            print("Card is blocked. Cannot proceed with deposit.")
+        # Card validations
+        is_valid, msg = card.validate_transaction(amount)
+        if not is_valid:
+            print(f"Transaction failed: {msg}")
             return
 
-        if card.is_expired():
-            print("Card has expired. Cannot proceed with deposit.")
-            return
+        if self.is_minor_account:
+            today_transactions = self.get_today_transactions()
+            if today_transactions + amount > self._minor_daily_transaction_limit:
+                remaining = self._minor_daily_transaction_limit - today_transactions
+                print(
+                    "Deposit amount exceeds daily transaction limit for minor accounts."
+                )
+                print(
+                    f"Daily transaction limit: Rs. {self._minor_daily_transaction_limit:.2f} INR"
+                )
+                print(f"Already transacted today: Rs. {today_transactions:.2f} INR")
+                print(f"Remaining limit: Rs. {remaining:.2f} INR")
+                return
 
+        # Update balance
         self.balance += amount
-        txn = Transaction(type="DEPOSIT", amount=amount, resulting_balance=self.balance)
+
+        # Prepare transaction metadata
+        txn_metadata = {
+            "card_number": card.card_number,
+            "card_type": "DEBIT",
+            "card_id": card.card_id,
+            "network": card.network,
+        }
+
+        # Create transaction with metadata
+        txn = Transaction(
+            type="DEPOSIT",
+            amount=amount,
+            resulting_balance=self.balance,
+            metadata=txn_metadata,  # ADD THIS LINE
+        )
         self.transactions.append(txn)
+
+        metadata = f"cardId={card.card_id};cardNumber={card.card_number[-4:]};network={card.network}"
+        if self.is_minor_account:
+            metadata += ";minorAccount=true"
 
         DataStore.append_activity(
             timestamp=txn.timestamp,
@@ -221,13 +247,20 @@ class Account:
             amount=amount,
             resulting_balance=self.balance,
             txn_id=txn.id,
-            metadata=f"cardId={card.card_id};cardNumber={card.card_number[-4:]};network={card.network}",
+            metadata=metadata,
         )
         print(f"Deposit successful! Transaction ID: {txn.id}")
         print(f"Card used: {card.network} **** **** **** {card.card_number[-4:]}")
-        self._settle_pending_fees()
 
-    def withdraw(self, amount: float, card: Optional[DebitCard] = None):
+        if self.is_minor_account:
+            new_transactions = self.get_today_transactions()
+            print(
+                f"Remaining daily transaction limit: Rs. {self._minor_daily_transaction_limit - new_transactions:.2f} INR"
+            )
+
+        self._check_and_apply_amb_fee()
+
+    def withdraw(self, amount: float, card: DebitCard):
         """Withdraw money from account (requires debit card)"""
         if amount <= 0:
             print("Amount must be positive.")
@@ -293,9 +326,23 @@ class Account:
             )
             return
 
+        # Update balance
         self.balance -= amount
+
+        # Prepare transaction metadata
+        txn_metadata = {
+            "card_number": card.card_number,
+            "card_type": "DEBIT",
+            "card_id": card.card_id,
+            "network": card.network,
+        }
+
+        # Create transaction with metadata
         txn = Transaction(
-            type="WITHDRAW", amount=amount, resulting_balance=self.balance
+            type="WITHDRAW",
+            amount=-amount,  # Negative for withdrawal
+            resulting_balance=self.balance,
+            metadata=txn_metadata,  # ADD THIS LINE
         )
         self.transactions.append(txn)
 
@@ -439,31 +486,192 @@ class Account:
         if enforce_min:
             self._check_and_apply_amb_fee()
 
-    def show_transactions(self):
-        """Display all transactions"""
+    def show_transactions(
+        self,
+        limit: int = 10,
+        transaction_type_filter: str = None,
+        card_filter: str = None,
+    ):
+        """
+        Display transaction history with filters
+
+        Args:
+            limit: Number of transactions to show (None for all)
+            transaction_type_filter: Filter by transaction type
+            card_filter: Filter by specific card (last 4 digits)
+        """
         if not self.transactions:
             print("No transactions found.")
-        else:
-            print(
-                "\nTxn ID           Date/Time           Type         Amount        Balance"
-            )
-            print("-------------------------------------------------------")
-            for t in self.transactions:
-                print(
-                    f"{t.id:<15} {t.timestamp:<20} {t.type:<10} Rs. {t.amount:<10.2f} Rs. {t.resulting_balance:<10.2f} INR"
-                )
+            return
 
-            if self.is_minor_account:
-                today_withdrawals = self.get_today_withdrawals()
-                today_transactions = self.get_today_transactions()
-                print("\n-------------------------------------------------------")
-                print("Minor Account Daily Limits Summary:")
-                print(
-                    f"Withdrawal Limit: Rs. {self._minor_daily_withdrawal_limit:.2f} INR (Used: Rs. {today_withdrawals:.2f}, Remaining: Rs. {self._minor_daily_withdrawal_limit - today_withdrawals:.2f} INR)"
+        transactions = self.transactions.copy()
+
+        # Helper function to safely get metadata
+        def get_metadata(txn):
+            """Safely get metadata as dict, handling string or None"""
+            if not hasattr(txn, "metadata"):
+                return {}
+            if txn.metadata is None:
+                return {}
+            if isinstance(txn.metadata, dict):
+                return txn.metadata
+            # If it's a string or other type, return empty dict
+            return {}
+
+        # Apply filters
+        if transaction_type_filter == "LOAN_EMI":
+            transactions = [t for t in transactions if t.type == "LOAN_EMI"]
+
+        elif transaction_type_filter == "LEGACY_BANKING":
+            # Legacy: Deposits/Withdrawals without card
+            transactions = [
+                t
+                for t in transactions
+                if t.type in ["DEPOSIT", "WITHDRAW"]
+                and not get_metadata(t).get("card_number")
+            ]
+
+        elif transaction_type_filter == "DEBIT_CARD":
+            # All debit card transactions (deposits, withdrawals, purchases)
+            transactions = [
+                t
+                for t in transactions
+                if (
+                    t.type in ["DEPOSIT", "WITHDRAW", "DEBIT_CARD_PURCHASE"]
+                    and get_metadata(t).get("card_type") == "DEBIT"
                 )
-                print(
-                    f"Transaction Limit: Rs. {self._minor_daily_transaction_limit:.2f} INR (Used: Rs. {today_transactions:.2f}, Remaining: Rs. {self._minor_daily_transaction_limit - today_transactions:.2f} INR)"
+            ]
+
+        elif transaction_type_filter == "CREDIT_CARD_PAYMENT":
+            transactions = [t for t in transactions if t.type == "CREDIT_CARD_PAYMENT"]
+
+        elif transaction_type_filter == "NEFT":
+            # Both sent and received
+            transactions = [
+                t for t in transactions if t.type in ["NEFT_SENT", "NEFT_RECEIVED"]
+            ]
+
+        elif transaction_type_filter == "RTGS":
+            # Both sent and received
+            transactions = [
+                t for t in transactions if t.type in ["RTGS_SENT", "RTGS_RECEIVED"]
+            ]
+
+        elif transaction_type_filter == "INTER_ACCOUNT":
+            # Both sent and received
+            transactions = [
+                t
+                for t in transactions
+                if t.type in ["INTER_ACCOUNT_SENT", "INTER_ACCOUNT_RECEIVED"]
+            ]
+
+        elif transaction_type_filter == "SALARY_TAX":
+            transactions = [
+                t for t in transactions if t.type in ["SALARY", "TAX_DEDUCTED"]
+            ]
+
+        elif transaction_type_filter == "EXPENSE":
+            transactions = [t for t in transactions if t.type == "EXPENSE"]
+
+        elif card_filter:
+            # Filter by specific card
+            transactions = [
+                t
+                for t in transactions
+                if get_metadata(t).get("card_number", "").endswith(card_filter)
+            ]
+
+        if not transactions:
+            print("No transactions found matching your criteria")
+            return
+
+        # Apply limit
+        if limit:
+            transactions = transactions[-limit:]
+
+        # Display header
+        print("\n" + "=" * 130)
+        print(f"TRANSACTION HISTORY - {len(transactions)} transaction(s)")
+        print("=" * 130)
+        print(
+            f"{'Txn ID':<20} {'Date/Time':<20} {'Type':<25} {'Card':<12} {'Amount':<18} {'Balance':<15}"
+        )
+        print("-" * 130)
+
+        for txn in transactions:
+            # Extract card info if available
+            card_info = ""
+            metadata = get_metadata(txn)
+
+            if metadata and "card_number" in metadata:
+                card_number = metadata["card_number"]
+                card_type = metadata.get("card_type", "")
+                card_info = (
+                    f"{card_type[:1]}****{card_number[-4:]}"  # D****1234 or C****5678
                 )
+            elif txn.type in ["DEPOSIT", "WITHDRAW"]:
+                card_info = "Legacy"
+            else:
+                card_info = "-"
+
+            # Format amount with direction indicator
+            if txn.type in [
+                "DEPOSIT",
+                "NEFT_RECEIVED",
+                "RTGS_RECEIVED",
+                "INTER_ACCOUNT_RECEIVED",
+                "SALARY",
+                "LOAN_CREDIT",
+            ]:
+                amount_str = f"+ Rs. {abs(txn.amount):>12,.2f}"
+            elif txn.type in [
+                "WITHDRAW",
+                "NEFT_SENT",
+                "RTGS_SENT",
+                "INTER_ACCOUNT_SENT",
+                "LOAN_EMI",
+                "TAX_DEDUCTED",
+                "CREDIT_CARD_PAYMENT",
+                "EXPENSE",
+                "DEBIT_CARD_PURCHASE",
+            ]:
+                amount_str = f"- Rs. {abs(txn.amount):>12,.2f}"
+            else:
+                amount_str = f"Rs. {abs(txn.amount):>14,.2f}"
+
+            # Format balance
+            balance_str = f"Rs. {txn.resulting_balance:>12,.2f}"
+
+            print(
+                f"{txn.id:<20} {txn.timestamp:<20} {txn.type:<25} "
+                f"{card_info:<12} {amount_str:<18} {balance_str:<15} INR"
+            )
+
+        print("=" * 130)
+
+        # Show summary statistics
+        total_credit = sum(t.amount for t in transactions if t.amount > 0)
+        total_debit = sum(abs(t.amount) for t in transactions if t.amount < 0)
+
+        print(
+            f"\n📊 Summary: Total Credit: Rs. {total_credit:,.2f} | Total Debit: Rs. {total_debit:,.2f}"
+        )
+
+        # Show minor account limits if applicable
+        if self.is_minor_account:
+            today_withdrawals = self.get_today_withdrawals()
+            today_transactions = self.get_today_transactions()
+            print("\n" + "-" * 130)
+            print("⚠️  Minor Account Daily Limits Summary:")
+            print(
+                f"   Withdrawal Limit: Rs. {self._minor_daily_withdrawal_limit:.2f} INR "
+                f"(Used: Rs. {today_withdrawals:.2f}, Remaining: Rs. {self._minor_daily_withdrawal_limit - today_withdrawals:.2f} INR)"
+            )
+            print(
+                f"   Transaction Limit: Rs. {self._minor_daily_transaction_limit:.2f} INR "
+                f"(Used: Rs. {today_transactions:.2f}, Remaining: Rs. {self._minor_daily_transaction_limit - today_transactions:.2f} INR)"
+            )
+            print("-" * 130)
 
     # ========== RECURRING BILLS MANAGEMENT ==========
 
