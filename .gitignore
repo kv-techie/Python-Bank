@@ -1,0 +1,157 @@
+# ============================================================
+# Python-Bank Project .gitignore
+# ============================================================
+
+# -------------------- Python --------------------
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Virtual Environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# IDE / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# -------------------- Banking Application Specific --------------------
+# Runtime data files (CRITICAL - Contains user data)
+backend/data/
+data/
+*.json
+*.csv
+*.txt
+
+# EXCEPT: Keep structure/schema files (if any)
+!requirements.txt
+!README.txt
+!.gitignore
+
+# Transaction logs
+backend/data/account_activity.csv
+backend/data/accounts.csv
+backend/data/bank_data.json
+backend/data/transaction_ids.json
+backend/data/account_numbers.txt
+backend/data/nach_ids.txt
+backend/data/customer_ids.txt
+backend/data/customers.json
+backend/data/loans.json
+
+# Root level data directory
+data/account_activity.csv
+data/accounts.csv
+data/bank_data.json
+data/transaction_ids.json
+data/account_numbers.txt
+data/nach_ids.txt
+data/customer_ids.txt
+data/customers.json
+data/loans.json
+
+# Loan closure certificates (contains PII)
+backend/loan_closure_*.txt
+loan_closure_*.txt
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# -------------------- Security --------------------
+# Environment variables (passwords, API keys, etc.)
+.env
+.env.local
+.env.*.local
+secrets/
+*.key
+*.pem
+*.p12
+
+# Configuration with sensitive data
+config.ini
+config.json
+settings.json
+
+# -------------------- System Files --------------------
+# OS generated files
+Thumbs.db
+Desktop.ini
+.Spotlight-V100
+.Trashes
+
+# -------------------- Documentation --------------------
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Documentation builds
+docs/_build/
+site/
+
+# -------------------- Optional: Test Data --------------------
+# If you want to exclude test data files
+setup_test_data.py
+test_autopay.py
+catchup_autopay.py
+*_test.py
+test_*.py

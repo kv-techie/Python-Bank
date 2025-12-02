@@ -745,7 +745,7 @@ class Account:
 
                 # CASE 1: Pay from Bank Account
                 if bill.payment_method == PaymentMethod.BANK_ACCOUNT:
-                    if self.balance - amount >= self.min_operational_balance:
+                    if self.balance - amount >= self._min_operational_balance:
                         self.balance -= amount
 
                         # If this IS a credit card bill payment, pay the card
