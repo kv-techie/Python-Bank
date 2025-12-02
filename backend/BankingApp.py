@@ -10,7 +10,7 @@ from ClosureFormalities import ClosureFormalities
 from CreditEvaluator import CreditEvaluator
 from Customer import Customer
 from ExpenseSimulator import ExpenseSimulator
-from RecurringBill import RecurringBill
+from RecurringBill import PaymentMethod, RecurringBill, RecurringBillFactory
 
 
 class BankingApp:
@@ -1006,41 +1006,240 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
         """Manage recurring bills"""
         managing = True
         while managing:
-            print("""
-Recurring Bills Management
-1  View Recurring Bills
-2  Add Recurring Bill
-3  Remove Recurring Bill
-4  Back to Main Menu
-            """)
+            print("\n=== Recurring Bills Management ===")
+            print("1. View Recurring Bills")
+            print("2. Add Recurring Bill")
+            print("3. Remove Recurring Bill")
+            print("4. View Rewards Dashboard 💎")  # NEW
+            print("5. Back to Main Menu")
 
-            choice = self.read_valid_choice("Enter choice: ", ["1", "2", "3", "4"])
+            choice = self.read_valid_choice("Enter choice: ", ["1", "2", "3", "4", "5"])
 
             if choice == "1":
-                account.show_recurring_bills()
+                self.view_recurring_bills(account)  # CHANGED
             elif choice == "2":
                 self.add_recurring_bill(account)
             elif choice == "3":
                 self.remove_recurring_bill(account)
             elif choice == "4":
+                self.show_rewards_dashboard(account)  # NEW
+            elif choice == "5":
                 managing = False
+
+    def view_recurring_bills(self, account: Account):
+        """View recurring bills with payment methods and rewards"""
+        if not account.recurring_bills:
+            print("\n📋 No recurring bills found.")
+            input("\nPress Enter to continue...")
+            return
+
+        # Update dynamic bills
+        updated = account.update_dynamic_bills()
+        if updated:
+            print("\n💳 Dynamic Bills Updated:")
+            for u in updated:
+                print(
+                    f"   {u['bill_name']}: Rs. {u['old_amount']:,.2f} → Rs. {u['new_amount']:,.2f}"
+                )
+
+        # Calculate rewards
+        total_monthly_rewards = 0
+        total_annual_rewards = 0
+        bills_on_card = []
+
+        for bill in account.recurring_bills:
+            if (
+                bill.payment_method == PaymentMethod.CREDIT_CARD
+                and bill.payment_card_id
+            ):
+                card = account.get_card_by_id(bill.payment_card_id)
+                if card and isinstance(card, CreditCard):
+                    rewards = bill.base_amount * card.reward_rate
+
+                    if bill.frequency == "MONTHLY":
+                        total_monthly_rewards += rewards
+                        total_annual_rewards += rewards * 12
+                        bills_on_card.append((bill.name, rewards, card.network))
+                    elif bill.frequency == "QUARTERLY":
+                        total_annual_rewards += rewards * 4
+                    elif bill.frequency == "YEARLY":
+                        total_annual_rewards += rewards
+
+        print("\n" + "=" * 130)
+        print(f"{'RECURRING BILLS':^130}")
+        print("=" * 130)
+
+        print(
+            f"\n{'Name':<35} {'Amount':<15} {'Freq':<10} {'Due Day':<10} {'Payment Method':<40} {'Rewards'}"
+        )
+        print("-" * 130)
+
+        for bill in account.recurring_bills:
+            payment_desc = bill.get_payment_description(account)
+
+            # Calculate rewards
+            rewards_str = ""
+            if (
+                bill.payment_method == PaymentMethod.CREDIT_CARD
+                and bill.payment_card_id
+            ):
+                card = account.get_card_by_id(bill.payment_card_id)
+                if card:
+                    rewards = int(bill.base_amount * card.reward_rate)
+                    rewards_str = f"💎 {rewards} pts"
+
+            auto_marker = " 🤖" if bill.auto_debit else ""
+            dynamic_marker = " 📊" if bill.is_dynamic else ""
+
+            print(
+                f"{bill.name:<35} Rs. {bill.base_amount:<12,.2f} {bill.frequency:<10} "
+                f"{bill.day_of_month:<10} {payment_desc:<40} {rewards_str}{auto_marker}{dynamic_marker}"
+            )
+
+        print("=" * 130)
+
+        # Summary
+        print("\n📊 SUMMARY")
+        print(f"   Total bills: {len(account.recurring_bills)}")
+        print(f"   Bills paid via credit card: {len(bills_on_card)}")
+
+        if bills_on_card:
+            print("\n💎 REWARD EARNINGS")
+            print(f"   Monthly rewards: {int(total_monthly_rewards)} points")
+            print(f"   Annual rewards: {int(total_annual_rewards)} points")
+            print(f"   Estimated value: Rs. {int(total_annual_rewards * 0.25):,.2f}")
+
+            print("\n   Top reward earners:")
+            for name, rewards, network in sorted(
+                bills_on_card, key=lambda x: x[1], reverse=True
+            )[:3]:
+                print(f"   • {name}: {int(rewards)} pts/payment ({network})")
+
+        # Check for optimization opportunities
+        missed_rewards = 0
+        opportunities = []
+
+        for bill in account.recurring_bills:
+            if bill.payment_method == PaymentMethod.BANK_ACCOUNT:
+                # Find best card
+                credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
+
+                for card in credit_cards:
+                    available = card.credit_limit - card.current_balance
+                    if available >= bill.base_amount:
+                        potential_rewards = bill.base_amount * card.reward_rate
+                        missed_rewards += potential_rewards
+                        opportunities.append(
+                            (bill.name, potential_rewards, card.network)
+                        )
+                        break
+
+        if opportunities:
+            print("\n💡 OPTIMIZATION OPPORTUNITY")
+            print(
+                f"   You're missing out on {int(missed_rewards)} reward points monthly!"
+            )
+            print("   Consider paying these bills with credit card:")
+            for name, rewards, network in opportunities[:3]:
+                print(f"   • {name} via {network} → +{int(rewards)} pts/month")
+
+        print("\n" + "=" * 130)
+        print(
+            "Legend: 🤖 Auto-pay | 📊 Dynamic amount | 💳 Card payment | 💰 Bank payment"
+        )
+        print("=" * 130)
+
+        input("\nPress Enter to continue...")
+
+    def show_rewards_dashboard(self, account: Account):
+        """Show rewards earned from paying bills via credit card"""
+        print("\n" + "=" * 80)
+        print(f"{'💎 REWARDS DASHBOARD':^80}")
+        print("=" * 80)
+
+        total_lifetime_rewards = 0
+        monthly_rewards = 0
+        rewards_by_card = {}
+
+        # Analyze transactions
+        for txn in account.transactions:
+            if txn.type == "CREDIT_CARD_BILL_PAYMENT":
+                if hasattr(txn, "metadata") and isinstance(txn.metadata, dict):
+                    if "reward_points_earned" in txn.metadata:
+                        points = txn.metadata["reward_points_earned"]
+                        total_lifetime_rewards += points
+
+                        card_id = txn.metadata.get("card_id", "Unknown")
+                        if card_id not in rewards_by_card:
+                            rewards_by_card[card_id] = 0
+                        rewards_by_card[card_id] += points
+
+        # Calculate this month's rewards
+        current_month = BankClock.get_formatted_date()[3:10]  # MM-YYYY
+
+        for txn in account.transactions:
+            if txn.type == "CREDIT_CARD_BILL_PAYMENT":
+                txn_month = txn.timestamp[3:10]
+                if (
+                    txn_month == current_month
+                    and hasattr(txn, "metadata")
+                    and isinstance(txn.metadata, dict)
+                ):
+                    if "reward_points_earned" in txn.metadata:
+                        monthly_rewards += txn.metadata["reward_points_earned"]
+
+        print("\n📊 LIFETIME REWARDS FROM BILLS")
+        print(f"   Total points earned: {total_lifetime_rewards}")
+        print(f"   Estimated value: Rs. {total_lifetime_rewards * 0.25:,.2f}")
+
+        print("\n📅 THIS MONTH")
+        print(f"   Rewards earned: {monthly_rewards} points")
+        print(f"   Projected annual: {monthly_rewards * 12} points")
+
+        if rewards_by_card:
+            print("\n💳 REWARDS BY CARD")
+            for card_id, points in sorted(
+                rewards_by_card.items(), key=lambda x: x[1], reverse=True
+            ):
+                card = account.get_card_by_id(card_id)
+                if card:
+                    print(
+                        f"   {card.network} ****{card.card_number[-4:]}: {points} points"
+                    )
+
+        # Savings comparison
+        if total_lifetime_rewards > 0:
+            print("\n💰 SAVINGS VS DIRECT PAYMENT")
+            print("   If paid from bank account: Rs. 0")
+            print(f"   By using credit cards: Rs. {total_lifetime_rewards * 0.25:,.2f}")
+            print(f"   💎 You saved: Rs. {total_lifetime_rewards * 0.25:,.2f}!")
+
+        print("\n" + "=" * 80)
+        input("\nPress Enter to continue...")
 
     def add_recurring_bill(self, account: Account):
         """Add a recurring bill"""
         print("\n=== Add Recurring Bill ===")
-        print("Common bills:")
+        print("\nCommon bills:")
+        common_bills = RecurringBillFactory.get_common_bills()
 
-        common_bills = RecurringBill.get_common_bills()
         for idx, (name, cat, min_amt, max_amt, freq) in enumerate(common_bills, 1):
             print(
-                f"{idx}. {name} ({cat}) - Rs. {min_amt:.2f}-Rs. {max_amt:.2f} ({freq})"
+                f"{idx}. {name} ({cat}) - Rs. {min_amt:.2f}-Rs. {max_amt:.2f} [{freq}]"
             )
+
         print(f"{len(common_bills) + 1}. Custom Bill")
 
         template_choice = self.read_valid_choice(
             "Select bill template: ", [str(i) for i in range(1, len(common_bills) + 2)]
         )
 
+        # Handle Credit Card Bill (option 17)
+        if int(template_choice) == 17:
+            self.add_credit_card_bill(account)
+            return
+
+        # Get bill details
         if int(template_choice) <= len(common_bills):
             name, category, min_amt, max_amt, frequency = common_bills[
                 int(template_choice) - 1
@@ -1051,24 +1250,200 @@ Recurring Bills Management
         else:
             name = input("Bill name: ").strip()
             category = input("Category: ").strip()
-            amount = self.read_positive_double("Amount: Rs. ")
-            print("Frequency: 1=Monthly, 2=Quarterly, 3=Yearly")
+            amount = self.read_positive_double("Amount (Rs.): ")
+            print("\nFrequency: 1=Monthly, 2=Quarterly, 3=Yearly")
             freq_choice = self.read_valid_choice("Select: ", ["1", "2", "3"])
             frequency = {"1": "MONTHLY", "2": "QUARTERLY", "3": "YEARLY"}[freq_choice]
 
         day_of_month = int(input("Due day of month (1-28): "))
 
+        # ===== PAYMENT METHOD SELECTION =====
+        print("\n" + "=" * 60)
+        print("💳 PAYMENT METHOD")
+        print("=" * 60)
+        print("How would you like to pay this bill?")
+        print("1. Bank Account (Direct Debit)")
+        print("2. Credit Card (Earn Reward Points 💎)")
+
+        payment_choice = input("\nEnter choice (1-2): ").strip()
+
+        payment_method = PaymentMethod.BANK_ACCOUNT
+        payment_card_id = None
+
+        if payment_choice == "2":
+            # Check for credit cards
+            credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
+
+            if not credit_cards:
+                print("\n❌ No credit cards available.")
+                print("   Defaulting to bank account payment.")
+            else:
+                print("\n--- Select Credit Card ---")
+
+                for idx, card in enumerate(credit_cards, 1):
+                    available = card.credit_limit - card.current_balance
+                    reward_rate = card.reward_rate * 100
+
+                    print(
+                        f"{idx}. {card.network} ****{card.card_number[-4:]} "
+                        f"(Available: Rs. {available:,.2f}, Rewards: {reward_rate:.1f}%)"
+                    )
+
+                card_choice = input(f"\nSelect card (1-{len(credit_cards)}): ").strip()
+
+                if card_choice.isdigit() and 1 <= int(card_choice) <= len(credit_cards):
+                    selected_card = credit_cards[int(card_choice) - 1]
+                    payment_method = PaymentMethod.CREDIT_CARD
+                    payment_card_id = selected_card.card_id
+
+                    # Calculate rewards
+                    estimated_rewards = amount * selected_card.reward_rate
+
+                    print(
+                        f"\n✅ Selected: {selected_card.network} ****{selected_card.card_number[-4:]}"
+                    )
+                    print(
+                        f"💎 Estimated rewards per payment: {int(estimated_rewards)} points"
+                    )
+
+                    if frequency == "MONTHLY":
+                        annual_rewards = estimated_rewards * 12
+                        print(
+                            f"💎 Annual rewards potential: {int(annual_rewards)} points!"
+                        )
+                else:
+                    print("❌ Invalid choice. Using bank account.")
+
+        # Create the bill with payment method
+        if int(template_choice) <= len(common_bills):
+            bill = RecurringBillFactory.create_from_template(
+                template_index=int(template_choice) - 1,
+                amount=amount,
+                day_of_month=day_of_month,
+                auto_debit=True,
+                payment_method=payment_method,
+                payment_card_id=payment_card_id,
+            )
+        else:
+            bill = RecurringBillFactory.create_custom_bill(
+                name=name,
+                category=category,
+                amount=amount,
+                frequency=frequency,
+                day_of_month=day_of_month,
+                auto_debit=True,
+                payment_method=payment_method,
+                payment_card_id=payment_card_id,
+            )
+
+        account.add_recurring_bill(bill)
+        self.bank.save()
+
+        print("\n" + "=" * 60)
+        print("✅ RECURRING BILL ADDED")
+        print("=" * 60)
+        print(f"Bill Name: {bill.name}")
+        print(f"Amount: Rs. {bill.base_amount:,.2f}")
+        print(f"Frequency: {bill.frequency}")
+        print(f"Due Day: {bill.day_of_month}")
+        print(f"Payment Method: {bill.get_payment_description(account)}")
+        print(f"Auto-pay: {'✅ Enabled' if bill.auto_debit else '❌ Disabled'}")
+        print("=" * 60)
+
+        input("\nPress Enter to continue...")
+
+    def add_credit_card_bill(self, account: Account):
+        """Special handling for credit card bills"""
+        credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
+
+        if not credit_cards:
+            print("\n❌ No credit cards linked to this account.")
+            print("Add a credit card first from Card Management menu.")
+            input("\nPress Enter to continue...")
+            return
+
+        print("\n" + "=" * 60)
+        print("CREDIT CARD BILL SETUP")
+        print("=" * 60)
+        print("0. Manual Entry (Custom Amount)")
+
+        for idx, card in enumerate(credit_cards, 1):
+            current_bill = card.current_balance
+
+            print(
+                f"{idx}. {card.network} ****{card.card_number[-4:]} "
+                f"(Current Balance: Rs. {current_bill:,.2f})"
+            )
+
+        card_choice = input(f"\nSelect option (0-{len(credit_cards)}): ").strip()
+
+        if card_choice == "0":
+            # Manual entry
+            bill_name = input("Bill name: ") or "Credit Card Bill (Manual)"
+            amount = float(input("Enter bill amount: Rs. "))
+            linked_card_id = None
+            is_dynamic = False
+
+        elif card_choice.isdigit() and 1 <= int(card_choice) <= len(credit_cards):
+            selected_card = credit_cards[int(card_choice) - 1]
+
+            bill_name = f"{selected_card.network} Credit Card"
+            amount = selected_card.current_balance
+            linked_card_id = selected_card.card_id
+            is_dynamic = True
+
+            print(
+                f"\n✅ Linked to {selected_card.network} ****{selected_card.card_number[-4:]}"
+            )
+            print("💡 Bill amount will auto-update from card statement")
+
+        else:
+            print("❌ Invalid choice")
+            input("\nPress Enter...")
+            return
+
+        category = "Finance"
+        frequency = "MONTHLY"
+        day_of_month = int(input("Due day of month (1-28): "))
+
+        # Credit card bills are ALWAYS paid from bank account
+        payment_method = PaymentMethod.BANK_ACCOUNT
+        payment_card_id = None
+
+        print("\n💡 Credit card bills are automatically paid from your bank account.")
+
+        auto_debit_choice = input("\nEnable auto-pay? (y/n): ").strip().lower()
+        auto_debit = auto_debit_choice == "y"
+
+        # Create bill
         bill = RecurringBill(
-            name=name,
+            name=bill_name,
+            category=category,
             base_amount=amount,
             frequency=frequency,
             day_of_month=day_of_month,
-            category=category,
-            auto_debit=True,
+            auto_debit=auto_debit,
+            linked_card_id=linked_card_id,
+            is_dynamic=is_dynamic,
+            payment_method=payment_method,
+            payment_card_id=payment_card_id,
         )
 
         account.add_recurring_bill(bill)
         self.bank.save()
+
+        print("\n" + "=" * 60)
+        print("✅ CREDIT CARD BILL ADDED")
+        print("=" * 60)
+        print(f"Bill: {bill.name}")
+        print(f"Amount: Rs. {bill.base_amount:,.2f}")
+        print(f"Due Day: {bill.day_of_month}")
+        print(f"Auto-pay: {'✅ Enabled' if bill.auto_debit else '❌ Disabled'}")
+        if is_dynamic:
+            print("📊 Amount will auto-update from card")
+        print("=" * 60)
+
+        input("\nPress Enter to continue...")
 
     def remove_recurring_bill(self, account: Account):
         """Remove a recurring bill"""
@@ -1077,6 +1452,49 @@ Recurring Bills Management
             bill_id = input("Enter Bill ID to remove: ").strip()
             account.remove_recurring_bill(bill_id)
             self.bank.save()
+
+    def show_rewards_dashboard(self, account: Account):
+        """Show rewards dashboard with credit card rewards info"""
+        print("\n" + "=" * 70)
+        print("                    REWARDS DASHBOARD 💎")
+        print("=" * 70)
+
+        # Collect credit card info
+        credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
+
+        if not credit_cards:
+            print(
+                "\n❌ No credit cards found. Apply for a credit card to earn rewards!"
+            )
+            print("=" * 70)
+            input("\nPress Enter to continue...")
+            return
+
+        total_rewards = 0.0
+        total_spending = 0.0
+
+        print("\nYour Credit Cards & Rewards:")
+        print("-" * 70)
+
+        for idx, card in enumerate(credit_cards, 1):
+            print(
+                f"\n{idx}. {card.network} Credit Card (**** **** **** {card.card_number[-4:]}):"
+            )
+            print(f"   Credit Limit: Rs. {card.credit_limit:,.2f} INR")
+            print(f"   Used: Rs. {card.credit_used:,.2f} INR")
+            print(f"   Available: Rs. {card.available_credit():,.2f} INR")
+            print(f"   Utilization: {card.credit_utilization():.1f}%")
+            print(f"   💰 Reward Points: {card.reward_points:.0f}")
+
+            total_rewards += card.reward_points
+            total_spending += card.credit_used
+
+        print("\n" + "-" * 70)
+        print(f"Total Rewards Earned: {total_rewards:.0f} points")
+        print(f"Total Spending: Rs. {total_spending:,.2f} INR")
+        print(f"Rewards Value (₹1 = 1 point): Rs. {total_rewards:.2f} INR")
+        print("=" * 70)
+        input("\nPress Enter to continue...")
 
     def manage_salary(self, account: Account):
         """Manage salary profile"""
@@ -1134,7 +1552,10 @@ Salary Management
             BankClock.advance_day()
             current_date = BankClock.today()
 
-            bills_processed = account.process_recurring_bills(current_date, self.bank)
+            # Process daily tasks across the whole bank (recurring bills, salary credits, card bills)
+            bills_processed = self.bank.process_daily_tasks()
+
+            # Still simulate daily expenses for the focused account for reporting
             daily_txns = ExpenseSimulator.simulate_day(account, self.bank, current_date)
 
             total_transactions += bills_processed + daily_txns

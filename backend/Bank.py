@@ -449,10 +449,12 @@ class Bank:
         print(f"\n{'=' * 60}")
         print(f"Processing Daily Tasks for {today.strftime('%d-%m-%Y')}")
         print(f"{'=' * 60}\n")
+        total_processed = 0
 
         for account in self.accounts:
-            # Process recurring bills
+            # Process recurring bills (returns number processed for the account)
             bills_processed = account.process_recurring_bills(today, self)
+            total_processed += bills_processed
 
             # Process salary credits
             if account.salary_profile and account.salary_profile.should_credit_today(
@@ -467,6 +469,8 @@ class Bank:
         print(f"\n{'=' * 60}")
         print("Daily tasks completed")
         print(f"{'=' * 60}\n")
+
+        return total_processed
 
 
 # End of Bank class

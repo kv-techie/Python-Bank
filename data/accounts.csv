@@ -1,0 +1,7 @@
+username,password,firstName,lastName,dob,gender,accountType,accountNumber,balance,failedAttempts,locked
+test_user,password123,Test,User,1990-01-01,M,Pride,562107162630,50000,0,False
+test_user,password123,Test,User,1990-01-01,M,Pride,562106510050,50000,0,False
+test_user,password123,Test,User,1990-01-01,M,Pride,562128937420,50000,0,False
+test_user,password123,Test,User,1990-01-01,M,Pride,562194343303,50000,0,False
+test_user,password123,Test,User,1990-01-01,M,Pride,562155743506,50000,0,False
+test_user,password123,Test,User,1990-01-01,M,Pride,562175592508,50000,0,False

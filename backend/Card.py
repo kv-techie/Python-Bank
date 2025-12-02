@@ -2,10 +2,11 @@ import random
 import string
 from datetime import date, timedelta
 from random import choice, randint
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from Account import Account
+    from Transaction import Transaction
 
 
 class Card:
@@ -237,6 +238,9 @@ class Card:
             card.minimum_due = data.get("minimumDue", 0.0)
             card.interest_rate = data.get("interestRate", 0.18)
             card.reward_points = data.get("rewardPoints", 0.0)
+            card.reward_rate = data.get("rewardRate", 0.01)
+            card.auto_pay_policy = data.get("autoPayPolicy", "NONE")
+            card.transactions = []  # Initialize empty transactions list
         else:
             card = DebitCard.__new__(DebitCard)
             Card.__init__(
@@ -446,6 +450,15 @@ class CreditCard(Card):
         self.minimum_due = 0.0
         self.interest_rate = 0.18  # 18% annual interest (1.5% monthly)
         self.reward_points = 0.0  # Reward points earned
+        self.reward_rate = 0.01  # 1% reward rate (1 point per Rs. 100 spent)
+        self.transactions: List[Transaction] = []  # List of card transactions
+        # Auto-pay policy when a statement is generated: "NONE", "MINIMUM", or "FULL"
+        self.auto_pay_policy = "NONE"
+
+    @property
+    def current_balance(self) -> float:
+        """Get current balance (alias for credit_used for backward compatibility)"""
+        return self.credit_used
 
     def available_credit(self) -> float:
         """Get available credit limit"""
@@ -720,7 +733,9 @@ class CreditCard(Card):
                 "outstandingBalance": self.outstanding_balance,
                 "minimumDue": self.minimum_due,
                 "interestRate": self.interest_rate,
-                "rewardPoints": getattr(self, "reward_points", 0.0),  # USE GETATTR
+                "rewardPoints": getattr(self, "reward_points", 0.0),
+                "rewardRate": getattr(self, "reward_rate", 0.01),
+                "autoPayPolicy": getattr(self, "auto_pay_policy", "NONE"),
             }
         )
         return base_dict
@@ -729,6 +744,8 @@ class CreditCard(Card):
         """Ensure all required attributes exist (migration helper)"""
         if not hasattr(self, "reward_points"):
             self.reward_points = 0.0
+        if not hasattr(self, "reward_rate"):
+            self.reward_rate = 0.01
         if not hasattr(self, "network"):
             self.network = "VISA"
         if not hasattr(self, "interest_rate"):
@@ -737,6 +754,8 @@ class CreditCard(Card):
             self.outstanding_balance = 0.0
         if not hasattr(self, "minimum_due"):
             self.minimum_due = 0.0
+        if not hasattr(self, "auto_pay_policy"):
+            self.auto_pay_policy = "NONE"
 
 
 # Example usage and testing
