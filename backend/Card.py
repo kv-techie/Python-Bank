@@ -240,7 +240,15 @@ class Card:
             card.reward_points = data.get("rewardPoints", 0.0)
             card.reward_rate = data.get("rewardRate", 0.01)
             card.auto_pay_policy = data.get("autoPayPolicy", "NONE")
-            card.transactions = []  # Initialize empty transactions list
+            # Load transactions if present
+            try:
+                from Transaction import Transaction
+
+                card.transactions = [
+                    Transaction.from_dict(t) for t in data.get("transactions", [])
+                ]
+            except Exception:
+                card.transactions = []  # Fallback to empty list
         else:
             card = DebitCard.__new__(DebitCard)
             Card.__init__(
@@ -474,7 +482,11 @@ class CreditCard(Card):
         return (self.credit_used / self.credit_limit) * 100
 
     def make_purchase(
-        self, amount: float, merchant: str, category: str = "Shopping"
+        self,
+        amount: float,
+        merchant: str,
+        category: str = "Shopping",
+        account: "Account" = None,
     ) -> tuple[bool, str, Optional[str]]:
         """
         Make a credit card purchase
@@ -501,6 +513,7 @@ class CreditCard(Card):
             )
 
         # Process transaction
+        from DataStore import DataStore
         from Transaction import Transaction
 
         self.credit_used += amount
@@ -509,14 +522,33 @@ class CreditCard(Card):
         points_earned = amount / 100
         self.reward_points += points_earned
 
-        # Create transaction record
+        # Create transaction record for the card
         txn = Transaction(
             type="CREDIT_CARD_PURCHASE",
             amount=amount,
             resulting_balance=self.credit_used,
             category=category,
             merchant=merchant,
+            metadata={"cardId": self.card_id},
         )
+
+        # Append to card transaction history
+        if not hasattr(self, "transactions"):
+            self.transactions = []
+        self.transactions.append(txn)
+
+        # Log activity to activity file if account provided
+        if account is not None:
+            DataStore.append_activity(
+                timestamp=txn.timestamp,
+                username=account.username,
+                account_number=account.account_number,
+                action="CREDIT_CARD_PURCHASE",
+                amount=amount,
+                resulting_balance=account.balance,
+                txn_id=txn.id,
+                metadata=f"cardId={self.card_id};merchant={merchant};category={category};network={self.network}",
+            )
 
         return (
             True,
@@ -546,6 +578,11 @@ class CreditCard(Card):
             if self.outstanding_balance > 0
             else self.credit_used
         )
+
+        # Normalize currency to 2 decimals to avoid floating-point precision issues
+        amount = round(float(amount), 2)
+        max_payable = round(float(max_payable), 2)
+
         if amount > max_payable:
             return (
                 False,
@@ -597,6 +634,48 @@ class CreditCard(Card):
             txn_id=txn.id,
             metadata=f"cardId={self.card_id};creditUsed={self.credit_used:.2f};network={self.network}",
         )
+
+        # Also record the payment on the card's transaction history
+        card_txn = Transaction(
+            type="CREDIT_CARD_PAYMENT",
+            amount=-amount,
+            resulting_balance=self.credit_used,
+            metadata={"accountNumber": account.account_number},
+        )
+        if not hasattr(self, "transactions"):
+            self.transactions = []
+        self.transactions.append(card_txn)
+
+        # Log card payment activity (mirrors account activity)
+        DataStore.append_activity(
+            timestamp=card_txn.timestamp,
+            username=account.username,
+            account_number=account.account_number,
+            action="CREDIT_CARD_PAYMENT_CARD",
+            amount=-amount,
+            resulting_balance=self.credit_used,
+            txn_id=card_txn.id,
+            metadata=f"cardId={self.card_id};network={self.network}",
+        )
+
+        # Normalize and clamp tiny negative values that arise due to floating-point
+        # arithmetic so UI does not show '-0.00'. Use 2-decimal rounding for currency.
+        try:
+            # Round to 2 decimals for display/storage
+            account.balance = round(float(account.balance), 2)
+            self.credit_used = round(float(self.credit_used), 2)
+            self.outstanding_balance = round(float(self.outstanding_balance), 2)
+
+            # Clamp tiny negatives to exactly zero
+            if abs(account.balance) < 0.005:
+                account.balance = 0.0
+            if abs(self.credit_used) < 0.005:
+                self.credit_used = 0.0
+            if abs(self.outstanding_balance) < 0.005:
+                self.outstanding_balance = 0.0
+        except Exception:
+            # Be defensive; don't allow normalization errors to break flow
+            pass
 
         return (
             True,
@@ -738,6 +817,13 @@ class CreditCard(Card):
                 "autoPayPolicy": getattr(self, "auto_pay_policy", "NONE"),
             }
         )
+        # Include transactions for persistence
+        try:
+            base_dict["transactions"] = [
+                t.to_dict() for t in getattr(self, "transactions", [])
+            ]
+        except Exception:
+            base_dict["transactions"] = []
         return base_dict
 
     def _ensure_all_attributes(self):
