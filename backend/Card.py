@@ -42,7 +42,7 @@ class Card:
         self.cvv = cvv
         self.network = network  # "VISA", "MASTERCARD", or "RUPAY"
         self.blocked = False
-        self.daily_limit = 50000.0  # Default daily transaction limit
+        self.daily_limit = 200000.0  # Default daily transaction limit
 
     def is_expired(self) -> bool:
         """Check if card has expired"""

@@ -460,10 +460,22 @@ class Bank:
             if account.salary_profile and account.salary_profile.should_credit_today(
                 today
             ):
-                account.salary_profile.credit_salary(account)
+                print(f"  💰 Crediting salary for {account.username}")
+                success, msg = account.salary_profile.credit_salary(account)
+                print(f"  Result: {msg}")
+            else:
+                if account.salary_profile:
+                    print(
+                        f"  ⏭️  Skipping salary for {account.username} (not due today or already processed)"
+                    )
 
             # Process credit card bills
             account.process_credit_card_bills(today)
+
+        self.save()
+        print(f"\n{'=' * 60}")
+        print("Daily tasks completed")
+        print(f"{'=' * 60}\n")
 
         self.save()
         print(f"\n{'=' * 60}")
