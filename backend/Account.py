@@ -733,144 +733,144 @@ class Account:
         from RecurringBill import PaymentMethod
 
         processed = 0
-        updated_bills = []
 
         for bill in self.recurring_bills:
-            if bill.auto_debit and bill.should_process_today(today):
-                # Update dynamic bills first
-                if bill.is_dynamic and bill.linked_card_id:
-                    bill.update_from_linked_card(self)
+            # Only attempt to process bills that are set to auto-debit and due today
+            if not (bill.auto_debit and bill.should_process_today(today)):
+                continue
 
-                amount = bill.get_current_amount(self)
+            # Update dynamic bills first
+            if bill.is_dynamic and bill.linked_card_id:
+                bill.update_from_linked_card(self)
 
-                # CASE 1: Pay from Bank Account
-                if bill.payment_method == PaymentMethod.BANK_ACCOUNT:
-                    # If this is a credit-card-linked bill, use the card's pay_bill
-                    if bill.linked_card_id:
-                        card = self.get_card_by_id(bill.linked_card_id)
-                        if card and isinstance(card, CreditCard):
-                            success, msg, txn_id = card.pay_bill(amount, self)
-                            if success:
-                                print(f"✅ Auto-paid {bill.name}: Rs. {amount:,.2f}")
-                                print(f"   💳 {card.network} credit card paid")
-                                DataStore.append_activity(
-                                    timestamp=BankClock.get_formatted_datetime(),
-                                    username=self.username,
-                                    account_number=self.account_number,
-                                    action="RECURRING_BILL_CREDIT_CARD_PAYMENT",
-                                    amount=amount,
-                                    resulting_balance=self.balance,
-                                    txn_id=txn_id,
-                                    metadata=f"billId={bill.id};category={bill.category};nachId={bill.nach_id};cardId={card.card_id}",
-                                )
-                                processed += 1
-                                bill.last_processed = today
-                            else:
-                                print(f"⚠️  Failed to auto-pay {bill.name}: {msg}")
-                        else:
-                            print(f"⚠️  Payment card not found for {bill.name}")
-                    else:
-                        # Pay directly from bank account
-                        if self.balance - amount >= self._min_operational_balance:
-                            self.balance -= amount
+            amount = bill.get_current_amount(self)
 
-                            txn = Transaction(
-                                type="RECURRING_BILL",
-                                amount=-amount,
-                                resulting_balance=self.balance,
-                                category=bill.category,
-                                merchant=bill.name,
-                            )
-
-                            self.transactions.append(txn)
-
-                            DataStore.append_activity(
-                                timestamp=txn.timestamp,
-                                username=self.username,
-                                account_number=self.account_number,
-                                action="RECURRING_BILL",
-                                amount=amount,
-                                resulting_balance=self.balance,
-                                txn_id=txn.id,
-                                metadata=f"billId={bill.id};category={bill.category};nachId={bill.nach_id}",
-                            )
-
-                            print(f"✅ Auto-paid {bill.name}: Rs. {amount:,.2f}")
-                            processed += 1
-                            bill.last_processed = today
-                        else:
-                            print(f"⚠️  Insufficient balance to pay {bill.name}")
-
-                # CASE 2: Pay via Credit Card
-                elif bill.payment_method == PaymentMethod.CREDIT_CARD:
-                    card = self.get_card_by_id(bill.payment_card_id)
-
+            # CASE 1: Pay from Bank Account
+            if bill.payment_method == PaymentMethod.BANK_ACCOUNT:
+                # If this is a credit-card-linked bill, use the card's pay_bill
+                if bill.linked_card_id:
+                    card = self.get_card_by_id(bill.linked_card_id)
                     if card and isinstance(card, CreditCard):
-                        available = card.credit_limit - card.current_balance
-
-                        if available >= amount:
-                            # Charge the credit card (increase amount owed)
-                            card.credit_used += amount
-
-                            # Add to card transactions
-                            card_txn = Transaction(
-                                type="BILL_PAYMENT",
-                                amount=-amount,
-                                resulting_balance=card.available_credit(),
-                                category=bill.category,
-                                merchant=bill.name,
-                            )
-                            card.transactions.append(card_txn)
-
-                            # Calculate and award reward points
-                            reward_points = int(amount * card.reward_rate)
-                            card.reward_points += reward_points
-
-                            # Create transaction in account (for logging, no balance change)
-                            txn = Transaction(
-                                type="CREDIT_CARD_BILL_PAYMENT",
-                                amount=0,  # No account deduction
-                                resulting_balance=self.balance,
-                                metadata={
-                                    "bill_id": bill.id,
-                                    "bill_name": bill.name,
-                                    "nach_id": bill.nach_id,
-                                    "payment_method": "credit_card",
-                                    "card_id": card.card_id,
-                                    "card_network": card.network,
-                                    "reward_points_earned": reward_points,
-                                    "bill_amount": amount,
-                                },
-                            )
-
-                            self.transactions.append(txn)
-
+                        success, msg, txn_id = card.pay_bill(amount, self)
+                        if success:
+                            print(f"✅ Auto-paid {bill.name}: Rs. {amount:,.2f}")
+                            print(f"   💳 {card.network} credit card paid")
                             DataStore.append_activity(
-                                timestamp=txn.timestamp,
+                                timestamp=BankClock.get_formatted_datetime(),
                                 username=self.username,
                                 account_number=self.account_number,
-                                action="CREDIT_CARD_BILL_PAYMENT",
+                                action="RECURRING_BILL_CREDIT_CARD_PAYMENT",
                                 amount=amount,
                                 resulting_balance=self.balance,
-                                txn_id=txn.id,
-                                metadata=f"billId={bill.id};cardId={card.card_id};rewardPoints={reward_points};nachId={bill.nach_id}",
+                                txn_id=txn_id,
+                                metadata=f"billId={bill.id};category={bill.category};nachId={bill.nach_id};cardId={card.card_id}",
                             )
-
-                            print(
-                                f"✅ Auto-paid {bill.name}: Rs. {amount:,.2f} via {card.network}"
-                            )
-                            print(f"   💎 Earned {reward_points} reward points!")
-
                             processed += 1
                             bill.last_processed = today
                         else:
-                            print(f"⚠️  Insufficient credit limit for {bill.name}")
+                            print(f"⚠️  Failed to auto-pay {bill.name}: {msg}")
                     else:
                         print(f"⚠️  Payment card not found for {bill.name}")
+                else:
+                    # Pay directly from bank account
+                    if self.balance - amount >= self._min_operational_balance:
+                        self.balance -= amount
 
-                updated_bills.append(bill)
+                        txn = Transaction(
+                            type="RECURRING_BILL",
+                            amount=-amount,
+                            resulting_balance=self.balance,
+                            category=bill.category,
+                            merchant=bill.name,
+                        )
 
-        self.recurring_bills = updated_bills
+                        self.transactions.append(txn)
+
+                        DataStore.append_activity(
+                            timestamp=txn.timestamp,
+                            username=self.username,
+                            account_number=self.account_number,
+                            action="RECURRING_BILL",
+                            amount=amount,
+                            resulting_balance=self.balance,
+                            txn_id=txn.id,
+                            metadata=f"billId={bill.id};category={bill.category};nachId={bill.nach_id}",
+                        )
+
+                        print(f"✅ Auto-paid {bill.name}: Rs. {amount:,.2f}")
+                        processed += 1
+                        bill.last_processed = today
+                    else:
+                        print(f"⚠️  Insufficient balance to pay {bill.name}")
+
+            # CASE 2: Pay via Credit Card
+            elif bill.payment_method == PaymentMethod.CREDIT_CARD:
+                card = self.get_card_by_id(bill.payment_card_id)
+
+                if card and isinstance(card, CreditCard):
+                    available = card.credit_limit - card.current_balance
+
+                    if available >= amount:
+                        # Charge the credit card (increase amount owed)
+                        card.credit_used += amount
+
+                        # Add to card transactions
+                        card_txn = Transaction(
+                            type="BILL_PAYMENT",
+                            amount=-amount,
+                            resulting_balance=card.available_credit(),
+                            category=bill.category,
+                            merchant=bill.name,
+                        )
+                        card.transactions.append(card_txn)
+
+                        # Calculate and award reward points
+                        reward_points = int(amount * card.reward_rate)
+                        card.reward_points += reward_points
+
+                        # Create transaction in account (for logging, no balance change)
+                        txn = Transaction(
+                            type="CREDIT_CARD_BILL_PAYMENT",
+                            amount=0,  # No account deduction
+                            resulting_balance=self.balance,
+                            metadata={
+                                "bill_id": bill.id,
+                                "bill_name": bill.name,
+                                "nach_id": bill.nach_id,
+                                "payment_method": "credit_card",
+                                "card_id": card.card_id,
+                                "card_network": card.network,
+                                "reward_points_earned": reward_points,
+                                "bill_amount": amount,
+                            },
+                        )
+
+                        self.transactions.append(txn)
+
+                        DataStore.append_activity(
+                            timestamp=txn.timestamp,
+                            username=self.username,
+                            account_number=self.account_number,
+                            action="CREDIT_CARD_BILL_PAYMENT",
+                            amount=amount,
+                            resulting_balance=self.balance,
+                            txn_id=txn.id,
+                            metadata=f"billId={bill.id};cardId={card.card_id};rewardPoints={reward_points};nachId={bill.nach_id}",
+                        )
+
+                        print(
+                            f"✅ Auto-paid {bill.name}: Rs. {amount:,.2f} via {card.network}"
+                        )
+                        print(f"   💎 Earned {reward_points} reward points!")
+
+                        processed += 1
+                        bill.last_processed = today
+                    else:
+                        print(f"⚠️  Insufficient credit limit for {bill.name}")
+                else:
+                    print(f"⚠️  Payment card not found for {bill.name}")
+
+        # Do not overwrite self.recurring_bills here — keep configured bills intact
         return processed
 
     # ========== SALARY MANAGEMENT ==========

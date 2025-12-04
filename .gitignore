@@ -159,3 +159,6 @@ test_autopay.py
 catchup_autopay.py
 *_test.py
 test_*.py
+run_daily_once.py
+repro_card_pay_test.py
+repo_card_test.py
