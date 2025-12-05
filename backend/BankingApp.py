@@ -319,7 +319,8 @@ Choose an option:
             print("7. View Credit Card Statement")
             print("8. Block Card")
             print("9. Unblock Card")
-            print("10. Back to Main Menu")
+            print("Credit Limit Enhancement Request")
+            print("11. Back to Main Menu")
             print("=" * 50)
 
             choice = input("Enter your choice: ").strip()
@@ -352,10 +353,171 @@ Choose an option:
                 self.unblock_card(account)
 
             elif choice == "10":
+                self.request_credit_limit_enhancement(account)
+
+            elif choice == "11":
                 break
 
             else:
                 print("Invalid choice")
+
+    def request_credit_limit_enhancement(self, account: Account):
+        """Request credit limit enhancement for a credit card"""
+        from Card import CreditCard
+        from CreditLimitEnhancement import CreditLimitEnhancement
+
+        credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
+
+        if not credit_cards:
+            print("\n❌ No credit cards found")
+            return
+
+        print("\n" + "=" * 70)
+        print("CREDIT LIMIT ENHANCEMENT REQUEST 📈")
+        print("=" * 70)
+
+        # Show all credit cards
+        for idx, card in enumerate(credit_cards, 1):
+            print(f"\n{idx}. {card.network} **** **** **** {card.card_number[-4:]}")
+            print(f"   Current Limit: Rs. {card.credit_limit:,.2f}")
+            print(f"   Used: Rs. {card.credit_used:,.2f}")
+            print(f"   Available: Rs. {card.available_credit():,.2f}")
+            print(f"   Utilization: {card.credit_utilization():.1f}%")
+
+        if len(credit_cards) == 1:
+            selected_card = credit_cards[0]
+        else:
+            choice = input(f"\nSelect card (1-{len(credit_cards)}): ").strip()
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(credit_cards):
+                    selected_card = credit_cards[idx]
+                else:
+                    print("❌ Invalid choice")
+                    return
+            except ValueError:
+                print("❌ Invalid input")
+                return
+
+        # Get customer object
+        customer = self.bank.get_customer_by_id(account.customer_id)
+        if not customer:
+            print("❌ Error: Customer not found")
+            return
+
+        print(f"\n{'=' * 70}")
+        print(f"Checking eligibility for {selected_card.network} card...")
+        print(f"{'=' * 70}")
+
+        # Check eligibility
+        eligible, reason, details = CreditLimitEnhancement.check_eligibility(
+            selected_card, customer, self.bank, account
+        )
+
+        # Display eligibility details
+        print("\n📊 ELIGIBILITY CRITERIA:")
+        print(f"{'=' * 70}")
+
+        if "card_age_months" in details:
+            status = "✅" if details["card_age_months"] >= 6 else "❌"
+            print(
+                f"{status} Card Age: {details['card_age_months']} months (Required: 6+)"
+            )
+
+        if "cibil_score" in details:
+            status = "✅" if details["cibil_score"] >= 700 else "❌"
+            print(
+                f"{status} CIBIL Score: {details['cibil_score']:.0f} (Required: 700+)"
+            )
+
+        if "utilization" in details:
+            util = details["utilization"]
+            status = "✅" if 30 <= util <= 90 else "❌"
+            print(f"{status} Credit Utilization: {util:.1f}% (Required: 30-90%)")
+
+        if "total_payments" in details:
+            status = "✅" if details["total_payments"] >= 3 else "❌"
+            print(
+                f"{status} Payment History: {details['total_payments']} payments (Required: 3+)"
+            )
+
+        if "on_time_ratio" in details:
+            ratio = details["on_time_ratio"] * 100
+            status = "✅" if details["on_time_ratio"] >= 0.95 else "❌"
+            print(f"{status} On-Time Payments: {ratio:.0f}% (Required: 95%+)")
+
+        if "defaulted_loans" in details:
+            status = "✅" if details["defaulted_loans"] == 0 else "❌"
+            print(
+                f"{status} Defaulted Loans: {details['defaulted_loans']} (Required: 0)"
+            )
+
+        print(f"{'=' * 70}")
+
+        if not eligible:
+            print(f"\n❌ INELIGIBLE: {reason}")
+            print("\n💡 Tips to become eligible:")
+            print("   • Maintain good payment history (pay bills on time)")
+            print("   • Use your credit card regularly (30-75% utilization)")
+            print("   • Keep your CIBIL score above 700")
+            print("   • Wait for 6 months between enhancement requests")
+            return
+
+        print(f"\n✅ ELIGIBLE: {reason}")
+
+        # Calculate and show potential new limit
+        annual_income = 0
+        if account.salary_profile:
+            annual_income = account.salary_profile.gross_salary * 12
+        else:
+            annual_income = 300000
+
+        potential_new_limit = CreditLimitEnhancement.calculate_new_limit(
+            current_limit=selected_card.credit_limit,
+            cibil_score=details["cibil_score"],
+            utilization=details["utilization"],
+            income=annual_income,
+        )
+
+        increase = potential_new_limit - selected_card.credit_limit
+        increase_pct = (increase / selected_card.credit_limit) * 100
+
+        print("\n💰 POTENTIAL ENHANCEMENT:")
+        print(f"{'=' * 70}")
+        print(f"Current Limit:     Rs. {selected_card.credit_limit:>15,.2f}")
+        print(f"Proposed New Limit: Rs. {potential_new_limit:>15,.2f}")
+        print(f"Increase Amount:    Rs. {increase:>15,.2f} ({increase_pct:.1f}%)")
+        print(f"{'=' * 70}")
+
+        # Confirm request
+        confirm = (
+            input("\nProceed with enhancement request? (yes/no): ").strip().lower()
+        )
+
+        if confirm not in ["yes", "y"]:
+            print("❌ Request cancelled")
+            return
+
+        # Process enhancement
+        approved, message, new_limit = CreditLimitEnhancement.request_enhancement(
+            selected_card, customer, self.bank, account
+        )
+
+        print(f"\n{'=' * 70}")
+        if approved:
+            print("🎉 CREDIT LIMIT ENHANCED!")
+            print(f"{'=' * 70}")
+            print(message)
+            print(
+                f"\n💳 Your new available credit: Rs. {selected_card.available_credit():,.2f}"
+            )
+            self.bank.save()
+        else:
+            print("❌ ENHANCEMENT DENIED")
+            print(f"{'=' * 70}")
+            print(message)
+
+        print(f"{'=' * 70}")
 
     def apply_debit_card(self, account: Account):
         """Apply for a new debit card"""
@@ -545,7 +707,9 @@ Choose an option:
             print("Invalid amount")
 
     def pay_credit_card(self, account: Account):
-        """Pay credit card bill"""
+        """Pay credit card bill with option to use reward points"""
+        from RewardPointsManager import RewardPointsManager
+
         credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
 
         if not credit_cards:
@@ -557,6 +721,9 @@ Choose an option:
         for card in credit_cards:
             print(f"\nCard: **** **** **** {card.card_number[-4:]}")
             print(f"Outstanding: Rs. {card.credit_used:,.2f} INR")
+            print(
+                f"💎 Reward Points: {card.reward_points:.0f} (Value: Rs. {RewardPointsManager.calculate_points_value(card.reward_points):.2f})"
+            )
             if card.outstanding_balance > 0:
                 print(f"Bill Amount: Rs. {card.outstanding_balance:,.2f} INR")
                 print(f"Minimum Due: Rs. {card.minimum_due:,.2f} INR")
@@ -568,16 +735,172 @@ Choose an option:
             print("Credit card not found")
             return
 
-        print(f"\nAccount Balance: Rs. {account.balance:,.2f} INR")
-        print(f"Amount to Pay (Outstanding: Rs. {card.credit_used:,.2f} INR)")
+        outstanding = card.credit_used if card.credit_used > 0 else 0
+
+        if outstanding == 0:
+            print("\n✅ No outstanding balance!")
+            return
+
+        print(f"\n{'=' * 70}")
+        print("PAYMENT OPTIONS")
+        print(f"{'=' * 70}")
+        print(f"Account Balance: Rs. {account.balance:,.2f} INR")
+        print(f"Outstanding: Rs. {outstanding:,.2f} INR")
+        print(
+            f"💎 Reward Points: {card.reward_points:.0f} (Rs. {RewardPointsManager.calculate_points_value(card.reward_points):.2f})"
+        )
+        print(f"{'=' * 70}")
+
+        # Check if rewards can be used
+        can_use_rewards = (
+            card.reward_points >= RewardPointsManager.MIN_REDEMPTION_POINTS
+        )
+
+        # Ask about reward points
+        reward_points_to_use = 0
+        if can_use_rewards:
+            use_rewards = (
+                input("\nUse reward points for payment? (yes/no): ").strip().lower()
+            )
+
+            if use_rewards in ["yes", "y"]:
+                redemption_options = RewardPointsManager.get_redemption_options(
+                    card, outstanding
+                )
+
+                print("\n💎 REWARD POINTS REDEMPTION")
+                print(f"{'=' * 70}")
+                print(f"Available: {redemption_options['available_points']:.0f} points")
+                print(
+                    f"Max Redeemable: {redemption_options['max_redeemable_points']:.0f} points (Rs. {redemption_options['max_redeemable_value']:.2f})"
+                )
+                print(f"Rate: 1 point = Rs. {RewardPointsManager.REDEMPTION_RATE}")
+
+                # Show preset options if available
+                if "presets" in redemption_options and redemption_options["presets"]:
+                    print("\n🎯 QUICK OPTIONS:")
+                    for idx, preset in enumerate(redemption_options["presets"], 1):
+                        print(
+                            f"  {idx}. {preset['label']}: {preset['points']:.0f} points → Rs. {preset['value']:.2f}"
+                        )
+                    print(f"  {len(redemption_options['presets']) + 1}. Custom amount")
+                    print("  0. Skip (pay cash only)")
+
+                    choice = input("\nSelect: ").strip()
+
+                    try:
+                        choice_num = int(choice)
+                        if choice_num == 0:
+                            reward_points_to_use = 0
+                        elif 1 <= choice_num <= len(redemption_options["presets"]):
+                            reward_points_to_use = redemption_options["presets"][
+                                choice_num - 1
+                            ]["points"]
+                        elif choice_num == len(redemption_options["presets"]) + 1:
+                            reward_points_to_use = float(
+                                input(
+                                    f"Enter points ({RewardPointsManager.MIN_REDEMPTION_POINTS}-{redemption_options['max_redeemable_points']:.0f}): "
+                                )
+                            )
+                        else:
+                            print("❌ Invalid option")
+                            return
+                    except ValueError:
+                        print("❌ Invalid input")
+                        return
+                else:
+                    try:
+                        reward_points_to_use = float(
+                            input(
+                                f"Enter points to redeem (100-{redemption_options['max_redeemable_points']:.0f}): "
+                            )
+                        )
+                    except ValueError:
+                        print("❌ Invalid input")
+                        return
+
+        # Calculate amounts
+        reward_value = 0
+        remaining_balance = outstanding
+
+        if reward_points_to_use > 0:
+            # Validate redemption
+            can_redeem, reason = RewardPointsManager.can_redeem(
+                card, reward_points_to_use
+            )
+            if not can_redeem:
+                print(f"\n❌ {reason}")
+                return
+
+            reward_value = RewardPointsManager.calculate_points_value(
+                reward_points_to_use
+            )
+            remaining_balance = outstanding - reward_value
+
+            print(
+                f"\n💎 Redeeming: {reward_points_to_use:.0f} points → Rs. {reward_value:.2f}"
+            )
+            print(f"💰 Remaining to pay: Rs. {remaining_balance:.2f}")
+
+        # Get cash amount
+        cash_amount = 0
+        if remaining_balance > 0:
+            print(f"\nAccount Balance: Rs. {account.balance:,.2f} INR")
+
+            try:
+                cash_input = input(
+                    f"Enter cash amount to pay (0-{remaining_balance:.2f}): Rs. "
+                ).strip()
+                cash_amount = float(cash_input) if cash_input else 0
+
+                if cash_amount < 0 or cash_amount > remaining_balance:
+                    print("❌ Invalid amount")
+                    return
+            except ValueError:
+                print("❌ Invalid amount")
+                return
+
+        # Validate total payment
+        total_payment = cash_amount + reward_value
+        if total_payment == 0:
+            print("❌ No payment amount entered")
+            return
+
+        # Process payment
+        print(f"\n{'=' * 70}")
+        print("PROCESSING PAYMENT...")
+        print(f"{'=' * 70}")
 
         try:
-            amount = float(input("Enter payment amount: ").strip())
-            account.pay_credit_card_bill(card.card_id, amount)
-            self.bank.save()
+            # Use the combined payment method
+            success, message, txn_id = card.pay_bill_with_rewards(
+                cash_amount, reward_points_to_use, account
+            )
 
-        except ValueError:
-            print("Invalid amount")
+            if success:
+                print("\n✅ PAYMENT SUCCESSFUL!")
+                print(f"{'=' * 70}")
+
+                # Show breakdown
+                if cash_amount > 0:
+                    print(f"💵 Cash:           Rs. {cash_amount:>12,.2f}")
+                if reward_value > 0:
+                    print(
+                        f"💎 Rewards:        Rs. {reward_value:>12,.2f} ({reward_points_to_use:.0f} pts)"
+                    )
+                print(f"{'─' * 70}")
+                print(f"📊 Total:          Rs. {total_payment:>12,.2f}")
+                print(f"{'=' * 70}")
+                print(f"💳 New Balance:    Rs. {card.credit_used:>12,.2f}")
+                print(f"💎 Remaining Pts:  {card.reward_points:>15,.0f}")
+                print(f"{'=' * 70}")
+
+                self.bank.save()
+            else:
+                print(f"\n❌ Payment failed: {message}")
+
+        except Exception as e:
+            print(f"\n❌ Error: {e}")
 
     def view_credit_statement(self, account: Account):
         """View credit card statement"""

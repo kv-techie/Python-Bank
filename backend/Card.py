@@ -683,6 +683,159 @@ class CreditCard(Card):
             txn.id,
         )
 
+    def pay_bill_with_rewards(
+        self, cash_amount: float, reward_points: float, account: "Account"
+    ) -> tuple[bool, str, Optional[str]]:
+        """
+        Pay credit card bill using combination of cash and reward points
+
+        Args:
+            cash_amount: Cash payment amount from account
+            reward_points: Reward points to redeem
+            account: Account object to debit from
+
+        Returns:
+            (success, message, transaction_id)
+        """
+        from DataStore import DataStore
+        from RewardPointsManager import RewardPointsManager
+        from Transaction import Transaction
+
+        # Validate reward points redemption first
+        if reward_points > 0:
+            can_redeem, reason = RewardPointsManager.can_redeem(self, reward_points)
+            if not can_redeem:
+                return (False, f"Reward redemption failed: {reason}", None)
+
+        # Calculate total payment
+        reward_value = (
+            RewardPointsManager.calculate_points_value(reward_points)
+            if reward_points > 0
+            else 0
+        )
+        total_payment = cash_amount + reward_value
+
+        # Validate total payment
+        max_payable = (
+            self.outstanding_balance
+            if self.outstanding_balance > 0
+            else self.credit_used
+        )
+        total_payment = round(float(total_payment), 2)
+        max_payable = round(float(max_payable), 2)
+
+        if total_payment > max_payable:
+            return (
+                False,
+                f"Total payment (Rs. {total_payment:.2f}) exceeds outstanding balance (Rs. {max_payable:.2f})",
+                None,
+            )
+
+        # Check account balance for cash portion
+        if cash_amount > 0:
+            min_balance = account._min_operational_balance
+            if account.balance - cash_amount < min_balance:
+                return (
+                    False,
+                    f"Insufficient account balance. Must maintain Rs. {min_balance:.2f} INR",
+                    None,
+                )
+
+        # Step 1: Redeem reward points
+        if reward_points > 0:
+            success, message, redeemed_value = (
+                RewardPointsManager.redeem_for_bill_payment(
+                    self, reward_points, max_payable
+                )
+            )
+            if not success:
+                return (False, f"Reward redemption failed: {message}", None)
+
+            # Reduce credit used by reward value
+            self.credit_used -= redeemed_value
+            if self.outstanding_balance > 0:
+                self.outstanding_balance -= redeemed_value
+
+        # Step 2: Process cash payment using existing method
+        txn_id = None
+        if cash_amount > 0:
+            success, message, txn_id = self.pay_bill(cash_amount, account)
+            if not success:
+                # Rollback reward redemption if cash payment fails
+                if reward_points > 0:
+                    self.reward_points += reward_points
+                    self.credit_used += reward_value
+                    if self.outstanding_balance > 0:
+                        self.outstanding_balance += reward_value
+                return (False, f"Cash payment failed: {message}", None)
+
+        # Recalculate minimum due
+        if self.outstanding_balance > 0:
+            self.minimum_due = max(self.outstanding_balance * 0.05, 500.0)
+            self.minimum_due = min(self.minimum_due, self.outstanding_balance)
+        else:
+            self.minimum_due = 0.0
+
+        # Create special transaction record for reward redemption
+        if reward_points > 0:
+            reward_txn = Transaction(
+                type="REWARD_REDEMPTION",
+                amount=-reward_value,
+                resulting_balance=self.credit_used,
+                metadata={
+                    "cardId": self.card_id,
+                    "pointsRedeemed": reward_points,
+                    "redemptionValue": reward_value,
+                    "remainingPoints": self.reward_points,
+                },
+            )
+            if not hasattr(self, "transactions"):
+                self.transactions = []
+            self.transactions.append(reward_txn)
+
+            # Log reward redemption activity
+            DataStore.append_activity(
+                timestamp=reward_txn.timestamp,
+                username=account.username,
+                account_number=account.account_number,
+                action="REWARD_REDEMPTION",
+                amount=-reward_value,
+                resulting_balance=self.credit_used,
+                txn_id=reward_txn.id,
+                metadata=f"cardId={self.card_id};pointsRedeemed={reward_points:.0f};redemptionValue={reward_value:.2f};network={self.network}",
+            )
+
+        # Normalize values
+        try:
+            account.balance = round(float(account.balance), 2)
+            self.credit_used = round(float(self.credit_used), 2)
+            self.outstanding_balance = round(float(self.outstanding_balance), 2)
+            self.reward_points = round(float(self.reward_points), 2)
+
+            if abs(account.balance) < 0.005:
+                account.balance = 0.0
+            if abs(self.credit_used) < 0.005:
+                self.credit_used = 0.0
+            if abs(self.outstanding_balance) < 0.005:
+                self.outstanding_balance = 0.0
+        except Exception:
+            pass
+
+        # Build success message
+        message_parts = []
+        if cash_amount > 0:
+            message_parts.append(f"Cash: Rs. {cash_amount:.2f}")
+        if reward_value > 0:
+            message_parts.append(
+                f"Rewards: Rs. {reward_value:.2f} ({reward_points:.0f} points)"
+            )
+
+        total_msg = f"Payment successful! ({' + '.join(message_parts)})"
+        total_msg += f"\nRemaining balance: Rs. {self.credit_used:.2f} INR"
+        total_msg += f"\nRemaining points: {self.reward_points:.0f}"
+
+        return (True, total_msg, txn_id)
+
     def generate_bill(self, today: date) -> dict:
         """
         Generate monthly credit card bill
