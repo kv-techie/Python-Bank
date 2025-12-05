@@ -319,7 +319,7 @@ Choose an option:
             print("7. View Credit Card Statement")
             print("8. Block Card")
             print("9. Unblock Card")
-            print("Credit Limit Enhancement Request")
+            print("10.Credit Limit Enhancement Request")
             print("11. Back to Main Menu")
             print("=" * 50)
 
