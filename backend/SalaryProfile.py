@@ -15,15 +15,30 @@ class SalaryProfile:
 
     def calculate_tax(self) -> float:
         """
-        Calculates the monthly tax deduction (15% if annual income > ₹18,00,000)
+        Calculates the monthly tax deduction based on annual income slabs
+
+        Tax Slabs:
+        - Up to ₹18,00,000/year: No tax (0%)
+        - ₹18,00,001 - ₹22,00,000/year: 15% flat
+        - ₹22,00,001 - ₹26,00,000/year: 20% flat
+        - ₹26,00,001 - ₹30,00,000/year: 25% flat
+        - Above ₹30,00,000/year: 30% flat
 
         Returns:
             Monthly tax amount
         """
         annual_income = self.gross_salary * 12
-        if annual_income > 1800000:  # ₹18,00,000 per year (₹1,50,000 per month)
-            return round(self.gross_salary * 0.15, 2)  # 15% tax
-        return 0.0
+
+        if annual_income > 3000000:  # > ₹30,00,000
+            return round(self.gross_salary * 0.30, 2)
+        elif annual_income > 2600000:  # > ₹26,00,000
+            return round(self.gross_salary * 0.25, 2)
+        elif annual_income > 2200000:  # > ₹22,00,000
+            return round(self.gross_salary * 0.20, 2)
+        elif annual_income > 1800000:  # > ₹18,00,000
+            return round(self.gross_salary * 0.15, 2)
+        else:
+            return 0.0
 
     def get_net_salary(self) -> float:
         """
@@ -68,10 +83,11 @@ class SalaryProfile:
         """
         annual_income = self.gross_salary * 12
         tax = self.calculate_tax()
+        tax_rate = self.get_tax_rate()
         net_salary = self.get_net_salary()
 
         if tax > 0:
-            tax_info = f"""   Monthly Tax (15%): ₹{tax:,.2f}
+            tax_info = f"""   Monthly Tax ({tax_rate:.0f}%): ₹{tax:,.2f}
    Net Monthly Salary: ₹{net_salary:,.2f}
    Annual Tax: ₹{tax * 12:,.2f}"""
         else:
@@ -108,12 +124,23 @@ class SalaryProfile:
 
     def get_tax_rate(self) -> float:
         """
-        Gets tax percentage (0% or 15%)
+        Gets the applicable tax percentage based on annual income
 
         Returns:
-            Tax rate as percentage
+            Tax rate as percentage (0%, 15%, 20%, 25%, or 30%)
         """
-        return 15.0 if self.calculate_tax() > 0 else 0.0
+        annual_income = self.gross_salary * 12
+
+        if annual_income > 3000000:  # > ₹30,00,000
+            return 30.0
+        elif annual_income > 2600000:  # > ₹26,00,000
+            return 25.0
+        elif annual_income > 2200000:  # > ₹22,00,000
+            return 20.0
+        elif annual_income > 1800000:  # > ₹18,00,000
+            return 15.0
+        else:
+            return 0.0
 
     def copy(self, **changes):
         """
@@ -316,7 +343,7 @@ class SalaryProfileFactory:
             if annual_max <= 1800000:
                 tax_status = "Tax-Free"
             elif annual_min >= 1800000:
-                tax_status = "15% Tax"
+                tax_status = "15%+ Tax"
             else:
                 tax_status = "Mixed"
 
@@ -341,7 +368,14 @@ class SalaryProfileFactory:
         """
         annual_income = gross_salary * 12
 
-        if annual_income > 1800000:
+        # Calculate tax based on slabs
+        if annual_income > 3000000:  # > ₹30,00,000
+            monthly_tax = gross_salary * 0.30
+        elif annual_income > 2600000:  # > ₹26,00,000
+            monthly_tax = gross_salary * 0.25
+        elif annual_income > 2200000:  # > ₹22,00,000
+            monthly_tax = gross_salary * 0.20
+        elif annual_income > 1800000:  # > ₹18,00,000
             monthly_tax = gross_salary * 0.15
         else:
             monthly_tax = 0.0
@@ -365,20 +399,34 @@ class SalaryProfileFactory:
         annual_gross = gross * 12
         annual_tax = tax * 12
         bracket = SalaryProfileFactory.get_salary_bracket(gross_salary)
-        tax_rate = 15.0 if tax > 0 else 0.0
+
+        # Calculate actual tax rate
+        annual_income = gross_salary * 12
+        if annual_income > 3000000:
+            tax_rate = 30.0
+        elif annual_income > 2600000:
+            tax_rate = 25.0
+        elif annual_income > 2200000:
+            tax_rate = 20.0
+        elif annual_income > 1800000:
+            tax_rate = 15.0
+        else:
+            tax_rate = 0.0
 
         print("\n" + "=" * 60)
         print("SALARY BREAKDOWN")
         print("=" * 60)
         print(f"Salary Bracket: {bracket}")
-        print(f"Tax Rate: {tax_rate}%")
+        print(f"Tax Rate: {tax_rate:.0f}%")
         print("-" * 60)
         print(f"{'Component':<30} {'Monthly':>12} {'Annual':>15}")
         print("-" * 60)
         print(f"{'Gross Salary':<30} ₹{gross:>10,.2f} ₹{annual_gross:>13,.2f}")
 
         if tax > 0:
-            print(f"{'Tax Deduction (15%)':<30} ₹{tax:>10,.2f} ₹{annual_tax:>13,.2f}")
+            print(
+                f"{'Tax Deduction ({:.0f}%)'.format(tax_rate):<30} ₹{tax:>10,.2f} ₹{annual_tax:>13,.2f}"
+            )
             print("-" * 60)
             print(
                 f"{'Net Salary (Take Home)':<30} ₹{net:>10,.2f} ₹{annual_net:>13,.2f}"

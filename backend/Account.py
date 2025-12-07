@@ -885,19 +885,28 @@ class Account:
             gross_salary=gross_salary, salary_day=salary_day
         )
         tax = self.salary_profile.calculate_tax()
+        tax_rate = (
+            self.salary_profile.get_tax_rate()
+        )  # ✓ Fixed: use self.salary_profile
         net_salary = self.salary_profile.get_net_salary()
         annual_income = gross_salary * 12
 
         print("Salary profile set:")
         print(f"   Gross Monthly Salary: Rs. {gross_salary:,.2f} INR")
         print(f"   Annual Income: Rs. {annual_income:,.2f} INR")
+
         if tax > 0:
-            print(f"   Monthly Tax (15%): Rs. {tax:,.2f} INR")
-            print(f"   Net Monthly Salary: Rs. {net_salary:,.2f} INR")
-        else:
             print(
-                f"   Net Monthly Salary: Rs. {net_salary:,.2f} INR (No tax - income below Rs. 18,00,000.00/year)"
-            )
+                f"   Monthly Tax ({tax_rate:.0f}%): Rs. {tax:,.2f} INR"
+            )  # ✓ Dynamic rate
+        else:
+            print("   Monthly Tax: Rs. 0.00 INR")
+
+        print(f"   Net Monthly Salary: Rs. {net_salary:,.2f} INR")
+
+        if annual_income <= 1800000:
+            print("   (No tax - annual income below ₹18,00,000)")
+
         print(f"   Salary Day: {salary_day} of each month")
 
     def remove_salary(self):
@@ -910,6 +919,7 @@ class Account:
         if self.salary_profile:
             profile = self.salary_profile
             tax = profile.calculate_tax()
+            tax_rate = profile.get_tax_rate()  # ✓ ADD THIS LINE
             net_salary = profile.get_net_salary()
             annual_income = profile.gross_salary * 12
 
@@ -917,15 +927,21 @@ class Account:
             print("=" * 50)
             print(f"Gross Monthly Salary: Rs. {profile.gross_salary:,.2f} INR")
             print(f"Annual Income: Rs. {annual_income:,.2f} INR")
+
             if tax > 0:
-                print(f"Monthly Tax Deduction (15%): Rs. {tax:,.2f} INR")
+                print(
+                    f"Monthly Tax Deduction ({tax_rate:.0f}%): Rs. {tax:,.2f} INR"
+                )  # ✓ CHANGED
                 print(f"Net Monthly Salary: Rs. {net_salary:,.2f} INR")
             else:
                 print(f"Net Monthly Salary: Rs. {net_salary:,.2f} INR")
                 print("(No tax - annual income below Rs. 18,00,000.00)")
+
             print(f"Salary Credit Day: {profile.salary_day} of each month")
+
             if profile.last_salary_date:
                 print(f"Last Salary Date: {profile.last_salary_date}")
+
             print("=" * 50)
         else:
             print("No salary profile configured")
