@@ -15,16 +15,42 @@ class Bank:
     """Bank class for managing customers, accounts, loans, and cards"""
 
     def __init__(self):
-        self.accounts: List[Account] = DataStore.load_accounts()
-        self.customers: List[Customer] = DataStore.load_customers()
-        self.loans: List[Loan] = DataStore.load_loans()
+        self.accounts: List[Account] = []
+        self.customers: List[Customer] = []
+        self.loans: List[Loan] = []
         self.credit_cards: List[CreditCard] = []  # Initialize credit cards list
+        self.international_registry = None  # ✅ FIXED: Removed ()
+        self.load()  # This will load everything including international registry
+
+    def load(self):
+        """Load all bank data from JSON files"""
+        # Load existing data
+        self.accounts = DataStore.load_accounts()
+        self.customers = DataStore.load_customers()
+        self.loans = DataStore.load_loans()
+
+        # ✅ ADD THIS: Load international accounts
+        self.international_registry = DataStore.load_international_accounts()
+
+        print(f"✓ Loaded {len(self.accounts)} accounts")
+        print(f"✓ Loaded {len(self.customers)} customers")
+        print(f"✓ Loaded {len(self.loans)} loans")
+        if self.international_registry:
+            print(
+                f"✓ Loaded {len(self.international_registry.accounts)} international accounts"
+            )
 
     def save(self):
         """Save all accounts, customers, and loans to persistent storage"""
         DataStore.save_accounts(self.accounts)
         DataStore.save_customers(self.customers)
         DataStore.save_loans(self.loans)
+
+        # ✅ ADD THIS: Save international accounts
+        if hasattr(self, "international_registry") and self.international_registry:
+            DataStore.save_international_accounts(
+                self.international_registry, verbose=False
+            )
 
     def save_data(self):
         """Alias for save() method for compatibility"""
@@ -471,11 +497,6 @@ class Bank:
 
             # Process credit card bills
             account.process_credit_card_bills(today)
-
-        self.save()
-        print(f"\n{'=' * 60}")
-        print("Daily tasks completed")
-        print(f"{'=' * 60}\n")
 
         self.save()
         print(f"\n{'=' * 60}")

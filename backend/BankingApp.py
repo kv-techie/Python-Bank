@@ -1176,31 +1176,44 @@ Current Balance: Rs. {account.balance:.2f} INR
         self.bank.save()
 
     def transfer_funds(self, account: Account, accounts: List[Account]):
-        """Handle fund transfer (Inter-Account, NEFT, RTGS)"""
+        """Handle fund transfer (Inter-Account, NEFT, RTGS, International)"""
         if len(accounts) > 1:
             print("""
-Choose transfer type:
-1  Inter-Account (Between your own accounts)
-2  NEFT (Up to Rs. 1,99,999.99)
-3  RTGS (From Rs. 2,00,000.00)
+    Choose transfer type:
+    1  Inter-Account (Between your own accounts)
+    2  NEFT (Up to Rs. 1,99,999.99)
+    3  RTGS (From Rs. 2,00,000.00)
+    4  International Transfer (SWIFT/Wire)
+                """)
+            transfer_choice = self.read_valid_choice(
+                "Enter choice (1-4): ", ["1", "2", "3", "4"]
+            )
+
+            if transfer_choice == "1":
+                self.inter_account_transfer(account, accounts)
+            elif transfer_choice == "2":
+                self.external_transfer(account, "NEFT")
+            elif transfer_choice == "3":
+                self.external_transfer(account, "RTGS")
+            elif transfer_choice == "4":
+                self.international_transfer(account)  # NEW
+        else:
+            print("""
+Choose transfer mode:
+1  NEFT (Up to Rs. 1,99,999.99)
+2  RTGS (From Rs. 2,00,000.00)
+3  International Transfer (SWIFT/Wire)
             """)
             transfer_choice = self.read_valid_choice(
                 "Enter choice (1-3): ", ["1", "2", "3"]
             )
 
             if transfer_choice == "1":
-                self.inter_account_transfer(account, accounts)
-            else:
-                mode = "NEFT" if transfer_choice == "2" else "RTGS"
-                self.external_transfer(account, mode)
-        else:
-            print("""
-Choose transfer mode:
-1  NEFT (Up to Rs. 1,99,999.99)
-2  RTGS (From Rs. 2,00,000.00)
-            """)
-            mode = self.read_valid_transfer_mode("Enter choice (1-2): ")
-            self.external_transfer(account, mode)
+                self.external_transfer(account, "NEFT")
+            elif transfer_choice == "2":
+                self.external_transfer(account, "RTGS")
+            elif transfer_choice == "3":
+                self.international_transfer(account)  # NEW
 
     def inter_account_transfer(self, account: Account, accounts: List[Account]):
         """Handle inter-account transfer"""
@@ -1244,6 +1257,361 @@ Choose transfer mode:
                 print(
                     "Recipient account not found. Please check the account number and try again."
                 )
+
+    def international_transfer(self, account: Account):
+        """Handle international wire transfer"""
+        from InternationalTransfer import InternationalTransfer
+
+        print("\n" + "=" * 70)
+        print("INTERNATIONAL WIRE TRANSFER (SWIFT)")
+        print("=" * 70)
+
+        # Show current limits
+        used_today = InternationalTransfer.get_today_international_limit_used(account)
+        remaining = InternationalTransfer.DAILY_LIMIT_INR - used_today
+
+        print(
+            f"\nDaily International Transfer Limit: Rs. {InternationalTransfer.DAILY_LIMIT_INR:,.2f}"
+        )
+        print(f"Used Today: Rs. {used_today:,.2f}")
+        print(f"Remaining: Rs. {remaining:,.2f}")
+
+        # Option to view sample accounts
+        view_samples = (
+            input("\nView sample international accounts? (yes/no): ").strip().lower()
+        )
+
+        if view_samples in ["yes", "y"]:
+            print("\n📋 SAMPLE INTERNATIONAL ACCOUNTS")
+            print("=" * 120)
+            print(f"{'Holder':<30} {'Country':<12} {'Bank':<35} {'Account':<35}")
+            print("-" * 120)
+
+            for acc_info in self.bank.international_registry.list_sample_accounts()[
+                :10
+            ]:
+                print(
+                    f"{acc_info['holder']:<30} {acc_info['country']:<12} "
+                    f"{acc_info['bank']:<35} {acc_info['account']:<35}"
+                )
+
+            print("=" * 120)
+            print(
+                "\n💡 You can transfer to any of these accounts, or enter custom details.\n"
+            )
+
+        print("\n" + "-" * 70)
+        print("BENEFICIARY DETAILS")
+        print("-" * 70)
+
+        recipient_name = input("Recipient Name: ").strip()
+        recipient_account = input("Recipient Account/IBAN: ").strip()
+
+        # Check if account exists in registry
+        foreign_account = self.bank.international_registry.find_account_by_number(
+            recipient_account
+        )
+
+        if foreign_account:
+            print("\n✓ Found recipient account:")
+            print(f"  Holder: {foreign_account.account_holder}")
+            print(f"  Bank: {foreign_account.bank_name}")
+            print(f"  Country: {foreign_account.country}")
+            print(f"  Currency: {foreign_account.currency}")
+
+            recipient_bank = foreign_account.bank_name
+            swift_code = foreign_account.swift_code
+            recipient_country = foreign_account.country
+            currency = foreign_account.currency
+        else:
+            print("\n⚠️  Account not found in registry. Please enter details manually.")
+            recipient_bank = input("Recipient Bank Name: ").strip()
+            swift_code = input("SWIFT/BIC Code: ").strip().upper()
+
+            print("\nSupported Countries:")
+            countries = [
+                "USA",
+                "UK",
+                "UAE",
+                "Singapore",
+                "Australia",
+                "Canada",
+                "Germany",
+                "France",
+                "Japan",
+            ]
+            for idx, country in enumerate(countries, 1):
+                print(f"{idx}. {country}")
+
+            country_choice = input("\nSelect country (1-9) or type name: ").strip()
+            if country_choice.isdigit() and 1 <= int(country_choice) <= len(countries):
+                recipient_country = countries[int(country_choice) - 1]
+            else:
+                recipient_country = country_choice
+
+            print("\nSupported Currencies:")
+            currencies = list(InternationalTransfer.EXCHANGE_RATES.keys())
+            for idx, (curr, rate) in enumerate(
+                InternationalTransfer.EXCHANGE_RATES.items(), 1
+            ):
+                print(f"{idx}. {curr} (1 {curr} = Rs. {rate:,.2f})")
+
+            curr_choice = (
+                input(f"\nSelect currency (1-{len(currencies)}) or type code: ")
+                .strip()
+                .upper()
+            )
+            if curr_choice.isdigit() and 1 <= int(curr_choice) <= len(currencies):
+                currency = currencies[int(curr_choice) - 1]
+            elif curr_choice in currencies:
+                currency = curr_choice
+            else:
+                print("Invalid currency")
+                return
+
+        recipient_address = input("Recipient Address (optional): ").strip() or None
+
+        print("\n" + "-" * 70)
+        print("TRANSFER AMOUNT")
+        print("-" * 70)
+
+        try:
+            amount_foreign = float(input(f"\nEnter amount in {currency}: "))
+            if amount_foreign <= 0:
+                print("Amount must be positive")
+                return
+        except ValueError:
+            print("Invalid amount")
+            return
+
+        # Show conversion preview
+        amount_inr, rate = InternationalTransfer.convert_currency(
+            amount_foreign, currency, "INR"
+        )
+        charges = InternationalTransfer.calculate_swift_charges(amount_inr)
+        total = amount_inr + charges
+
+        print("\n" + "-" * 70)
+        print("TRANSFER SUMMARY")
+        print("-" * 70)
+        print(f"Amount to Send: {amount_foreign:,.2f} {currency}")
+        print(f"Exchange Rate: 1 {currency} = Rs. {rate:,.2f}")
+        print(f"Equivalent INR: Rs. {amount_inr:,.2f}")
+        print(f"SWIFT Charges: Rs. {charges:,.2f}")
+        print(f"Total Debit: Rs. {total:,.2f}")
+        print(
+            f"\nExpected Arrival: {InternationalTransfer.PROCESSING_DAYS} business days"
+        )
+        print("-" * 70)
+
+        # Purpose of remittance
+        print("\nPurpose of Remittance:")
+        purposes = [
+            "Family Maintenance",
+            "Education",
+            "Medical Treatment",
+            "Business Payment",
+            "Investment",
+            "Gift",
+            "Other",
+        ]
+        for idx, purpose in enumerate(purposes, 1):
+            print(f"{idx}. {purpose}")
+
+        purpose_choice = input("\nSelect purpose (1-7): ").strip()
+        if purpose_choice.isdigit() and 1 <= int(purpose_choice) <= len(purposes):
+            purpose = purposes[int(purpose_choice) - 1]
+        else:
+            purpose = input("Enter purpose: ").strip()
+
+        # Confirm
+        print("\n" + "=" * 70)
+        confirm = input("Confirm international transfer? (yes/no): ").strip().lower()
+
+        if confirm not in ["yes", "y"]:
+            print("Transfer cancelled")
+            return
+
+        # Initiate transfer
+        success, message, swift_ref = (
+            InternationalTransfer.initiate_international_transfer(
+                account=account,
+                recipient_name=recipient_name,
+                recipient_account=recipient_account,
+                recipient_bank_name=recipient_bank,
+                swift_code=swift_code,
+                recipient_country=recipient_country,
+                amount_to_send=amount_foreign,
+                currency=currency,
+                purpose=purpose,
+                recipient_address=recipient_address,
+                registry=self.bank.international_registry,
+            )
+        )
+
+        if success:
+            print("\n" + "=" * 70)
+            print("✅ TRANSFER SUCCESSFUL")
+            print("=" * 70)
+            print(message)
+
+            if foreign_account:
+                print("\n💰 Foreign account credited successfully")
+                print(
+                    f"   New balance: {foreign_account.balance:,.2f} {foreign_account.currency}"
+                )
+
+                # Show last transaction
+                if foreign_account.transactions:
+                    last_txn = foreign_account.transactions[-1]
+                    print("\n📝 Transaction recorded:")
+                    print(
+                        f"   Amount: +{last_txn['amount']:,.2f} {foreign_account.currency}"
+                    )
+                    print(f"   From: {last_txn['from']}")
+                    print(f"   SWIFT Ref: {last_txn['swift_ref']}")
+
+            self.bank.save()
+
+    def track_swift_transfer_menu(self):
+        """Track international SWIFT transfer"""
+        from InternationalTransfer import InternationalTransfer
+
+        swift_ref = input("\nEnter SWIFT Reference Number: ").strip()
+
+        result = InternationalTransfer.track_swift_transfer(swift_ref, self.bank)
+
+        if result:
+            print("\n" + "=" * 80)
+            print("SWIFT TRANSFER TRACKING")
+            print("=" * 80)
+            print(f"\nSWIFT Reference: {result['swift_reference']}")
+            print(f"Status: {result['status']}")
+            print(f"\nSender: {result['sender_name']} ({result['sender_account']})")
+            print(f"Recipient: {result['recipient_name']}")
+            print(f"Recipient Account: {result['recipient_account']}")
+            print(f"Recipient Bank: {result['recipient_bank']}")
+            print(f"SWIFT Code: {result['swift_code']}")
+            print(f"Country: {result['country']}")
+            print(f"\nAmount: {result['amount']:,.2f} {result['currency']}")
+            print(
+                f"Exchange Rate: 1 {result['currency']} = Rs. {result['exchange_rate']:,.2f}"
+            )
+            print(f"Total Debited: Rs. {result['total_debited_inr']:,.2f}")
+            print(f"SWIFT Charges: Rs. {result['charges']:,.2f}")
+            print(f"\nPurpose: {result['purpose']}")
+            print(f"Initiated: {result['initiated_on']}")
+            print(f"Expected Arrival: {result['expected_arrival']}")
+            print(f"Transaction ID: {result['transaction_id']}")
+            print("=" * 80)
+        else:
+            print(f"\n❌ SWIFT transfer with reference '{swift_ref}' not found")
+
+    def view_international_accounts_menu(self):
+        """View international accounts registry"""
+        while True:
+            print("\n" + "=" * 70)
+            print("INTERNATIONAL ACCOUNTS REGISTRY")
+            print("=" * 70)
+            print("1. View Sample Accounts")
+            print("2. View Accounts by Country")
+            print("3. Search Account by Number")
+            print("4. View Registry Statistics")
+            print("5. Back to Main Menu")
+            print("=" * 70)
+
+            choice = input("\nEnter choice: ").strip()
+
+            if choice == "1":
+                self.view_sample_international_accounts()
+            elif choice == "2":
+                self.view_accounts_by_country()
+            elif choice == "3":
+                self.search_international_account()
+            elif choice == "4":
+                self.view_registry_statistics()
+            elif choice == "5":
+                break
+
+    def view_sample_international_accounts(self):
+        """View sample international accounts"""
+        accounts = self.bank.international_registry.list_sample_accounts()
+
+        print("\n" + "=" * 130)
+        print(
+            f"{'Holder':<30} {'Country':<12} {'Bank':<35} {'Account':<35} {'Balance':<18}"
+        )
+        print("-" * 130)
+
+        for acc in accounts[:20]:
+            balance_str = f"{acc['balance']:,.2f} {acc['currency']}"
+            print(
+                f"{acc['holder']:<30} {acc['country']:<12} "
+                f"{acc['bank']:<35} {acc['account']:<35} {balance_str:<18}"
+            )
+
+        print("=" * 130)
+        print(f"\nShowing 20 of {len(accounts)} total accounts")
+
+    def view_accounts_by_country(self):
+        """View accounts filtered by country"""
+        from InternationalBankRegistry import InternationalBankRegistry
+
+        countries = list(InternationalBankRegistry.BANKS.keys())
+
+        print("\nSelect country:")
+        for idx, country in enumerate(countries, 1):
+            print(f"{idx}. {country}")
+
+        choice = input(f"\nEnter choice (1-{len(countries)}): ").strip()
+
+        if choice.isdigit() and 1 <= int(choice) <= len(countries):
+            country = countries[int(choice) - 1]
+
+            matching = self.bank.international_registry.get_accounts_by_country(country)
+
+            print(f"\n📍 {len(matching)} Accounts in {country}:")
+            print("=" * 130)
+            print(f"{'Holder':<30} {'Bank':<40} {'Account':<35} {'Balance':<18}")
+            print("-" * 130)
+
+            for acc in matching[:10]:
+                balance_str = f"{acc.balance:,.2f} {acc.currency}"
+                print(
+                    f"{acc.account_holder:<30} {acc.bank_name:<40} "
+                    f"{acc.account_number:<35} {balance_str:<18}"
+                )
+
+            print("=" * 130)
+
+    def search_international_account(self):
+        """Search for international account"""
+        account_num = input("\nEnter account number/IBAN: ").strip()
+
+        account = self.bank.international_registry.find_account_by_number(account_num)
+
+        if account:
+            print("\n✓ ACCOUNT FOUND")
+            print("=" * 70)
+            print(f"Holder: {account.account_holder}")
+            print(f"Account: {account.account_number}")
+            print(f"Bank: {account.bank_name}")
+            print(f"SWIFT: {account.swift_code}")
+            print(f"Country: {account.country}")
+            print(f"Currency: {account.currency}")
+            print(f"Balance: {account.balance:,.2f} {account.currency}")
+
+            if account.transactions:
+                print(f"\nTransactions: {len(account.transactions)}")
+                print("\nRecent Transactions:")
+                for txn in account.transactions[-5:]:
+                    print(
+                        f"  - {txn['date']}: +{txn['amount']:,.2f} {account.currency} from {txn['from']}"
+                    )
+
+            print("=" * 70)
+        else:
+            print("\n❌ Account not found")
 
     def search_transaction(self):
         """Search for a transaction by ID"""
@@ -2686,6 +3054,134 @@ Choose an option:
         choice = input("Enter choice (default: 10): ").strip()
         limit_map = {"1": 10, "2": 20, "3": 50, "4": None}
         return limit_map.get(choice, 10)
+
+    def view_international_accounts_menu(self):
+        """View international accounts registry"""
+        while True:
+            print("\n" + "=" * 70)
+            print("INTERNATIONAL ACCOUNTS REGISTRY")
+            print("=" * 70)
+            print("1. View Sample Accounts")
+            print("2. View Accounts by Country")
+            print("3. Search Account by Number")
+            print("4. View Registry Statistics")
+            print("5. Back to Main Menu")
+            print("=" * 70)
+
+            choice = input("\nEnter choice: ").strip()
+
+            if choice == "1":
+                self.view_sample_international_accounts()
+            elif choice == "2":
+                self.view_accounts_by_country()
+            elif choice == "3":
+                self.search_international_account()
+            elif choice == "4":
+                self.view_registry_statistics()
+            elif choice == "5":
+                break
+
+    def view_sample_international_accounts(self):
+        """View sample international accounts"""
+        accounts = self.bank.international_registry.list_sample_accounts()
+
+        print("\n" + "=" * 130)
+        print(
+            f"{'Holder':<30} {'Country':<12} {'Bank':<35} {'Account':<35} {'Balance':<18}"
+        )
+        print("-" * 130)
+
+        for acc in accounts[:20]:
+            balance_str = f"{acc['balance']:,.2f} {acc['currency']}"
+            print(
+                f"{acc['holder']:<30} {acc['country']:<12} "
+                f"{acc['bank']:<35} {acc['account']:<35} {balance_str:<18}"
+            )
+
+        print("=" * 130)
+        print(f"\nShowing 20 of {len(accounts)} total accounts")
+
+    def view_accounts_by_country(self):
+        """View accounts filtered by country"""
+        from InternationalBankRegistry import InternationalBankRegistry
+
+        countries = list(InternationalBankRegistry.BANKS.keys())
+
+        print("\nSelect country:")
+        for idx, country in enumerate(countries, 1):
+            print(f"{idx}. {country}")
+
+        choice = input(f"\nEnter choice (1-{len(countries)}): ").strip()
+
+        if choice.isdigit() and 1 <= int(choice) <= len(countries):
+            country = countries[int(choice) - 1]
+
+            matching = self.bank.international_registry.get_accounts_by_country(country)
+
+            print(f"\n📍 {len(matching)} Accounts in {country}:")
+            print("=" * 130)
+            print(f"{'Holder':<30} {'Bank':<40} {'Account':<35} {'Balance':<18}")
+            print("-" * 130)
+
+            for acc in matching[:10]:
+                balance_str = f"{acc.balance:,.2f} {acc.currency}"
+                print(
+                    f"{acc.account_holder:<30} {acc.bank_name:<40} "
+                    f"{acc.account_number:<35} {balance_str:<18}"
+                )
+
+            print("=" * 130)
+
+    def search_international_account(self):
+        """Search for international account"""
+        account_num = input("\nEnter account number/IBAN: ").strip()
+
+        account = self.bank.international_registry.find_account_by_number(account_num)
+
+        if account:
+            print("\n✓ ACCOUNT FOUND")
+            print("=" * 70)
+            print(f"Holder: {account.account_holder}")
+            print(f"Account: {account.account_number}")
+            print(f"Bank: {account.bank_name}")
+            print(f"SWIFT: {account.swift_code}")
+            print(f"Country: {account.country}")
+            print(f"Currency: {account.currency}")
+            print(f"Balance: {account.balance:,.2f} {account.currency}")
+
+            if account.transactions:
+                print(f"\nTransactions: {len(account.transactions)}")
+                print("\nRecent Transactions:")
+                for txn in account.transactions[-5:]:
+                    print(
+                        f"  - {txn['date']}: +{txn['amount']:,.2f} {account.currency} from {txn['from']}"
+                    )
+
+            print("=" * 70)
+        else:
+            print("\n❌ Account not found")
+
+    def view_registry_statistics(self):
+        """View international registry statistics"""
+        stats = self.bank.international_registry.get_statistics()
+
+        print("\n" + "=" * 70)
+        print("INTERNATIONAL REGISTRY STATISTICS")
+        print("=" * 70)
+        print(f"\nTotal Accounts: {stats['total_accounts']}")
+        print(
+            f"Total Balance (USD Equivalent): ${stats['total_balance_usd_equivalent']:,.2f}"
+        )
+
+        print("\n📊 Accounts by Country:")
+        for country, count in sorted(stats["by_country"].items()):
+            print(f"   {country}: {count} accounts")
+
+        print("\n💱 Accounts by Currency:")
+        for currency, count in sorted(stats["by_currency"].items()):
+            print(f"   {currency}: {count} accounts")
+
+        print("=" * 70)
 
 
 if __name__ == "__main__":

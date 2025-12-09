@@ -165,3 +165,5 @@ repo_card_test.py
 debug_bills.py
 test_bill_persistence.py
 __init__.py
+*_tests.py
+check_imports.py

@@ -622,6 +622,7 @@ class Account:
                 "INTER_ACCOUNT_RECEIVED",
                 "SALARY",
                 "LOAN_CREDIT",
+                "SWIFT_RECEIVED",  # ← ADDED
             ]:
                 amount_str = f"+ Rs. {abs(txn.amount):>12,.2f}"
             elif txn.type in [
@@ -634,6 +635,7 @@ class Account:
                 "CREDIT_CARD_PAYMENT",
                 "EXPENSE",
                 "DEBIT_CARD_PURCHASE",
+                "SWIFT_SENT",  # ← ADDED
             ]:
                 amount_str = f"- Rs. {abs(txn.amount):>12,.2f}"
             else:

@@ -1,10 +1,10 @@
-import os
-import json
 import csv
+import json
+import os
 import shutil
-from typing import List, Optional
 from threading import Lock
-import re
+from typing import List, Optional
+
 
 class DataStore:
     """Data persistence layer for bank accounts and customers"""
@@ -46,13 +46,22 @@ class DataStore:
         """Ensure activity log file exists with header"""
         if not os.path.exists(DataStore.ACTIVITY_PATH):
             DataStore._ensure_dir(DataStore.ACTIVITY_PATH)
-            with open(DataStore.ACTIVITY_PATH, 'w', newline='', encoding='utf-8') as f:
+            with open(DataStore.ACTIVITY_PATH, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
-                writer.writerow([
-                    "timestamp", "username", "accountNumber", "action",
-                    "amount", "mode", "resultingBalance", "txnId",
-                    "chequeId", "metadata"
-                ])
+                writer.writerow(
+                    [
+                        "timestamp",
+                        "username",
+                        "accountNumber",
+                        "action",
+                        "amount",
+                        "mode",
+                        "resultingBalance",
+                        "txnId",
+                        "chequeId",
+                        "metadata",
+                    ]
+                )
 
     @staticmethod
     def append_activity(
@@ -65,7 +74,7 @@ class DataStore:
         resulting_balance: Optional[float] = None,
         txn_id: Optional[str] = None,
         cheque_id: Optional[str] = None,
-        metadata: Optional[str] = None
+        metadata: Optional[str] = None,
     ):
         """
         Append an activity record to the activity log
@@ -85,20 +94,22 @@ class DataStore:
         with DataStore._lock:
             DataStore._ensure_activity_header()
 
-            with open(DataStore.ACTIVITY_PATH, 'a', newline='', encoding='utf-8') as f:
+            with open(DataStore.ACTIVITY_PATH, "a", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
-                writer.writerow([
-                    timestamp,
-                    username,
-                    account_number,
-                    action,
-                    str(amount) if amount is not None else "",
-                    mode if mode else "",
-                    str(resulting_balance) if resulting_balance is not None else "",
-                    txn_id if txn_id else "",
-                    cheque_id if cheque_id else "",
-                    metadata if metadata else ""
-                ])
+                writer.writerow(
+                    [
+                        timestamp,
+                        username,
+                        account_number,
+                        action,
+                        str(amount) if amount is not None else "",
+                        mode if mode else "",
+                        str(resulting_balance) if resulting_balance is not None else "",
+                        txn_id if txn_id else "",
+                        cheque_id if cheque_id else "",
+                        metadata if metadata else "",
+                    ]
+                )
 
     @staticmethod
     def load_accounts() -> List:
@@ -116,7 +127,7 @@ class DataStore:
             # Try loading from JSON first
             if os.path.exists(DataStore.JSON_PATH):
                 try:
-                    with open(DataStore.JSON_PATH, 'r', encoding='utf-8') as f:
+                    with open(DataStore.JSON_PATH, "r", encoding="utf-8") as f:
                         data = json.load(f)
                         accounts = [Account.from_dict(acc_data) for acc_data in data]
                 except Exception as e:
@@ -126,24 +137,28 @@ class DataStore:
             # Fallback to CSV if JSON fails or doesn't exist
             elif os.path.exists(DataStore.CSV_PATH):
                 try:
-                    with open(DataStore.CSV_PATH, 'r', encoding='utf-8') as f:
+                    with open(DataStore.CSV_PATH, "r", encoding="utf-8") as f:
                         reader = csv.DictReader(f)
                         for row in reader:
                             try:
                                 account = Account.create_account(
                                     customer_id="",
-                                    username=row['username'],
-                                    password=row['password'],
-                                    first_name=row['firstName'],
-                                    last_name=row['lastName'],
-                                    dob=row['dob'],
-                                    gender=row['gender'],
-                                    account_type=row['accountType'],
-                                    account_number=row['accountNumber']
+                                    username=row["username"],
+                                    password=row["password"],
+                                    first_name=row["firstName"],
+                                    last_name=row["lastName"],
+                                    dob=row["dob"],
+                                    gender=row["gender"],
+                                    account_type=row["accountType"],
+                                    account_number=row["accountNumber"],
                                 )
-                                account.balance = float(row.get('balance', 0.0))
-                                account.failed_attempts = int(row.get('failedAttempts', 0))
-                                account.locked = row.get('locked', 'false').lower() == 'true'
+                                account.balance = float(row.get("balance", 0.0))
+                                account.failed_attempts = int(
+                                    row.get("failedAttempts", 0)
+                                )
+                                account.locked = (
+                                    row.get("locked", "false").lower() == "true"
+                                )
                                 accounts.append(account)
                             except Exception as e:
                                 print(f"[DataStore] Error parsing CSV row: {e}")
@@ -173,36 +188,49 @@ class DataStore:
         by_account_number = {acc.account_number: acc for acc in accounts}
 
         try:
-            with open(DataStore.ACTIVITY_PATH, 'r', encoding='utf-8') as f:
+            with open(DataStore.ACTIVITY_PATH, "r", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
 
                 for row in reader:
                     try:
-                        timestamp = row.get('timestamp', '')
-                        username = row.get('username', '')
-                        account_no = row.get('accountNumber', '')
-                        action = row.get('action', '')
-                        amount_str = row.get('amount', '')
-                        res_bal_str = row.get('resultingBalance', '')
-                        txn_id = row.get('txnId', '')
-                        cheque_id = row.get('chequeId', '')
-                        metadata = row.get('metadata', '')  # <- added metadata
+                        timestamp = row.get("timestamp", "")
+                        username = row.get("username", "")
+                        account_no = row.get("accountNumber", "")
+                        action = row.get("action", "")
+                        amount_str = row.get("amount", "")
+                        res_bal_str = row.get("resultingBalance", "")
+                        txn_id = row.get("txnId", "")
+                        cheque_id = row.get("chequeId", "")
+                        metadata = row.get("metadata", "")  # <- added metadata
 
-                        account = by_account_number.get(account_no) or by_username.get(username)
+                        account = by_account_number.get(account_no) or by_username.get(
+                            username
+                        )
                         if not account:
                             continue
 
                         transaction_actions = [
-                            "DEPOSIT", "WITHDRAW", "NEFT_SENT", "NEFT_RECEIVED",
-                            "RTGS_SENT", "RTGS_RECEIVED", "INTER_ACCOUNT_SENT",
-                            "INTER_ACCOUNT_RECEIVED", "AMB_FEE", "AMB_FEE_SETTLED",
-                            "BILL_PAYMENT", "EXPENSE", "SALARY_CREDIT"
+                            "DEPOSIT",
+                            "WITHDRAW",
+                            "NEFT_SENT",
+                            "NEFT_RECEIVED",
+                            "RTGS_SENT",
+                            "RTGS_RECEIVED",
+                            "INTER_ACCOUNT_SENT",
+                            "INTER_ACCOUNT_RECEIVED",
+                            "AMB_FEE",
+                            "AMB_FEE_SETTLED",
+                            "BILL_PAYMENT",
+                            "EXPENSE",
+                            "SALARY_CREDIT",
                         ]
                         if action in transaction_actions and amount_str and res_bal_str:
                             try:
                                 amount = float(amount_str)
                                 res_balance = float(res_bal_str)
-                                if txn_id and not any(t.id == txn_id for t in account.transactions):
+                                if txn_id and not any(
+                                    t.id == txn_id for t in account.transactions
+                                ):
                                     txn = Transaction(
                                         id=txn_id,
                                         type=action,
@@ -210,7 +238,7 @@ class DataStore:
                                         resulting_balance=res_balance,
                                         timestamp=timestamp,
                                         cheque_id=cheque_id if cheque_id else None,
-                                        metadata=metadata  # Store metadata in Transaction
+                                        metadata=metadata,  # Store metadata in Transaction
                                     )
                                     account.transactions.append(txn)
                                     account.balance = res_balance
@@ -235,7 +263,7 @@ class DataStore:
             temp_json = DataStore.JSON_PATH + ".tmp"
             try:
                 DataStore._ensure_dir(temp_json)
-                with open(temp_json, 'w', encoding='utf-8') as f:
+                with open(temp_json, "w", encoding="utf-8") as f:
                     account_dicts = [acc.to_dict() for acc in accounts]
                     json.dump(account_dicts, f, indent=2)
 
@@ -249,28 +277,40 @@ class DataStore:
             temp_csv = DataStore.CSV_PATH + ".tmp"
             try:
                 DataStore._ensure_dir(temp_csv)
-                with open(temp_csv, 'w', newline='', encoding='utf-8') as f:
+                with open(temp_csv, "w", newline="", encoding="utf-8") as f:
                     writer = csv.writer(f)
-                    writer.writerow([
-                        "username", "password", "firstName", "lastName", "dob",
-                        "gender", "accountType", "accountNumber", "balance",
-                        "failedAttempts", "locked"
-                    ])
+                    writer.writerow(
+                        [
+                            "username",
+                            "password",
+                            "firstName",
+                            "lastName",
+                            "dob",
+                            "gender",
+                            "accountType",
+                            "accountNumber",
+                            "balance",
+                            "failedAttempts",
+                            "locked",
+                        ]
+                    )
 
                     for acc in accounts:
-                        writer.writerow([
-                            acc.username,
-                            acc.password,
-                            acc.first_name,
-                            acc.last_name,
-                            acc.dob,
-                            acc.gender,
-                            acc.account_type,
-                            acc.account_number,
-                            acc.balance,
-                            acc.failed_attempts,
-                            acc.locked
-                        ])
+                        writer.writerow(
+                            [
+                                acc.username,
+                                acc.password,
+                                acc.first_name,
+                                acc.last_name,
+                                acc.dob,
+                                acc.gender,
+                                acc.account_type,
+                                acc.account_number,
+                                acc.balance,
+                                acc.failed_attempts,
+                                acc.locked,
+                            ]
+                        )
 
                 DataStore._atomic_replace(temp_csv, DataStore.CSV_PATH, "CSV")
             except Exception as e:
@@ -291,7 +331,7 @@ class DataStore:
         with DataStore._lock:
             if os.path.exists(DataStore.CUSTOMER_JSON_PATH):
                 try:
-                    with open(DataStore.CUSTOMER_JSON_PATH, 'r', encoding='utf-8') as f:
+                    with open(DataStore.CUSTOMER_JSON_PATH, "r", encoding="utf-8") as f:
                         data = json.load(f)
                         return [Customer.from_dict(cust_data) for cust_data in data]
                 except Exception as e:
@@ -311,11 +351,13 @@ class DataStore:
             temp_json = DataStore.CUSTOMER_JSON_PATH + ".tmp"
             try:
                 DataStore._ensure_dir(temp_json)
-                with open(temp_json, 'w', encoding='utf-8') as f:
+                with open(temp_json, "w", encoding="utf-8") as f:
                     customer_dicts = [cust.to_dict() for cust in customers]
                     json.dump(customer_dicts, f, indent=2)
 
-                DataStore._atomic_replace(temp_json, DataStore.CUSTOMER_JSON_PATH, "CUSTOMER_JSON")
+                DataStore._atomic_replace(
+                    temp_json, DataStore.CUSTOMER_JSON_PATH, "CUSTOMER_JSON"
+                )
             except Exception as e:
                 print(f"[DataStore] Error saving customers: {e}")
                 if os.path.exists(temp_json):
@@ -334,7 +376,7 @@ class DataStore:
         with DataStore._lock:
             if os.path.exists(DataStore.JSON_PATH):
                 try:
-                    with open(DataStore.JSON_PATH, 'r', encoding='utf-8') as f:
+                    with open(DataStore.JSON_PATH, "r", encoding="utf-8") as f:
                         data = json.load(f)
                         return [Account.from_dict(acc_data) for acc_data in data]
                 except Exception as e:
@@ -351,9 +393,8 @@ class DataStore:
         Args:
             loans: List of Loan objects to save
         """
-        from loan import Loan
         DataStore._ensure_dir(DataStore.LOANS_JSON_PATH)
-        with open(DataStore.LOANS_JSON_PATH, 'w', encoding='utf-8') as f:
+        with open(DataStore.LOANS_JSON_PATH, "w", encoding="utf-8") as f:
             json.dump([loan.to_dict() for loan in loans], f, indent=2)
 
     @staticmethod
@@ -365,14 +406,60 @@ class DataStore:
             List of Loan objects
         """
         from loan import Loan
+
         if not os.path.exists(DataStore.LOANS_JSON_PATH):
             return []
-        with open(DataStore.LOANS_JSON_PATH, 'r', encoding='utf-8') as f:
+        with open(DataStore.LOANS_JSON_PATH, "r", encoding="utf-8") as f:
             return [Loan.from_dict(obj) for obj in json.load(f)]
+
+    @staticmethod
+    def save_international_accounts(registry, verbose=False):
+        """Save international accounts registry to JSON file"""
+        # Construct path relative to DataStore location (backend/data/)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "data", "international_accounts.json")
+        try:
+            DataStore._ensure_dir(file_path)
+            data = registry.to_dict()
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            if verbose:
+                print(
+                    f"✓ Saved {len(registry.accounts)} international accounts to {file_path}"
+                )
+        except Exception as e:
+            print(f"Error saving international accounts: {e}")
+
+    @staticmethod
+    def load_international_accounts():
+        """Load international accounts registry from JSON file"""
+        from InternationalBankRegistry import InternationalBankRegistry
+
+        # Construct path relative to DataStore location (backend/data/)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "data", "international_accounts.json")
+
+        # If file doesn't exist, create new registry
+        if not os.path.exists(file_path):
+            print("No saved international accounts found. Creating new registry.")
+            return InternationalBankRegistry()
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            registry = InternationalBankRegistry.from_dict(data)
+            return registry
+
+        except Exception as e:
+            print(f"Error loading international accounts: {e}")
+            print("Creating new registry instead.")
+            return InternationalBankRegistry()
 
 
 # ------------------------------------------
 # Utility function to parse metadata from string
+
 
 def parse_metadata(metadata_str: Optional[str]) -> dict:
     """
@@ -381,23 +468,27 @@ def parse_metadata(metadata_str: Optional[str]) -> dict:
     """
     result = {}
     if metadata_str:
-        parts = metadata_str.split(';')
+        parts = metadata_str.split(";")
         for part in parts:
-            if '=' in part:
-                key, value = part.split('=', 1)
+            if "=" in part:
+                key, value = part.split("=", 1)
                 result[key.strip()] = value.strip()
     return result
 
+
 # ------------------------------------------
 # Example function to print transactions, with merchant and method info
+
 
 def print_transaction_history(account):
     """
     Print transaction history with merchant and method extracted from metadata.
     """
     for txn in account.transactions:
-        meta = parse_metadata(getattr(txn, 'metadata', ''))
+        meta = parse_metadata(getattr(txn, "metadata", ""))
         merchant = meta.get("merchant", "N/A")
         method = meta.get("method", "N/A")
-        print(f"{txn.id: <13} {txn.timestamp}  {txn.type: <10}  Rs. {txn.amount:.2f}  Rs. {txn.resulting_balance:.2f} INR")
+        print(
+            f"{txn.id: <13} {txn.timestamp}  {txn.type: <10}  Rs. {txn.amount:.2f}  Rs. {txn.resulting_balance:.2f} INR"
+        )
         print(f"    Merchant: {merchant} | Method: {method}")
