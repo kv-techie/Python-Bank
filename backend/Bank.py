@@ -6,8 +6,10 @@ from Card import CreditCard, DebitCard
 from CreditEvaluator import CreditEvaluator
 from Customer import Customer
 from DataStore import DataStore
+from FixedDeposit import FixedDeposit
 from loan import Loan
 from LoanEvaluator import LoanEvaluator
+from RecurringDeposit import RecurringDeposit
 from Transaction import Transaction
 
 
@@ -21,6 +23,8 @@ class Bank:
         self.credit_cards: List[CreditCard] = []  # Initialize credit cards list
         self.international_registry = None  # ✅ FIXED: Removed ()
         self.load()  # This will load everything including international registry
+        self.fixed_deposits = {}
+        self.recurring_deposits = {}
 
     def load(self):
         """Load all bank data from JSON files"""
@@ -31,14 +35,8 @@ class Bank:
 
         # ✅ ADD THIS: Load international accounts
         self.international_registry = DataStore.load_international_accounts()
-
-        print(f"✓ Loaded {len(self.accounts)} accounts")
-        print(f"✓ Loaded {len(self.customers)} customers")
-        print(f"✓ Loaded {len(self.loans)} loans")
-        if self.international_registry:
-            print(
-                f"✓ Loaded {len(self.international_registry.accounts)} international accounts"
-            )
+        self.fixed_deposits = DataStore.load_fixed_deposits()
+        self.recurring_deposits = DataStore.load_recurring_deposits()
 
     def save(self):
         """Save all accounts, customers, and loans to persistent storage"""
@@ -51,6 +49,8 @@ class Bank:
             DataStore.save_international_accounts(
                 self.international_registry, verbose=False
             )
+        DataStore.save_fixed_deposits(self.fixed_deposits)
+        DataStore.save_recurring_deposits(self.recurring_deposits)
 
     def save_data(self):
         """Alias for save() method for compatibility"""
@@ -504,6 +504,258 @@ class Bank:
         print(f"{'=' * 60}\n")
 
         return total_processed
+
+    def create_fixed_deposit(
+        self,
+        account: "Account",
+        principal_amount: float,
+        tenure_months: int,
+    ) -> Tuple[bool, str, Optional[FixedDeposit]]:
+        """Create a new Fixed Deposit"""
+
+        # Validate amount
+        if principal_amount < FixedDeposit.MIN_AMOUNT:
+            return (
+                False,
+                f"Minimum FD amount is Rs. {FixedDeposit.MIN_AMOUNT:,.2f}",
+                None,
+            )
+
+        if principal_amount > FixedDeposit.MAX_AMOUNT:
+            return (
+                False,
+                f"Maximum FD amount is Rs. {FixedDeposit.MAX_AMOUNT:,.2f}",
+                None,
+            )
+
+        # Validate tenure
+        if tenure_months not in FixedDeposit.INTEREST_RATES:
+            valid_tenures = ", ".join(
+                str(t) for t in sorted(FixedDeposit.INTEREST_RATES.keys())
+            )
+            return False, f"Invalid tenure. Valid options: {valid_tenures} months", None
+
+        # Check if account has sufficient balance
+        min_balance = account._min_operational_balance
+        if account.balance - principal_amount < min_balance:
+            return (
+                False,
+                f"Insufficient balance. Required: Rs. {principal_amount:,.2f} + Rs. {min_balance:,.2f} minimum balance",
+                None,
+            )
+
+        # Deduct from account
+        account.balance -= principal_amount
+
+        # Determine if senior citizen - FIX: Get customer first
+        from datetime import datetime
+
+        is_senior_citizen = False
+        customer = self.get_customer_by_id(account.customer_id)
+        if customer and hasattr(customer, "dob"):
+            try:
+                dob = datetime.strptime(customer.dob, "%Y-%m-%d")
+                age = (datetime.now() - dob).days // 365
+                is_senior_citizen = age >= 60
+            except (ValueError, AttributeError):
+                pass  # Default to non-senior if error
+
+        # Get applicable interest rate
+        interest_rate = FixedDeposit.get_applicable_rate(
+            tenure_months, is_senior_citizen
+        )
+
+        # Create FD
+        fd_number = FixedDeposit.generate_fd_number()
+        fd = FixedDeposit(
+            fd_number=fd_number,
+            account_number=account.account_number,
+            principal_amount=principal_amount,
+            tenure_months=tenure_months,
+            interest_rate=interest_rate,
+            is_senior_citizen=is_senior_citizen,
+        )
+
+        # Store FD in dictionary
+        self.fixed_deposits[fd_number] = fd
+
+        # Create transaction
+        txn = Transaction(
+            type="FD_OPENED",
+            amount=-principal_amount,
+            resulting_balance=account.balance,
+            metadata={
+                "fd_number": fd_number,
+                "tenure_months": tenure_months,
+                "interest_rate": interest_rate,
+                "maturity_amount": fd.maturity_amount,
+                "maturity_date": fd.maturity_date.strftime("%d-%m-%Y"),
+            },
+        )
+        account.transactions.append(txn)
+
+        message = f"""
+✅  Fixed Deposit Created Successfully!
+
+FD Number: {fd_number}
+Principal: Rs. {principal_amount:,.2f}
+Tenure: {tenure_months} months
+Interest Rate: {interest_rate}% p.a.
+{"(Senior Citizen Rate)" if is_senior_citizen else ""}
+Maturity Date: {fd.maturity_date.strftime("%d-%m-%Y")}
+Maturity Amount: Rs. {fd.maturity_amount:,.2f}
+
+Your account has been debited Rs. {principal_amount:,.2f}
+New Balance: Rs. {account.balance:,.2f}
+"""
+        return True, message, fd
+
+    def create_recurring_deposit(
+        self,
+        account: "Account",
+        monthly_installment: float,
+        tenure_months: int,
+        enable_autopay: bool = False,
+        autopay_day: int = 1,
+    ) -> Tuple[bool, str, Optional[RecurringDeposit]]:
+        """Create a new Recurring Deposit"""
+
+        # Validate amount
+        if monthly_installment < RecurringDeposit.MIN_MONTHLY_AMOUNT:
+            return (
+                False,
+                f"Minimum monthly installment is Rs. {RecurringDeposit.MIN_MONTHLY_AMOUNT:,.2f}",
+                None,
+            )
+
+        if monthly_installment > RecurringDeposit.MAX_MONTHLY_AMOUNT:
+            return (
+                False,
+                f"Maximum monthly installment is Rs. {RecurringDeposit.MAX_MONTHLY_AMOUNT:,.2f}",
+                None,
+            )
+
+        # Validate tenure
+        if tenure_months not in RecurringDeposit.INTEREST_RATES:
+            valid_tenures = ", ".join(
+                str(t) for t in sorted(RecurringDeposit.INTEREST_RATES.keys())
+            )
+            return False, f"Invalid tenure. Valid options: {valid_tenures} months", None
+
+        # Determine if senior citizen - FIX: Get customer first
+        from datetime import datetime
+
+        is_senior_citizen = False
+        customer = self.get_customer_by_id(account.customer_id)
+        if customer and hasattr(customer, "dob"):
+            try:
+                dob = datetime.strptime(customer.dob, "%Y-%m-%d")
+                age = (datetime.now() - dob).days // 365
+                is_senior_citizen = age >= 60
+            except (ValueError, AttributeError):
+                pass  # Default to non-senior if error
+
+        # Get applicable interest rate
+        interest_rate = RecurringDeposit.get_applicable_rate(
+            tenure_months, is_senior_citizen
+        )
+
+        # Create RD
+        rd_number = RecurringDeposit.generate_rd_number()
+        rd = RecurringDeposit(
+            rd_number=rd_number,
+            account_number=account.account_number,
+            monthly_installment=monthly_installment,
+            tenure_months=tenure_months,
+            interest_rate=interest_rate,
+            is_senior_citizen=is_senior_citizen,
+            autopay_enabled=enable_autopay,
+            autopay_day=autopay_day,
+        )
+
+        # Store RD in dictionary
+        self.recurring_deposits[rd_number] = rd
+
+        # Create transaction for RD opening
+        txn = Transaction(
+            type="RD_OPENED",
+            amount=0.0,  # No deduction at opening
+            resulting_balance=account.balance,
+            metadata={
+                "rd_number": rd_number,
+                "monthly_installment": monthly_installment,
+                "tenure_months": tenure_months,
+                "interest_rate": interest_rate,
+                "maturity_amount": rd.calculate_maturity_amount(),
+                "maturity_date": rd.maturity_date.strftime("%d-%m-%Y"),
+                "autopay_enabled": enable_autopay,
+            },
+        )
+        account.transactions.append(txn)
+
+        autopay_info = ""
+        if enable_autopay:
+            autopay_info = f"\n✓ Autopay enabled: Rs. {monthly_installment:,.2f} on day {autopay_day} of each month"
+            autopay_info += (
+                f"\nNext Autopay: {rd.next_autopay_date.strftime('%d-%m-%Y')}"
+            )
+
+        message = f"""
+    ✅ Recurring Deposit Created Successfully!
+    
+    RD Number: {rd_number}
+    Monthly Installment: Rs. {monthly_installment:,.2f}
+    Tenure: {tenure_months} months
+    Interest Rate: {interest_rate}% p.a.
+    {" (Senior Citizen Rate)" if is_senior_citizen else ""}
+    Maturity Date: {rd.maturity_date.strftime("%d-%m-%Y")}
+    Expected Maturity Amount: Rs. {rd.calculate_maturity_amount():,.2f}
+    {autopay_info}
+    """
+        return True, message, rd
+
+    def process_all_autopay_rds(self) -> List[Tuple[str, bool, str]]:
+        """
+        Process autopay for all active RDs
+        Called by automated system (e.g., during time simulation or daily maintenance)
+        Returns: List of (rd_number, success, message)
+        """
+        results = []
+
+        for rd in self.recurring_deposits.values():
+            if rd.autopay_enabled and rd.status == "Active":
+                # Get linked account - FIX: Use get_account method which searches the list
+                account = self.get_account(rd.account_number)
+                if account:
+                    success, message = rd.process_autopay(account)
+                    if success or "Failed" in message:  # Log both success and failures
+                        results.append((rd.rd_number, success, message))
+
+        return results
+
+    def get_fds_for_account(self, account_number: str) -> List[FixedDeposit]:
+        """Get all FDs for a specific account"""
+        return [
+            fd
+            for fd in self.fixed_deposits.values()
+            if fd.account_number == account_number
+        ]
+
+    def get_rds_for_account(self, account_number: str) -> List[RecurringDeposit]:
+        """Get all RDs for a specific account"""
+        return [
+            rd
+            for rd in self.recurring_deposits.values()
+            if rd.account_number == account_number
+        ]
+
+    def get_fd_by_number(self, fd_number: str) -> Optional[FixedDeposit]:
+        """Get FD by FD number"""
+        return self.fixed_deposits.get(fd_number)
+
+    def get_rd_by_number(self, rd_number: str) -> Optional[RecurringDeposit]:
+        """Get RD by RD number"""
+        return self.recurring_deposits.get(rd_number)
 
 
 # End of Bank class

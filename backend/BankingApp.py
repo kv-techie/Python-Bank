@@ -10,7 +10,10 @@ from ClosureFormalities import ClosureFormalities
 from CreditEvaluator import CreditEvaluator
 from Customer import Customer
 from ExpenseSimulator import ExpenseSimulator
+from FixedDeposit import FixedDeposit
 from RecurringBill import PaymentMethod, RecurringBill, RecurringBillFactory
+from RecurringDeposit import RecurringDeposit
+from Transaction import Transaction
 
 
 class BankingApp:
@@ -234,31 +237,33 @@ Customer ID: {customer.customer_id}
 
         while active:
             print(f"""
-Current Date/Time: {BankClock.get_formatted_datetime()}
-
-Choose an option:
-1   View Balance
-2   Deposit Money
-3   Withdraw Money
-4   Transfer Funds (NEFT/RTGS/Inter-Account)
-5   View Transaction History
-6   Search Transaction by ID
-7   Switch Account
-8   Create Additional Account
-9   Manage Recurring Bills
-10  Manage Salary
-11  Simulate Time (Fast Forward)
-12  View Expense Analysis
-13  Loan Menu
-14  Card Management
-15  Close Card
-16  Close Account
-17  Logout
-        """)
+    Current Date/Time: {BankClock.get_formatted_datetime()}
+    
+    Choose an option:
+    1   View Balance
+    2   Deposit Money
+    3   Withdraw Money
+    4   Transfer Funds (NEFT/RTGS/Inter-Account)
+    5   View Transaction History
+    6   Search Transaction by ID
+    7   View SWIFT Transactions
+    8   Switch Account
+    9   Create Additional Account
+    10  Manage Recurring Bills
+    11  Manage Salary
+    12  Simulate Time (Fast Forward)
+    13  View Expense Analysis
+    14  Loan Menu
+    15  Card Management
+    16  Close Card
+    17  Close Account
+    18  Fixed Deposit and Recurring Deposit
+    19  Logout
+            """)
             menu_choice = self.read_valid_choice(
                 "Enter your choice: ",
-                [str(i) for i in range(1, 18)],
-                "Invalid choice. Please enter a number from 1 to 17.",
+                [str(i) for i in range(1, 20)],
+                "Invalid choice. Please enter a number from 1 to 19.",
             )
 
             if menu_choice == "1":
@@ -274,31 +279,35 @@ Choose an option:
             elif menu_choice == "6":
                 self.search_transaction()
             elif menu_choice == "7":
-                selected_account = self.switch_account(accounts)
+                self.view_swift_transactions(selected_account)
             elif menu_choice == "8":
-                accounts = self.create_additional_account(customer, accounts)
+                selected_account = self.switch_account(accounts)
             elif menu_choice == "9":
-                self.manage_recurring_bills(selected_account)
+                accounts = self.create_additional_account(customer, accounts)
             elif menu_choice == "10":
-                self.manage_salary(selected_account)
+                self.manage_recurring_bills(selected_account)
             elif menu_choice == "11":
-                self.simulate_time(selected_account)
+                self.manage_salary(selected_account)
             elif menu_choice == "12":
-                self.view_expense_analysis(selected_account)
+                self.simulate_time(selected_account)
             elif menu_choice == "13":
-                self.loan_menu(customer, selected_account)
+                self.view_expense_analysis(selected_account)
             elif menu_choice == "14":
-                self.card_management_menu(selected_account)
+                self.loan_menu(customer, selected_account)
             elif menu_choice == "15":
-                ClosureFormalities.close_card_menu(selected_account, self.bank)
+                self.card_management_menu(selected_account)
             elif menu_choice == "16":
+                ClosureFormalities.close_card_menu(selected_account, self.bank)
+            elif menu_choice == "17":
                 closure_success = ClosureFormalities.close_account_menu(
                     selected_account, customer, accounts, self.bank
                 )
                 if closure_success:
                     # Account was closed, exit to main menu
                     active = False
-            elif menu_choice == "17":
+            elif menu_choice == "18":
+                self.fd_rd_menu(customer, selected_account)  # ✅ FIX: Added ()
+            elif menu_choice == "19":
                 print("Logged out successfully.")
                 active = False
 
@@ -2144,49 +2153,6 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
             account.remove_recurring_bill(bill_id)
             self.bank.save()
 
-    def show_rewards_dashboard(self, account: Account):
-        """Show rewards dashboard with credit card rewards info"""
-        print("\n" + "=" * 70)
-        print("                    REWARDS DASHBOARD 💎")
-        print("=" * 70)
-
-        # Collect credit card info
-        credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
-
-        if not credit_cards:
-            print(
-                "\n❌ No credit cards found. Apply for a credit card to earn rewards!"
-            )
-            print("=" * 70)
-            input("\nPress Enter to continue...")
-            return
-
-        total_rewards = 0.0
-        total_spending = 0.0
-
-        print("\nYour Credit Cards & Rewards:")
-        print("-" * 70)
-
-        for idx, card in enumerate(credit_cards, 1):
-            print(
-                f"\n{idx}. {card.network} Credit Card (**** **** **** {card.card_number[-4:]}):"
-            )
-            print(f"   Credit Limit: Rs. {card.credit_limit:,.2f} INR")
-            print(f"   Used: Rs. {card.credit_used:,.2f} INR")
-            print(f"   Available: Rs. {card.available_credit():,.2f} INR")
-            print(f"   Utilization: {card.credit_utilization():.1f}%")
-            print(f"   💰 Reward Points: {card.reward_points:.0f}")
-
-            total_rewards += card.reward_points
-            total_spending += card.credit_used
-
-        print("\n" + "-" * 70)
-        print(f"Total Rewards Earned: {total_rewards:.0f} points")
-        print(f"Total Spending: Rs. {total_spending:,.2f} INR")
-        print(f"Rewards Value (₹1 = 1 point): Rs. {total_rewards:.2f} INR")
-        print("=" * 70)
-        input("\nPress Enter to continue...")
-
     def manage_salary(self, account: Account):
         """Manage salary profile"""
         managing = True
@@ -3055,112 +3021,6 @@ Choose an option:
         limit_map = {"1": 10, "2": 20, "3": 50, "4": None}
         return limit_map.get(choice, 10)
 
-    def view_international_accounts_menu(self):
-        """View international accounts registry"""
-        while True:
-            print("\n" + "=" * 70)
-            print("INTERNATIONAL ACCOUNTS REGISTRY")
-            print("=" * 70)
-            print("1. View Sample Accounts")
-            print("2. View Accounts by Country")
-            print("3. Search Account by Number")
-            print("4. View Registry Statistics")
-            print("5. Back to Main Menu")
-            print("=" * 70)
-
-            choice = input("\nEnter choice: ").strip()
-
-            if choice == "1":
-                self.view_sample_international_accounts()
-            elif choice == "2":
-                self.view_accounts_by_country()
-            elif choice == "3":
-                self.search_international_account()
-            elif choice == "4":
-                self.view_registry_statistics()
-            elif choice == "5":
-                break
-
-    def view_sample_international_accounts(self):
-        """View sample international accounts"""
-        accounts = self.bank.international_registry.list_sample_accounts()
-
-        print("\n" + "=" * 130)
-        print(
-            f"{'Holder':<30} {'Country':<12} {'Bank':<35} {'Account':<35} {'Balance':<18}"
-        )
-        print("-" * 130)
-
-        for acc in accounts[:20]:
-            balance_str = f"{acc['balance']:,.2f} {acc['currency']}"
-            print(
-                f"{acc['holder']:<30} {acc['country']:<12} "
-                f"{acc['bank']:<35} {acc['account']:<35} {balance_str:<18}"
-            )
-
-        print("=" * 130)
-        print(f"\nShowing 20 of {len(accounts)} total accounts")
-
-    def view_accounts_by_country(self):
-        """View accounts filtered by country"""
-        from InternationalBankRegistry import InternationalBankRegistry
-
-        countries = list(InternationalBankRegistry.BANKS.keys())
-
-        print("\nSelect country:")
-        for idx, country in enumerate(countries, 1):
-            print(f"{idx}. {country}")
-
-        choice = input(f"\nEnter choice (1-{len(countries)}): ").strip()
-
-        if choice.isdigit() and 1 <= int(choice) <= len(countries):
-            country = countries[int(choice) - 1]
-
-            matching = self.bank.international_registry.get_accounts_by_country(country)
-
-            print(f"\n📍 {len(matching)} Accounts in {country}:")
-            print("=" * 130)
-            print(f"{'Holder':<30} {'Bank':<40} {'Account':<35} {'Balance':<18}")
-            print("-" * 130)
-
-            for acc in matching[:10]:
-                balance_str = f"{acc.balance:,.2f} {acc.currency}"
-                print(
-                    f"{acc.account_holder:<30} {acc.bank_name:<40} "
-                    f"{acc.account_number:<35} {balance_str:<18}"
-                )
-
-            print("=" * 130)
-
-    def search_international_account(self):
-        """Search for international account"""
-        account_num = input("\nEnter account number/IBAN: ").strip()
-
-        account = self.bank.international_registry.find_account_by_number(account_num)
-
-        if account:
-            print("\n✓ ACCOUNT FOUND")
-            print("=" * 70)
-            print(f"Holder: {account.account_holder}")
-            print(f"Account: {account.account_number}")
-            print(f"Bank: {account.bank_name}")
-            print(f"SWIFT: {account.swift_code}")
-            print(f"Country: {account.country}")
-            print(f"Currency: {account.currency}")
-            print(f"Balance: {account.balance:,.2f} {account.currency}")
-
-            if account.transactions:
-                print(f"\nTransactions: {len(account.transactions)}")
-                print("\nRecent Transactions:")
-                for txn in account.transactions[-5:]:
-                    print(
-                        f"  - {txn['date']}: +{txn['amount']:,.2f} {account.currency} from {txn['from']}"
-                    )
-
-            print("=" * 70)
-        else:
-            print("\n❌ Account not found")
-
     def view_registry_statistics(self):
         """View international registry statistics"""
         stats = self.bank.international_registry.get_statistics()
@@ -3180,6 +3040,866 @@ Choose an option:
         print("\n💱 Accounts by Currency:")
         for currency, count in sorted(stats["by_currency"].items()):
             print(f"   {currency}: {count} accounts")
+
+        print("=" * 70)
+
+    def view_swift_transactions(self, account: Account):
+        """View all SWIFT/international transfers"""
+
+        swift_transfers = [t for t in account.transactions if t.type == "SWIFT_SENT"]
+
+        if not swift_transfers:
+            print("\n📭 No international transfers found")
+            return
+
+        print("\n" + "=" * 100)
+        print(f"INTERNATIONAL TRANSFERS (SWIFT) - Account: {account.account_number}")
+        print("=" * 100)
+        print(
+            f"{'#':<4} {'Date/Time':<20} {'SWIFT Reference':<30} {'Recipient':<25} {'Amount':<15}"
+        )
+        print("-" * 100)
+
+        for idx, txn in enumerate(swift_transfers, 1):
+            if hasattr(txn, "metadata") and isinstance(txn.metadata, dict):
+                swift_ref = txn.metadata.get("swift_reference", "N/A")
+                recipient = txn.metadata.get("recipient_name", "N/A")[:25]
+                currency = txn.metadata.get("currency", "INR")
+                amount = txn.metadata.get("amount_foreign", abs(txn.amount))
+                amount_str = f"{amount:,.2f} {currency}"
+            else:
+                swift_ref = "N/A"
+                recipient = "N/A"
+                amount_str = f"{abs(txn.amount):,.2f} INR"
+
+            print(
+                f"{idx:<4} {txn.timestamp:<20} {swift_ref:<30} {recipient:<25} {amount_str:<15}"
+            )
+
+        print("-" * 100)
+        print(f"Total: {len(swift_transfers)} international transfer(s)")
+        print("=" * 100)
+
+        view = input("\nView details? (enter # or press Enter to go back): ").strip()
+        if view.isdigit():
+            num = int(view)
+            if 1 <= num <= len(swift_transfers):
+                self._display_transaction_details(swift_transfers[num - 1], account)
+
+    def _display_transaction_details(self, txn: Transaction, account: Account):
+        """Display detailed information about a transaction"""
+        print("\n" + "=" * 80)
+        print("TRANSACTION DETAILS")
+        print("=" * 80)
+        print(f"Transaction ID:     {txn.id}")
+        print(f"Type:               {txn.type}")
+        print(f"Date/Time:          {txn.timestamp}")
+        print(f"Amount:             Rs. {abs(txn.amount):,.2f}")
+        print(f"Resulting Balance:  Rs. {txn.resulting_balance:,.2f}")
+
+        # Show metadata for international transfers
+        if (
+            txn.type == "SWIFT_SENT"
+            and hasattr(txn, "metadata")
+            and isinstance(txn.metadata, dict)
+        ):
+            print("\n" + "-" * 80)
+            print("INTERNATIONAL TRANSFER DETAILS")
+            print("-" * 80)
+            print(f"SWIFT Reference:    {txn.metadata.get('swift_reference', 'N/A')}")
+            print(f"Recipient Name:     {txn.metadata.get('recipient_name', 'N/A')}")
+            print(f"Recipient Account:  {txn.metadata.get('recipient_account', 'N/A')}")
+            print(f"Bank:               {txn.metadata.get('recipient_bank', 'N/A')}")
+            print(f"SWIFT Code:         {txn.metadata.get('swift_code', 'N/A')}")
+            print(f"Country:            {txn.metadata.get('country', 'N/A')}")
+
+            currency = txn.metadata.get("currency", "")
+            amount_foreign = txn.metadata.get("amount_foreign", 0)
+            exchange_rate = txn.metadata.get("exchange_rate", 0)
+
+            print(f"\nAmount Sent:        {amount_foreign:,.2f} {currency}")
+            print(f"Exchange Rate:      1 {currency} = Rs. {exchange_rate:,.2f}")
+            print(f"Amount in INR:      Rs. {amount_foreign * exchange_rate:,.2f}")
+            print(
+                f"SWIFT Charges:      Rs. {txn.metadata.get('swift_charges', 0):,.2f}"
+            )
+            print(f"Purpose:            {txn.metadata.get('purpose', 'N/A')}")
+            print(f"Expected Arrival:   {txn.metadata.get('expected_arrival', 'N/A')}")
+
+            if txn.metadata.get("recipient_address"):
+                print(f"Recipient Address:  {txn.metadata.get('recipient_address')}")
+
+        # Show metadata for other transaction types if available
+        elif (
+            hasattr(txn, "metadata") and isinstance(txn.metadata, dict) and txn.metadata
+        ):
+            print("\n" + "-" * 80)
+            print("ADDITIONAL DETAILS")
+            print("-" * 80)
+            for key, value in txn.metadata.items():
+                # Format key nicely
+                formatted_key = key.replace("_", " ").title()
+                print(f"{formatted_key:<20}: {value}")
+
+        print("=" * 80)
+        input("\nPress Enter to continue...")
+
+    def fd_rd_menu(self, customer: Customer, account: Account):
+        """Fixed Deposit and Recurring Deposit Management Menu"""
+
+        while True:
+            print("\n" + "=" * 70)
+            print("FIXED DEPOSITS & RECURRING DEPOSITS")
+            print("=" * 70)
+            print("""
+Choose an option:
+1 Open Fixed Deposit (FD)
+2 Open Recurring Deposit (RD)
+3 View My FDs
+4 View My RDs
+5 Pay RD Installment (Manual)
+6 Enable/Disable RD Autopay
+7 Close FD (Premature)
+8 Close RD (Premature)
+9 Mature FD
+10 Mature RD
+11 View FD Details
+12 View RD Details
+13 Back to Main Menu
+            """)
+
+            choice = self.read_valid_choice(
+                "Enter your choice: ",
+                [str(i) for i in range(1, 14)],
+                "Invalid choice. Please enter a number from 1 to 13.",
+            )
+
+            if choice == "1":
+                self.open_fixed_deposit(account)
+            elif choice == "2":
+                self.open_recurring_deposit(account)
+            elif choice == "3":
+                self.view_my_fds(account)
+            elif choice == "4":
+                self.view_my_rds(account)
+            elif choice == "5":
+                self.pay_rd_installment(account)
+            elif choice == "6":
+                self.manage_rd_autopay(account)
+            elif choice == "7":
+                self.close_fd_premature(account)
+            elif choice == "8":
+                self.close_rd_premature(account)
+            elif choice == "9":
+                self.mature_fd(account)
+            elif choice == "10":
+                self.mature_rd(account)
+            elif choice == "11":
+                self.view_fd_details(account)
+            elif choice == "12":
+                self.view_rd_details(account)
+            elif choice == "13":
+                break
+
+    def open_fixed_deposit(self, account: Account):
+        """Open a new Fixed Deposit"""
+        print("\n" + "=" * 70)
+        print("OPEN FIXED DEPOSIT")
+        print("=" * 70)
+
+        print(f"\nCurrent Balance: Rs. {account.balance:,.2f}")
+        print(f"Minimum Balance Required: Rs. {account._min_operational_balance:,.2f}")
+        print("\nAvailable Tenures and Interest Rates:")
+        print("-" * 70)
+
+        from datetime import datetime
+
+        # Check if senior citizen - FIX: Get from customer
+        is_senior = False
+        customer = self.bank.get_customer_by_id(account.customer_id)
+        if customer and hasattr(customer, "dob"):
+            try:
+                dob = datetime.strptime(customer.dob, "%Y-%m-%d")
+                age = (datetime.now() - dob).days // 365
+                is_senior = age >= 60
+            except (ValueError, AttributeError):
+                pass
+
+        for tenure, rate in sorted(FixedDeposit.INTEREST_RATES.items()):
+            senior_rate = (
+                rate + FixedDeposit.SENIOR_CITIZEN_BONUS if is_senior else rate
+            )
+            senior_info = f" (Senior Citizen: {senior_rate}%)" if is_senior else ""
+            print(f"  {tenure:2d} months: {rate}% p.a.{senior_info}")
+
+        print("-" * 70)
+        print(f"Minimum Amount: Rs. {FixedDeposit.MIN_AMOUNT:,.2f}")
+        print(f"Maximum Amount: Rs. {FixedDeposit.MAX_AMOUNT:,.2f}")
+
+        # Get amount
+        try:
+            amount = float(
+                input(
+                    f"\nEnter FD amount (Rs. {FixedDeposit.MIN_AMOUNT:,.2f} - {FixedDeposit.MAX_AMOUNT:,.2f}): "
+                )
+            )
+        except ValueError:
+            print("❌ Invalid amount")
+            return
+
+        # Get tenure
+        valid_tenures = list(FixedDeposit.INTEREST_RATES.keys())
+        print(f"\nAvailable tenures: {', '.join(str(t) for t in valid_tenures)} months")
+        try:
+            tenure = int(input("Enter tenure in months: "))
+        except ValueError:
+            print("❌ Invalid tenure")
+            return
+
+        # Show calculation
+        if tenure in FixedDeposit.INTEREST_RATES:
+            rate = FixedDeposit.get_applicable_rate(tenure, is_senior)
+
+            # Calculate maturity amount preview
+            n = 4  # Quarterly
+            t = tenure / 12
+            maturity = amount * ((1 + rate / 100 / n) ** (n * t))
+            interest = maturity - amount
+
+            print("\n" + "-" * 70)
+            print("FD PREVIEW")
+            print("-" * 70)
+            print(f"Principal Amount: Rs. {amount:,.2f}")
+            print(f"Interest Rate: {rate}% p.a.")
+            print(f"Tenure: {tenure} months")
+            print(f"Expected Interest: Rs. {interest:,.2f}")
+            print(f"Maturity Amount: Rs. {maturity:,.2f}")
+            print("-" * 70)
+
+        confirm = input("\nConfirm FD creation? (yes/no): ").strip().lower()
+        if confirm not in ["yes", "y"]:
+            print("❌ FD creation cancelled")
+            return
+
+        # Create FD
+        success, message, fd = self.bank.create_fixed_deposit(account, amount, tenure)
+
+        if success:
+            print(message)
+            self.bank.save()
+        else:
+            print(f"\n❌ Failed to create FD: {message}")
+
+    def open_recurring_deposit(self, account: Account):
+        """Open a new Recurring Deposit"""
+        print("\n" + "=" * 70)
+        print("OPEN RECURRING DEPOSIT")
+        print("=" * 70)
+
+        print(f"\nCurrent Balance: Rs. {account.balance:,.2f}")
+        print("\nAvailable Tenures and Interest Rates:")
+        print("-" * 70)
+
+        from datetime import datetime
+
+        # Check if senior citizen - FIX: Get from customer
+        is_senior = False
+        customer = self.bank.get_customer_by_id(account.customer_id)
+        if customer and hasattr(customer, "dob"):
+            try:
+                dob = datetime.strptime(customer.dob, "%Y-%m-%d")
+                age = (datetime.now() - dob).days // 365
+                is_senior = age >= 60
+            except (ValueError, AttributeError):
+                pass
+
+        for tenure, rate in sorted(RecurringDeposit.INTEREST_RATES.items()):
+            senior_rate = (
+                rate + RecurringDeposit.SENIOR_CITIZEN_BONUS if is_senior else rate
+            )
+            senior_info = f" (Senior Citizen: {senior_rate}%)" if is_senior else ""
+            print(f"  {tenure:2d} months: {rate}% p.a.{senior_info}")
+
+        print("-" * 70)
+        print(
+            f"Minimum Monthly Installment: Rs. {RecurringDeposit.MIN_MONTHLY_AMOUNT:,.2f}"
+        )
+        print(
+            f"Maximum Monthly Installment: Rs. {RecurringDeposit.MAX_MONTHLY_AMOUNT:,.2f}"
+        )
+
+        # Get monthly installment
+        try:
+            monthly = float(input("\nEnter monthly installment: "))
+        except ValueError:
+            print("❌ Invalid amount")
+            return
+
+        # Get tenure
+        valid_tenures = list(RecurringDeposit.INTEREST_RATES.keys())
+        print(f"\nAvailable tenures: {', '.join(str(t) for t in valid_tenures)} months")
+        try:
+            tenure = int(input("Enter tenure in months: "))
+        except ValueError:
+            print("❌ Invalid tenure")
+            return
+
+        # Show calculation
+        if tenure in RecurringDeposit.INTEREST_RATES:
+            rate = RecurringDeposit.get_applicable_rate(tenure, is_senior)
+
+            # Calculate maturity amount preview
+            P = monthly
+            n = tenure
+            r = rate
+            interest = (P * n * (n + 1) * r) / 2400
+            maturity = (P * n) + interest
+
+            print("\n" + "-" * 70)
+            print("RD PREVIEW")
+            print("-" * 70)
+            print(f"Monthly Installment: Rs. {monthly:,.2f}")
+            print(f"Interest Rate: {rate}% p.a.")
+            print(f"Tenure: {tenure} months")
+            print(f"Total Investment: Rs. {monthly * tenure:,.2f}")
+            print(f"Expected Interest: Rs. {interest:,.2f}")
+            print(f"Maturity Amount: Rs. {maturity:,.2f}")
+            print("-" * 70)
+
+        # Autopay option
+        enable_autopay = input("\nEnable autopay? (yes/no): ").strip().lower() in [
+            "yes",
+            "y",
+        ]
+        autopay_day = 1
+
+        if enable_autopay:
+            try:
+                autopay_day = int(input("Enter autopay day (1-28): "))
+                if autopay_day < 1 or autopay_day > 28:
+                    print("❌ Invalid day. Using default day 1")
+                    autopay_day = 1
+            except ValueError:
+                print("❌ Invalid input. Using default day 1")
+                autopay_day = 1
+
+        confirm = input("\nConfirm RD creation? (yes/no): ").strip().lower()
+        if confirm not in ["yes", "y"]:
+            print("❌ RD creation cancelled")
+            return
+
+        # Create RD
+        success, message, rd = self.bank.create_recurring_deposit(
+            account, monthly, tenure, enable_autopay, autopay_day
+        )
+
+        if success:
+            print(message)
+            self.bank.save()
+        else:
+            print(f"\n❌ Failed to create RD: {message}")
+
+    def view_my_fds(self, account: Account):
+        """View all FDs for current account"""
+        fds = self.bank.get_fds_for_account(account.account_number)
+
+        if not fds:
+            print("\n📭 No Fixed Deposits found")
+            return
+
+        print("\n" + "=" * 100)
+        print(f"YOUR FIXED DEPOSITS - Account: {account.account_number}")
+        print("=" * 100)
+        print(
+            f"{'FD Number':<20} {'Principal':<15} {'Rate':<8} {'Tenure':<10} {'Maturity':<15} {'Status':<20}"
+        )
+        print("-" * 100)
+
+        for fd in fds:
+            status = fd.get_status_string()
+            print(
+                f"{fd.fd_number:<20} Rs. {fd.principal_amount:>10,.2f} {fd.interest_rate:>5.2f}% {fd.tenure_months:>3d} months Rs. {fd.maturity_amount:>10,.2f} {status:<20}"
+            )
+
+        print("-" * 100)
+        print(f"Total FDs: {len(fds)}")
+        print("=" * 100)
+
+    def view_my_rds(self, account: Account):
+        """View all RDs for current account"""
+        rds = self.bank.get_rds_for_account(account.account_number)
+
+        if not rds:
+            print("\n📭 No Recurring Deposits found")
+            return
+
+        print("\n" + "=" * 110)
+        print(f"YOUR RECURRING DEPOSITS - Account: {account.account_number}")
+        print("=" * 110)
+        print(
+            f"{'RD Number':<20} {'Monthly':<15} {'Rate':<8} {'Paid':<15} {'Status':<25} {'Autopay':<10}"
+        )
+        print("-" * 110)
+
+        for rd in rds:
+            status = rd.get_payment_status()
+            autopay = "✓ Yes" if rd.autopay_enabled else "No"
+            print(
+                f"{rd.rd_number:<20} Rs. {rd.monthly_installment:>10,.2f} {rd.interest_rate:>5.2f}% {rd.installments_paid:>2d}/{rd.tenure_months:<2d} months {status:<25} {autopay:<10}"
+            )
+
+        print("-" * 110)
+        print(f"Total RDs: {len(rds)}")
+        print("=" * 110)
+
+    def pay_rd_installment(self, account: Account):
+        """Pay RD installment manually"""
+        rds = self.bank.get_rds_for_account(account.account_number)
+        active_rds = [rd for rd in rds if rd.status == "Active"]
+
+        if not active_rds:
+            print("\n📭 No active RDs found")
+            return
+
+        print("\n" + "=" * 80)
+        print("PAY RD INSTALLMENT")
+        print("=" * 80)
+
+        print("\nActive RDs:")
+        for idx, rd in enumerate(active_rds, 1):
+            print(
+                f"{idx}. {rd.rd_number} - Rs. {rd.monthly_installment:,.2f}/month ({rd.installments_paid}/{rd.tenure_months} paid)"
+            )
+
+        try:
+            choice = int(input(f"\nSelect RD (1-{len(active_rds)}): "))
+            if choice < 1 or choice > len(active_rds):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        rd = active_rds[choice - 1]
+
+        print(f"\nRD: {rd.rd_number}")
+        print(f"Monthly Installment: Rs. {rd.monthly_installment:,.2f}")
+        print(f"Installments Paid: {rd.installments_paid}/{rd.tenure_months}")
+        print(f"Your Balance: Rs. {account.balance:,.2f}")
+
+        confirm = input("\nPay installment? (yes/no): ").strip().lower()
+        if confirm not in ["yes", "y"]:
+            print("❌ Payment cancelled")
+            return
+
+        success, message = rd.pay_installment_manual(account)
+
+        if success:
+            print(f"\n✅ {message}")
+            print(f"New Balance: Rs. {account.balance:,.2f}")
+            self.bank.save()
+        else:
+            print(f"\n❌ {message}")
+
+    def manage_rd_autopay(self, account: Account):
+        """Enable/Disable RD Autopay"""
+        rds = self.bank.get_rds_for_account(account.account_number)
+        active_rds = [rd for rd in rds if rd.status == "Active"]
+
+        if not active_rds:
+            print("\n📭 No active RDs found")
+            return
+
+        print("\n" + "=" * 80)
+        print("MANAGE RD AUTOPAY")
+        print("=" * 80)
+
+        print("\nActive RDs:")
+        for idx, rd in enumerate(active_rds, 1):
+            autopay = "✓ Enabled" if rd.autopay_enabled else "✗ Disabled"
+            print(f"{idx}. {rd.rd_number} - {autopay}")
+
+        try:
+            choice = int(input(f"\nSelect RD (1-{len(active_rds)}): "))
+            if choice < 1 or choice > len(active_rds):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        rd = active_rds[choice - 1]
+
+        if rd.autopay_enabled:
+            print("\nAutopay is currently ENABLED")
+            print(f"Autopay Day: {rd.autopay_day}")
+            print(
+                f"Next Autopay: {rd.next_autopay_date.strftime('%d-%m-%Y') if rd.next_autopay_date else 'N/A'}"
+            )
+
+            action = input("\nDisable autopay? (yes/no): ").strip().lower()
+            if action in ["yes", "y"]:
+                success, message = rd.disable_autopay()
+                print(f"\n{'✅' if success else '❌'} {message}")
+                if success:
+                    self.bank.save()
+        else:
+            print("\nAutopay is currently DISABLED")
+            action = input("\nEnable autopay? (yes/no): ").strip().lower()
+            if action in ["yes", "y"]:
+                try:
+                    day = int(input("Enter autopay day (1-28): "))
+                except ValueError:
+                    day = 1
+
+                success, message = rd.enable_autopay(day)
+                print(f"\n{'✅' if success else '❌'} {message}")
+                if success:
+                    self.bank.save()
+
+    def close_fd_premature(self, account: Account):
+        """Close FD before maturity"""
+        fds = self.bank.get_fds_for_account(account.account_number)
+        active_fds = [fd for fd in fds if fd.status == "Active"]
+
+        if not active_fds:
+            print("\n📭 No active FDs found")
+            return
+
+        print("\n" + "=" * 80)
+        print("CLOSE FD (PREMATURE)")
+        print("=" * 80)
+
+        print("\nActive FDs:")
+        for idx, fd in enumerate(active_fds, 1):
+            days_left = fd.get_days_to_maturity()
+            print(
+                f"{idx}. {fd.fd_number} - Rs. {fd.principal_amount:,.2f} ({days_left} days to maturity)"
+            )
+
+        try:
+            choice = int(input(f"\nSelect FD (1-{len(active_fds)}): "))
+            if choice < 1 or choice > len(active_fds):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        fd = active_fds[choice - 1]
+
+        # Show premature withdrawal calculation
+        interest, penalty, payout = fd.calculate_premature_withdrawal()
+
+        print(f"\nFD: {fd.fd_number}")
+        print(f"Principal: Rs. {fd.principal_amount:,.2f}")
+        print(f"Current Value: Rs. {fd.calculate_current_value():,.2f}")
+        print(f"Interest Earned: Rs. {interest:,.2f}")
+        print(f"Premature Penalty (1%): Rs. {penalty:,.2f}")
+        print(f"Final Payout: Rs. {payout:,.2f}")
+
+        print("\n⚠️  Warning: Premature closure attracts 1% penalty")
+        confirm = input("Confirm premature closure? (yes/no): ").strip().lower()
+        if confirm not in ["yes", "y"]:
+            print("❌ Closure cancelled")
+            return
+
+        payout, message = fd.close_prematurely()
+
+        if payout > 0:
+            account.balance += payout
+
+            # Create transaction
+            from Transaction import Transaction
+
+            txn = Transaction(
+                type="FD_CLOSED_PREMATURE",
+                amount=payout,
+                resulting_balance=account.balance,
+                metadata={"fd_number": fd.fd_number},
+            )
+            account.transactions.append(txn)
+
+            print(message)
+            print(f"Amount credited to account: Rs. {payout:,.2f}")
+            print(f"New Balance: Rs. {account.balance:,.2f}")
+            self.bank.save()
+        else:
+            print(f"❌ {message}")
+
+    def close_rd_premature(self, account: Account):
+        """Close RD before maturity"""
+        rds = self.bank.get_rds_for_account(account.account_number)
+        active_rds = [rd for rd in rds if rd.status in ["Active", "Completed"]]
+
+        if not active_rds:
+            print("\n📭 No active RDs found")
+            return
+
+        print("\n" + "=" * 80)
+        print("CLOSE RD (PREMATURE)")
+        print("=" * 80)
+
+        print("\nRDs:")
+        for idx, rd in enumerate(active_rds, 1):
+            print(
+                f"{idx}. {rd.rd_number} - {rd.installments_paid}/{rd.tenure_months} paid"
+            )
+
+        try:
+            choice = int(input(f"\nSelect RD (1-{len(active_rds)}): "))
+            if choice < 1 or choice > len(active_rds):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        rd = active_rds[choice - 1]
+
+        # Show premature withdrawal calculation
+        current_value, penalty, payout = rd.calculate_premature_withdrawal()
+
+        print(f"\nRD: {rd.rd_number}")
+        print(f"Installments Paid: {rd.installments_paid}/{rd.tenure_months}")
+        print(f"Total Deposited: Rs. {rd.total_deposited:,.2f}")
+        print(f"Current Value: Rs. {current_value:,.2f}")
+        print(f"Penalty: Rs. {penalty:,.2f}")
+        print(f"Final Payout: Rs. {payout:,.2f}")
+
+        print("\n⚠️  Warning: Premature closure attracts penalty")
+        confirm = input("Confirm premature closure? (yes/no): ").strip().lower()
+        if confirm not in ["yes", "y"]:
+            print("❌ Closure cancelled")
+            return
+
+        payout, message = rd.close_prematurely()
+
+        if payout > 0:
+            account.balance += payout
+
+            # Create transaction
+            from Transaction import Transaction
+
+            txn = Transaction(
+                type="RD_CLOSED_PREMATURE",
+                amount=payout,
+                resulting_balance=account.balance,
+                metadata={"rd_number": rd.rd_number},
+            )
+            account.transactions.append(txn)
+
+            print(message)
+            print(f"Amount credited to account: Rs. {payout:,.2f}")
+            print(f"New Balance: Rs. {account.balance:,.2f}")
+            self.bank.save()
+        else:
+            print(f"❌ {message}")
+
+    def mature_fd(self, account: Account):
+        """Mature an FD"""
+        fds = self.bank.get_fds_for_account(account.account_number)
+        matured_fds = [fd for fd in fds if fd.status == "Active" and fd.is_matured()]
+
+        if not matured_fds:
+            print("\n📭 No FDs ready for maturity")
+            return
+
+        print("\n" + "=" * 80)
+        print("MATURE FIXED DEPOSIT")
+        print("=" * 80)
+
+        print("\nFDs ready for maturity:")
+        for idx, fd in enumerate(matured_fds, 1):
+            print(
+                f"{idx}. {fd.fd_number} - Rs. {fd.principal_amount:,.2f} → Rs. {fd.maturity_amount:,.2f}"
+            )
+
+        try:
+            choice = int(input(f"\nSelect FD (1-{len(matured_fds)}): "))
+            if choice < 1 or choice > len(matured_fds):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        fd = matured_fds[choice - 1]
+
+        payout, message = fd.mature()
+
+        if payout > 0:
+            account.balance += payout
+
+            # Create transaction
+            from Transaction import Transaction
+
+            txn = Transaction(
+                type="FD_MATURED",
+                amount=payout,
+                resulting_balance=account.balance,
+                metadata={"fd_number": fd.fd_number},
+            )
+            account.transactions.append(txn)
+
+            print(message)
+            print(f"Amount credited to account: Rs. {payout:,.2f}")
+            print(f"New Balance: Rs. {account.balance:,.2f}")
+            self.bank.save()
+        else:
+            print(f"❌ {message}")
+
+    def mature_rd(self, account: Account):
+        """Mature an RD"""
+        rds = self.bank.get_rds_for_account(account.account_number)
+        completed_rds = [rd for rd in rds if rd.status == "Completed"]
+
+        if not completed_rds:
+            print("\n📭 No RDs ready for maturity")
+            print("Complete all installments to mature your RD")
+            return
+
+        print("\n" + "=" * 80)
+        print("MATURE RECURRING DEPOSIT")
+        print("=" * 80)
+
+        print("\nRDs ready for maturity:")
+        for idx, rd in enumerate(completed_rds, 1):
+            maturity = rd.calculate_maturity_amount()
+            print(
+                f"{idx}. {rd.rd_number} - Rs. {rd.total_deposited:,.2f} → Rs. {maturity:,.2f}"
+            )
+
+        try:
+            choice = int(input(f"\nSelect RD (1-{len(completed_rds)}): "))
+            if choice < 1 or choice > len(completed_rds):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        rd = completed_rds[choice - 1]
+
+        payout, message = rd.mature()
+
+        if payout > 0:
+            account.balance += payout
+
+            # Create transaction
+            from Transaction import Transaction
+
+            txn = Transaction(
+                type="RD_MATURED",
+                amount=payout,
+                resulting_balance=account.balance,
+                metadata={"rd_number": rd.rd_number},
+            )
+            account.transactions.append(txn)
+
+            print(message)
+            print(f"Amount credited to account: Rs. {payout:,.2f}")
+            print(f"New Balance: Rs. {account.balance:,.2f}")
+            self.bank.save()
+        else:
+            print(f"❌ {message}")
+
+    def view_fd_details(self, account: Account):
+        """View detailed FD information"""
+        fds = self.bank.get_fds_for_account(account.account_number)
+
+        if not fds:
+            print("\n📭 No Fixed Deposits found")
+            return
+
+        print("\nSelect FD to view details:")
+        for idx, fd in enumerate(fds, 1):
+            print(f"{idx}. {fd.fd_number} - Rs. {fd.principal_amount:,.2f}")
+
+        try:
+            choice = int(input(f"\nEnter choice (1-{len(fds)}): "))
+            if choice < 1 or choice > len(fds):
+                return
+        except ValueError:
+            return
+
+        fd = fds[choice - 1]
+
+        print("\n" + "=" * 70)
+        print("FIXED DEPOSIT DETAILS")
+        print("=" * 70)
+        print(f"FD Number: {fd.fd_number}")
+        print(f"Account Number: {fd.account_number}")
+        print(f"Principal Amount: Rs. {fd.principal_amount:,.2f}")
+        print(f"Interest Rate: {fd.interest_rate}% p.a.")
+        print(f"Tenure: {fd.tenure_months} months")
+        print(f"Start Date: {fd.start_date.strftime('%d-%m-%Y')}")
+        print(f"Maturity Date: {fd.maturity_date.strftime('%d-%m-%Y')}")
+        print(f"Maturity Amount: Rs. {fd.maturity_amount:,.2f}")
+        print(f"Status: {fd.get_status_string()}")
+
+        if fd.status == "Active":
+            days_left = fd.get_days_to_maturity()
+            current_value = fd.calculate_current_value()
+            print(f"\nDays to Maturity: {days_left}")
+            print(f"Current Value: Rs. {current_value:,.2f}")
+
+        print("=" * 70)
+
+    def view_rd_details(self, account: Account):
+        """View detailed RD information"""
+        rds = self.bank.get_rds_for_account(account.account_number)
+
+        if not rds:
+            print("\n📭 No Recurring Deposits found")
+            return
+
+        print("\nSelect RD to view details:")
+        for idx, rd in enumerate(rds, 1):
+            print(f"{idx}. {rd.rd_number} - Rs. {rd.monthly_installment:,.2f}/month")
+
+        try:
+            choice = int(input(f"\nEnter choice (1-{len(rds)}): "))
+            if choice < 1 or choice > len(rds):
+                return
+        except ValueError:
+            return
+
+        rd = rds[choice - 1]
+
+        print("\n" + "=" * 70)
+        print("RECURRING DEPOSIT DETAILS")
+        print("=" * 70)
+        print(f"RD Number: {rd.rd_number}")
+        print(f"Account Number: {rd.account_number}")
+        print(f"Monthly Installment: Rs. {rd.monthly_installment:,.2f}")
+        print(f"Interest Rate: {rd.interest_rate}% p.a.")
+        print(f"Tenure: {rd.tenure_months} months")
+        print(f"Start Date: {rd.start_date.strftime('%d-%m-%Y')}")
+        print(f"Maturity Date: {rd.maturity_date.strftime('%d-%m-%Y')}")
+        print(f"Expected Maturity: Rs. {rd.calculate_maturity_amount():,.2f}")
+        print(f"\nInstallments Paid: {rd.installments_paid}/{rd.tenure_months}")
+        print(f"Total Deposited: Rs. {rd.total_deposited:,.2f}")
+        print(f"Status: {rd.get_payment_status()}")
+
+        if rd.autopay_enabled:
+            print("\nAutopay: ✓ Enabled")
+            print(f"Autopay Day: {rd.autopay_day}")
+            if rd.next_autopay_date:
+                print(f"Next Autopay: {rd.next_autopay_date.strftime('%d-%m-%Y')}")
+            print(f"Autopay Failures: {rd.autopay_failures}")
+        else:
+            print("\nAutopay: ✗ Disabled")
+
+        if rd.missed_payments > 0:
+            print(f"\n⚠️  Missed Payments: {rd.missed_payments}")
+            print(
+                f"Penalty at Maturity: Rs. {rd.missed_payments * rd.LATE_PAYMENT_PENALTY:,.2f}"
+            )
+
+        if rd.status == "Active":
+            current_value = rd.calculate_current_value()
+            print(f"\nCurrent Value: Rs. {current_value:,.2f}")
 
         print("=" * 70)
 

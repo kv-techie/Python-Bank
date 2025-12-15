@@ -456,39 +456,112 @@ class DataStore:
             print("Creating new registry instead.")
             return InternationalBankRegistry()
 
+    # ------------------------------------------
+    # Utility function to parse metadata from string
 
-# ------------------------------------------
-# Utility function to parse metadata from string
+    def parse_metadata(metadata_str: Optional[str]) -> dict:
+        """
+        Parse semicolon-separated key=value pairs in metadata string.
+        Example: "category=Transport;merchant=Metro;method=Debit Card"
+        """
+        result = {}
+        if metadata_str:
+            parts = metadata_str.split(";")
+            for part in parts:
+                if "=" in part:
+                    key, value = part.split("=", 1)
+                    result[key.strip()] = value.strip()
+        return result
 
+    # ------------------------------------------
+    # Example function to print transactions, with merchant and method info
 
-def parse_metadata(metadata_str: Optional[str]) -> dict:
-    """
-    Parse semicolon-separated key=value pairs in metadata string.
-    Example: "category=Transport;merchant=Metro;method=Debit Card"
-    """
-    result = {}
-    if metadata_str:
-        parts = metadata_str.split(";")
-        for part in parts:
-            if "=" in part:
-                key, value = part.split("=", 1)
-                result[key.strip()] = value.strip()
-    return result
+    @staticmethod
+    def save_fixed_deposits(fixed_deposits: dict):
+        """Save fixed deposits to JSON"""
+        import json
+        import os
 
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "data", "fixed_deposits.json")
 
-# ------------------------------------------
-# Example function to print transactions, with merchant and method info
+        # Ensure data directory exists
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
+        # Convert to dict
+        data = {fd_num: fd.to_dict() for fd_num, fd in fixed_deposits.items()}
 
-def print_transaction_history(account):
-    """
-    Print transaction history with merchant and method extracted from metadata.
-    """
-    for txn in account.transactions:
-        meta = parse_metadata(getattr(txn, "metadata", ""))
-        merchant = meta.get("merchant", "N/A")
-        method = meta.get("method", "N/A")
-        print(
-            f"{txn.id: <13} {txn.timestamp}  {txn.type: <10}  Rs. {txn.amount:.2f}  Rs. {txn.resulting_balance:.2f} INR"
-        )
-        print(f"    Merchant: {merchant} | Method: {method}")
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+    @staticmethod
+    def load_fixed_deposits() -> dict:
+        """Load fixed deposits from JSON"""
+        import json
+        import os
+
+        from FixedDeposit import FixedDeposit
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "data", "fixed_deposits.json")
+
+        if not os.path.exists(file_path):
+            return {}
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            fixed_deposits = {}
+            for fd_num, fd_data in data.items():
+                fixed_deposits[fd_num] = FixedDeposit.from_dict(fd_data)
+
+            return fixed_deposits
+        except Exception as e:
+            print(f"Error loading fixed deposits: {e}")
+            return {}
+
+    @staticmethod
+    def save_recurring_deposits(recurring_deposits: dict):
+        """Save recurring deposits to JSON"""
+        import json
+        import os
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "data", "recurring_deposits.json")
+
+        # Ensure data directory exists
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        # Convert to dict
+        data = {rd_num: rd.to_dict() for rd_num, rd in recurring_deposits.items()}
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+    @staticmethod
+    def load_recurring_deposits() -> dict:
+        """Load recurring deposits from JSON"""
+        import json
+        import os
+
+        from RecurringDeposit import RecurringDeposit
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "data", "recurring_deposits.json")
+
+        if not os.path.exists(file_path):
+            return {}
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            recurring_deposits = {}
+            for rd_num, rd_data in data.items():
+                recurring_deposits[rd_num] = RecurringDeposit.from_dict(rd_data)
+
+            return recurring_deposits
+        except Exception as e:
+            print(f"Error loading recurring deposits: {e}")
+            return {}
