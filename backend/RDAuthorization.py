@@ -12,6 +12,7 @@ import random
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
+from Account import Account
 from BankClock import BankClock
 from DataStore import DataStore
 
@@ -138,7 +139,9 @@ class RDAuthorization:
 
         return True, f"Authorization revoked: {reason}"
 
-    def update_monthly_limit(self, new_limit: float, updated_by: str) -> Tuple[bool, str]:
+    def update_monthly_limit(
+        self, new_limit: float, updated_by: str
+    ) -> Tuple[bool, str]:
         """Update the monthly payment limit"""
         if self.status == self.STATUS_REVOKED:
             return False, "Cannot update revoked authorization"
@@ -157,7 +160,10 @@ class RDAuthorization:
             self.metadata["limit_updates"] = []
         self.metadata["limit_updates"].append(update_record)
 
-        return True, f"Monthly limit updated from Rs. {old_limit:,.2f} to Rs. {new_limit:,.2f}"
+        return (
+            True,
+            f"Monthly limit updated from Rs. {old_limit:,.2f} to Rs. {new_limit:,.2f}",
+        )
 
     def get_summary(self) -> str:
         """Get authorization summary"""
@@ -184,10 +190,10 @@ Status: {self.status}
 │ Monthly Limit: Rs. {self.monthly_limit:,.2f}
 │ Total Payments: {self.total_payments}
 │ Total Amount Paid: Rs. {self.total_amount_paid:,.2f}
-│ Last Payment: {self.last_payment_date.strftime('%d-%m-%Y %H:%M') if self.last_payment_date else 'N/A'}
+│ Last Payment: {self.last_payment_date.strftime("%d-%m-%Y %H:%M") if self.last_payment_date else "N/A"}
 └─────────────────────────────────────────────────────────┘
 
-Created: {self.created_date.strftime('%d-%m-%Y %H:%M')}
+Created: {self.created_date.strftime("%d-%m-%Y %H:%M")}
 """
 
     def to_dict(self) -> dict:
@@ -259,7 +265,9 @@ class RDAuthorizationManager:
         self.authorizations: Dict[str, RDAuthorization] = {}  # auth_id -> Authorization
         self.rd_to_auth: Dict[str, str] = {}  # rd_number -> auth_id
         self.payer_auths: Dict[str, List[str]] = {}  # payer_customer_id -> [auth_ids]
-        self.beneficiary_auths: Dict[str, List[str]] = {}  # beneficiary_customer_id -> [auth_ids]
+        self.beneficiary_auths: Dict[
+            str, List[str]
+        ] = {}  # beneficiary_customer_id -> [auth_ids]
 
     def create_authorization(
         self,
@@ -367,14 +375,18 @@ Monthly Payment Limit: Rs. {monthly_limit:,.2f}
     ) -> List[RDAuthorization]:
         """Get all authorizations where customer is the payer"""
         auth_ids = self.payer_auths.get(payer_customer_id, [])
-        return [self.authorizations[aid] for aid in auth_ids if aid in self.authorizations]
+        return [
+            self.authorizations[aid] for aid in auth_ids if aid in self.authorizations
+        ]
 
     def get_authorizations_by_beneficiary(
         self, beneficiary_customer_id: str
     ) -> List[RDAuthorization]:
         """Get all authorizations where customer is the beneficiary"""
         auth_ids = self.beneficiary_auths.get(beneficiary_customer_id, [])
-        return [self.authorizations[aid] for aid in auth_ids if aid in self.authorizations]
+        return [
+            self.authorizations[aid] for aid in auth_ids if aid in self.authorizations
+        ]
 
     def revoke_authorization(
         self, auth_id: str, reason: str, revoked_by: str
@@ -467,14 +479,16 @@ Monthly Payment Limit: Rs. {monthly_limit:,.2f}
             metadata=f"authId={auth.auth_id}|rdNumber={rd_number}|beneficiary={auth.beneficiary_customer_id}|installment={installment_number}",
         )
 
-        return True, f"Payment of Rs. {amount:,.2f} processed successfully via authorization {auth.auth_id}"
+        return (
+            True,
+            f"Payment of Rs. {amount:,.2f} processed successfully via authorization {auth.auth_id}",
+        )
 
     def to_dict(self) -> dict:
         """Convert manager to dictionary for JSON storage"""
         return {
             "authorizations": {
-                auth_id: auth.to_dict()
-                for auth_id, auth in self.authorizations.items()
+                auth_id: auth.to_dict() for auth_id, auth in self.authorizations.items()
             },
             "rd_to_auth": self.rd_to_auth,
             "payer_auths": self.payer_auths,

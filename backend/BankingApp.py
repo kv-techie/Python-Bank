@@ -3165,13 +3165,14 @@ Choose an option:
 10 Mature RD
 11 View FD Details
 12 View RD Details
+13 RD Authorization Management
 13 Back to Main Menu
             """)
 
             choice = self.read_valid_choice(
                 "Enter your choice: ",
-                [str(i) for i in range(1, 14)],
-                "Invalid choice. Please enter a number from 1 to 13.",
+                [str(i) for i in range(1, 15)],
+                "Invalid choice. Please enter a number from 1 to 14.",
             )
 
             if choice == "1":
@@ -3199,6 +3200,8 @@ Choose an option:
             elif choice == "12":
                 self.view_rd_details(account)
             elif choice == "13":
+                self.rd_authorization_management(account)
+            elif choice == "14":
                 break
 
     def open_fixed_deposit(self, account: Account):
@@ -3902,6 +3905,528 @@ Choose an option:
             print(f"\nCurrent Value: Rs. {current_value:,.2f}")
 
         print("=" * 70)
+
+    def rd_authorization_menu(self, customer: Customer, account: Account):
+        """RD Authorization Management Menu"""
+        while True:
+            print("\n" + "=" * 80)
+            print("RD AUTHORIZATION MANAGEMENT")
+            print("=" * 80)
+            print("""
+Authorize someone else to pay for your RD, or view/manage existing authorizations.
+
+1  Create New Authorization (Let someone pay for your RD)
+2  View Authorizations Where I'm the Payer (I'm paying for someone's RD)
+3  View Authorizations Where I'm the Beneficiary (Someone is paying for my RD)
+4  Revoke Authorization
+5  Update Authorization Limit
+6  View Authorization Details
+7  Back to FD/RD Menu
+            """)
+
+            choice = self.read_valid_choice(
+                "Enter your choice: ",
+                [str(i) for i in range(1, 8)],
+                "Invalid choice. Please enter a number from 1 to 7.",
+            )
+
+            if choice == "1":
+                self.create_rd_authorization(customer, account)
+            elif choice == "2":
+                self.view_authorizations_as_payer(customer)
+            elif choice == "3":
+                self.view_authorizations_as_beneficiary(customer)
+            elif choice == "4":
+                self.revoke_rd_authorization(customer)
+            elif choice == "5":
+                self.update_authorization_limit(customer)
+            elif choice == "6":
+                self.view_authorization_details(customer)
+            elif choice == "7":
+                break
+
+    def create_rd_authorization(self, customer: Customer, beneficiary_account: Account):
+        """Create a new RD authorization"""
+        print("\n" + "=" * 80)
+        print("CREATE RD AUTHORIZATION")
+        print("=" * 80)
+        print("""
+    This allows someone else to pay monthly installments for YOUR Recurring Deposit.
+    The payer's account will be debited, but YOU will receive the maturity amount.
+        """)
+
+        # Step 1: Select RD
+        rds = self.bank.get_rds_for_account(beneficiary_account.account_number)
+        active_rds = [rd for rd in rds if rd.status == "Active"]
+
+        if not active_rds:
+            print("\n❌ No active RDs found")
+            input("\nPress Enter to continue...")
+            return
+
+        print("\nYour Active RDs:")
+        for idx, rd in enumerate(active_rds, 1):
+            # Check if already authorized
+            existing_auth = self.bank.get_rd_authorization(rd.rd_number)
+            auth_status = ""
+            if existing_auth and existing_auth.is_active():
+                auth_status = (
+                    f" [Already Authorized by {existing_auth.payer_customer_id}]"
+                )
+
+            print(
+                f"{idx}. {rd.rd_number} - Rs. {rd.monthly_installment:,.2f}/month "
+                f"({rd.installments_paid}/{rd.tenure_months} paid){auth_status}"
+            )
+
+        try:
+            rd_choice = int(input(f"\nSelect RD (1-{len(active_rds)}): "))
+            if rd_choice < 1 or rd_choice > len(active_rds):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        selected_rd = active_rds[rd_choice - 1]
+
+        # Check if already authorized
+        existing_auth = self.bank.get_rd_authorization(selected_rd.rd_number)
+        if existing_auth and existing_auth.is_active():
+            print(
+                f"\n⚠️  This RD already has an active authorization from {existing_auth.payer_customer_id}"
+            )
+            replace = (
+                input("Revoke existing and create new authorization? (yes/no): ")
+                .strip()
+                .lower()
+            )
+            if replace in ["yes", "y"]:
+                self.bank.revoke_rd_authorization(
+                    existing_auth.auth_id,
+                    "Replaced with new authorization",
+                    customer.customer_id,
+                )
+            else:
+                print("❌ Authorization cancelled")
+                return
+
+        # Step 2: Get payer details
+        print("\n" + "-" * 80)
+        print("PAYER INFORMATION")
+        print("-" * 80)
+        print("Enter details of the person who will pay the RD installments:")
+
+        payer_customer_id = input("\nPayer's Customer ID: ").strip()
+        payer_customer = self.bank.get_customer_by_id(payer_customer_id)
+
+        if not payer_customer:
+            print(f"\n❌ Customer ID '{payer_customer_id}' not found")
+            return
+
+        if payer_customer.customer_id == customer.customer_id:
+            print("\n❌ You cannot authorize yourself")
+            return
+
+        # Get payer's accounts
+        payer_accounts = self.bank.get_customer_accounts(payer_customer)
+
+        if not payer_accounts:
+            print(f"\n❌ No accounts found for customer {payer_customer_id}")
+            return
+
+        print(f"\n✓ Payer: {payer_customer.first_name} {payer_customer.last_name}")
+        print("\nPayer's Accounts:")
+        for idx, acc in enumerate(payer_accounts, 1):
+            print(
+                f"{idx}. {acc.account_type} - {acc.account_number} (Balance: Rs. {acc.balance:,.2f})"
+            )
+
+        try:
+            acc_choice = int(
+                input(f"\nSelect payer's account (1-{len(payer_accounts)}): ")
+            )
+            if acc_choice < 1 or acc_choice > len(payer_accounts):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        payer_account = payer_accounts[acc_choice - 1]
+
+        # Step 3: Confirmation and summary
+        monthly_limit = selected_rd.monthly_installment * 1.1  # 10% buffer
+
+        print("\n" + "=" * 80)
+        print("AUTHORIZATION SUMMARY")
+        print("=" * 80)
+        print("\n📋 RD Details:")
+        print(f"   RD Number: {selected_rd.rd_number}")
+        print(f"   Monthly Installment: Rs. {selected_rd.monthly_installment:,.2f}")
+        print(f"   Tenure: {selected_rd.tenure_months} months")
+        print(
+            f"   Installments Paid: {selected_rd.installments_paid}/{selected_rd.tenure_months}"
+        )
+        print(
+            f"   Remaining: {selected_rd.tenure_months - selected_rd.installments_paid} installments"
+        )
+
+        print("\n💰 Beneficiary (Receives Maturity Amount):")
+        print(f"   Name: {customer.first_name} {customer.last_name}")
+        print(f"   Customer ID: {customer.customer_id}")
+        print(f"   Account: {beneficiary_account.account_number}")
+
+        print("\n💳 Payer (Pays Monthly Installments):")
+        print(f"   Name: {payer_customer.first_name} {payer_customer.last_name}")
+        print(f"   Customer ID: {payer_customer.customer_id}")
+        print(f"   Account: {payer_account.account_number}")
+        print(f"   Current Balance: Rs. {payer_account.balance:,.2f}")
+
+        print("\n📊 Authorization Details:")
+        print(f"   Monthly Payment Limit: Rs. {monthly_limit:,.2f}")
+        print(
+            f"   Expected Total: Rs. {selected_rd.monthly_installment * (selected_rd.tenure_months - selected_rd.installments_paid):,.2f}"
+        )
+
+        print("\n⚠️  Important:")
+        print("   • Payer's account will be auto-debited monthly")
+        print("   • Beneficiary will receive the full maturity amount")
+        print("   • Authorization can be revoked anytime by either party")
+        print("=" * 80)
+
+        confirm = input("\nCreate authorization? (yes/no): ").strip().lower()
+
+        if confirm not in ["yes", "y"]:
+            print("\n❌ Authorization cancelled")
+            return
+
+        # Create authorization
+        success, message = self.bank.create_rd_authorization(
+            rd_number=selected_rd.rd_number,
+            payer_customer=payer_customer,
+            payer_account=payer_account,
+        )
+
+        print("\n" + message)
+
+        if success:
+            print(
+                "\n✅ The RD will now be automatically paid from the payer's account."
+            )
+            print("   Both parties can view and manage this authorization.")
+
+        input("\nPress Enter to continue...")
+
+    def view_authorizations_as_payer(self, customer: Customer):
+        """View authorizations where current customer is the payer"""
+        print("\n" + "=" * 100)
+        print("AUTHORIZATIONS WHERE I'M THE PAYER")
+        print("=" * 100)
+
+        auths = self.bank.get_authorizations_as_payer(customer.customer_id)
+
+        if not auths:
+            print("\n📭 No authorizations found where you're the payer")
+            input("\nPress Enter to continue...")
+            return
+
+        print(f"\nYou are paying for {len(auths)} RD(s):\n")
+        print(
+            f"{'Auth ID':<25} {'RD Number':<20} {'Beneficiary':<15} {'Monthly Limit':<18} {'Status':<15} {'Paid':<10}"
+        )
+        print("-" * 100)
+
+        for auth in auths:
+            beneficiary = self.bank.get_customer_by_id(auth.beneficiary_customer_id)
+            beneficiary_name = (
+                f"{beneficiary.first_name} {beneficiary.last_name}"
+                if beneficiary
+                else "Unknown"
+            )
+
+            print(
+                f"{auth.auth_id:<25} {auth.rd_number:<20} {beneficiary_name:<15} "
+                f"Rs. {auth.monthly_limit:>12,.2f} {auth.status:<15} {auth.total_payments:>3d}"
+            )
+
+        print("=" * 100)
+
+        # Summary
+        total_limit = sum(auth.monthly_limit for auth in auths if auth.is_active())
+        total_paid = sum(auth.total_amount_paid for auth in auths)
+
+        print("\n📊 Summary:")
+        print(f"   Total Monthly Obligation: Rs. {total_limit:,.2f}")
+        print(f"   Total Amount Paid: Rs. {total_paid:,.2f}")
+        print(
+            f"   Active Authorizations: {sum(1 for auth in auths if auth.is_active())}/{len(auths)}"
+        )
+
+        input("\nPress Enter to continue...")
+
+    def view_authorizations_as_beneficiary(self, customer: Customer):
+        """View authorizations where current customer is the beneficiary"""
+        print("\n" + "=" * 100)
+        print("AUTHORIZATIONS WHERE I'M THE BENEFICIARY")
+        print("=" * 100)
+
+        auths = self.bank.get_authorizations_as_beneficiary(customer.customer_id)
+
+        if not auths:
+            print("\n📭 No authorizations found where you're the beneficiary")
+            input("\nPress Enter to continue...")
+            return
+
+        print(f"\nOthers are paying for {len(auths)} of your RD(s):\n")
+        print(
+            f"{'Auth ID':<25} {'RD Number':<20} {'Payer':<15} {'Monthly Limit':<18} {'Status':<15} {'Paid':<10}"
+        )
+        print("-" * 100)
+
+        for auth in auths:
+            payer = self.bank.get_customer_by_id(auth.payer_customer_id)
+            payer_name = f"{payer.first_name} {payer.last_name}" if payer else "Unknown"
+
+            print(
+                f"{auth.auth_id:<25} {auth.rd_number:<20} {payer_name:<15} "
+                f"Rs. {auth.monthly_limit:>12,.2f} {auth.status:<15} {auth.total_payments:>3d}"
+            )
+
+        print("=" * 100)
+
+        # Summary
+        total_received = sum(auth.total_amount_paid for auth in auths)
+
+        print("\n📊 Summary:")
+        print(f"   Total Amount Received: Rs. {total_received:,.2f}")
+        print(
+            f"   Active Authorizations: {sum(1 for auth in auths if auth.is_active())}/{len(auths)}"
+        )
+
+        input("\nPress Enter to continue...")
+
+    def revoke_rd_authorization(self, customer: Customer):
+        """Revoke an RD authorization"""
+        print("\n" + "=" * 80)
+        print("REVOKE RD AUTHORIZATION")
+        print("=" * 80)
+
+        # Get all authorizations (as payer or beneficiary)
+        as_payer = self.bank.get_authorizations_as_payer(customer.customer_id)
+        as_beneficiary = self.bank.get_authorizations_as_beneficiary(
+            customer.customer_id
+        )
+
+        all_auths = []
+        for auth in as_payer + as_beneficiary:
+            if auth.status not in ["Revoked", "Expired"]:
+                all_auths.append(auth)
+
+        if not all_auths:
+            print("\n📭 No active authorizations to revoke")
+            input("\nPress Enter to continue...")
+            return
+
+        print("\nActive Authorizations:")
+        for idx, auth in enumerate(all_auths, 1):
+            role = (
+                "Payer"
+                if auth.payer_customer_id == customer.customer_id
+                else "Beneficiary"
+            )
+            other_party = (
+                auth.beneficiary_customer_id
+                if role == "Payer"
+                else auth.payer_customer_id
+            )
+            other_customer = self.bank.get_customer_by_id(other_party)
+            other_name = (
+                f"{other_customer.first_name} {other_customer.last_name}"
+                if other_customer
+                else "Unknown"
+            )
+
+            print(f"{idx}. {auth.auth_id}")
+            print(f"   RD: {auth.rd_number}")
+            print(f"   Your Role: {role}")
+            print(f"   Other Party: {other_name} ({other_party})")
+            print(f"   Monthly Limit: Rs. {auth.monthly_limit:,.2f}")
+            print(f"   Status: {auth.status}")
+            print()
+
+        try:
+            choice = int(
+                input(f"Select authorization to revoke (1-{len(all_auths)}): ")
+            )
+            if choice < 1 or choice > len(all_auths):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        auth = all_auths[choice - 1]
+
+        reason = input("\nReason for revocation: ").strip() or "User requested"
+
+        confirm = (
+            input(f"\n⚠️  Revoke authorization {auth.auth_id}? (yes/no): ")
+            .strip()
+            .lower()
+        )
+
+        if confirm not in ["yes", "y"]:
+            print("\n❌ Revocation cancelled")
+            return
+
+        success, message = self.bank.revoke_rd_authorization(
+            auth.auth_id, reason, customer.customer_id
+        )
+
+        if success:
+            print(f"\n✅ {message}")
+            print(
+                "\n⚠️  Note: The RD will revert to manual/autopay from beneficiary's account"
+            )
+        else:
+            print(f"\n❌ {message}")
+
+        input("\nPress Enter to continue...")
+
+    def update_authorization_limit(self, customer: Customer):
+        """Update monthly limit for an authorization"""
+        print("\n" + "=" * 80)
+        print("UPDATE AUTHORIZATION LIMIT")
+        print("=" * 80)
+
+        # Only beneficiary can update limits
+        auths = self.bank.get_authorizations_as_beneficiary(customer.customer_id)
+        active_auths = [auth for auth in auths if auth.is_active()]
+
+        if not active_auths:
+            print("\n📭 No active authorizations found where you're the beneficiary")
+            print("   (Only beneficiaries can update authorization limits)")
+            input("\nPress Enter to continue...")
+            return
+
+        print("\nYour Active Authorizations:")
+        for idx, auth in enumerate(active_auths, 1):
+            payer = self.bank.get_customer_by_id(auth.payer_customer_id)
+            payer_name = f"{payer.first_name} {payer.last_name}" if payer else "Unknown"
+
+            print(f"{idx}. {auth.auth_id}")
+            print(f"   RD: {auth.rd_number}")
+            print(f"   Payer: {payer_name}")
+            print(f"   Current Limit: Rs. {auth.monthly_limit:,.2f}")
+            print()
+
+        try:
+            choice = int(input(f"Select authorization (1-{len(active_auths)}): "))
+            if choice < 1 or choice > len(active_auths):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        auth = active_auths[choice - 1]
+
+        # Get RD details
+        rd = self.bank.get_rd_by_number(auth.rd_number)
+        if rd:
+            print(f"\nRD Monthly Installment: Rs. {rd.monthly_installment:,.2f}")
+            print(f"Current Authorization Limit: Rs. {auth.monthly_limit:,.2f}")
+
+        try:
+            new_limit = float(input("\nEnter new monthly limit: Rs. "))
+            if new_limit <= 0:
+                print("❌ Limit must be positive")
+                return
+        except ValueError:
+            print("❌ Invalid amount")
+            return
+
+        if rd and new_limit < rd.monthly_installment:
+            print("\n⚠️  Warning: New limit is below the RD installment amount")
+            print("   This may cause autopay failures")
+            proceed = input("Continue anyway? (yes/no): ").strip().lower()
+            if proceed not in ["yes", "y"]:
+                print("❌ Update cancelled")
+                return
+
+        success, message = auth.update_monthly_limit(new_limit, customer.customer_id)
+
+        if success:
+            print(f"\n✅ {message}")
+            self.bank.save()
+        else:
+            print(f"\n❌ {message}")
+
+        input("\nPress Enter to continue...")
+
+    def view_authorization_details(self, customer: Customer):
+        """View detailed information about an authorization"""
+        print("\n" + "=" * 80)
+        print("AUTHORIZATION DETAILS")
+        print("=" * 80)
+
+        # Get all authorizations
+        as_payer = self.bank.get_authorizations_as_payer(customer.customer_id)
+        as_beneficiary = self.bank.get_authorizations_as_beneficiary(
+            customer.customer_id
+        )
+        all_auths = as_payer + as_beneficiary
+
+        if not all_auths:
+            print("\n📭 No authorizations found")
+            input("\nPress Enter to continue...")
+            return
+
+        print("\nYour Authorizations:")
+        for idx, auth in enumerate(all_auths, 1):
+            role = (
+                "Payer"
+                if auth.payer_customer_id == customer.customer_id
+                else "Beneficiary"
+            )
+            print(f"{idx}. {auth.auth_id} ({role}) - {auth.status}")
+
+        try:
+            choice = int(input(f"\nSelect authorization (1-{len(all_auths)}): "))
+            if choice < 1 or choice > len(all_auths):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        auth = all_auths[choice - 1]
+
+        # Display full details
+        print(auth.get_summary())
+
+        # Show payment history if any
+        if auth.payment_history:
+            print("\n" + "=" * 80)
+            print("PAYMENT HISTORY")
+            print("=" * 80)
+            print(f"{'Date':<20} {'Installment':<15} {'Amount':<15} {'Status'}")
+            print("-" * 80)
+
+            for payment in auth.payment_history[-10:]:  # Last 10 payments
+                status = (
+                    "✓ Success" if payment["success"] else f"✗ {payment['message']}"
+                )
+                print(
+                    f"{payment['date'][:19]:<20} #{payment['installment_number']:<14} "
+                    f"Rs. {payment['amount']:>10,.2f} {status}"
+                )
+
+            if len(auth.payment_history) > 10:
+                print(f"\n... and {len(auth.payment_history) - 10} more payment(s)")
+
+        input("\nPress Enter to continue...")
 
 
 if __name__ == "__main__":
