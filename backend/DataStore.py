@@ -13,7 +13,8 @@ class DataStore:
     CSV_PATH = "data/accounts.csv"
     ACTIVITY_PATH = "data/account_activity.csv"
     CUSTOMER_JSON_PATH = "data/customers.json"
-    LOANS_JSON_PATH = "data/loans.json"  # <-- Loan path added
+    LOANS_JSON_PATH = "data/loans.json"
+    RD_AUTHORIZATIONS_JSON_PATH = "data/rd_authorizations.json"  # New: RD authorizations
 
     _lock = Lock()
 
@@ -201,7 +202,7 @@ class DataStore:
                         res_bal_str = row.get("resultingBalance", "")
                         txn_id = row.get("txnId", "")
                         cheque_id = row.get("chequeId", "")
-                        metadata = row.get("metadata", "")  # <- added metadata
+                        metadata = row.get("metadata", "")
 
                         account = by_account_number.get(account_no) or by_username.get(
                             username
@@ -223,6 +224,7 @@ class DataStore:
                             "BILL_PAYMENT",
                             "EXPENSE",
                             "SALARY_CREDIT",
+                            "RD_AUTH_PAYMENT",  # New: authorized RD payment
                         ]
                         if action in transaction_actions and amount_str and res_bal_str:
                             try:
@@ -238,7 +240,7 @@ class DataStore:
                                         resulting_balance=res_balance,
                                         timestamp=timestamp,
                                         cheque_id=cheque_id if cheque_id else None,
-                                        metadata=metadata,  # Store metadata in Transaction
+                                        metadata=metadata,
                                     )
                                     account.transactions.append(txn)
                                     account.balance = res_balance
@@ -415,7 +417,6 @@ class DataStore:
     @staticmethod
     def save_international_accounts(registry, verbose=False):
         """Save international accounts registry to JSON file"""
-        # Construct path relative to DataStore location (backend/data/)
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, "data", "international_accounts.json")
         try:
@@ -435,11 +436,9 @@ class DataStore:
         """Load international accounts registry from JSON file"""
         from InternationalBankRegistry import InternationalBankRegistry
 
-        # Construct path relative to DataStore location (backend/data/)
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, "data", "international_accounts.json")
 
-        # If file doesn't exist, create new registry
         if not os.path.exists(file_path):
             print("No saved international accounts found. Creating new registry.")
             return InternationalBankRegistry()
@@ -474,21 +473,16 @@ class DataStore:
         return result
 
     # ------------------------------------------
-    # Example function to print transactions, with merchant and method info
+    # Fixed Deposits
 
     @staticmethod
     def save_fixed_deposits(fixed_deposits: dict):
         """Save fixed deposits to JSON"""
-        import json
-        import os
-
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, "data", "fixed_deposits.json")
 
-        # Ensure data directory exists
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-        # Convert to dict
         data = {fd_num: fd.to_dict() for fd_num, fd in fixed_deposits.items()}
 
         with open(file_path, "w", encoding="utf-8") as f:
@@ -497,9 +491,6 @@ class DataStore:
     @staticmethod
     def load_fixed_deposits() -> dict:
         """Load fixed deposits from JSON"""
-        import json
-        import os
-
         from FixedDeposit import FixedDeposit
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -521,19 +512,17 @@ class DataStore:
             print(f"Error loading fixed deposits: {e}")
             return {}
 
+    # ------------------------------------------
+    # Recurring Deposits
+
     @staticmethod
     def save_recurring_deposits(recurring_deposits: dict):
         """Save recurring deposits to JSON"""
-        import json
-        import os
-
         current_dir = os.path.dirname(os.path.abspath(__file__))
         file_path = os.path.join(current_dir, "data", "recurring_deposits.json")
 
-        # Ensure data directory exists
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-        # Convert to dict
         data = {rd_num: rd.to_dict() for rd_num, rd in recurring_deposits.items()}
 
         with open(file_path, "w", encoding="utf-8") as f:
@@ -542,9 +531,6 @@ class DataStore:
     @staticmethod
     def load_recurring_deposits() -> dict:
         """Load recurring deposits from JSON"""
-        import json
-        import os
-
         from RecurringDeposit import RecurringDeposit
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -565,3 +551,39 @@ class DataStore:
         except Exception as e:
             print(f"Error loading recurring deposits: {e}")
             return {}
+
+    # ------------------------------------------
+    # RD Authorizations (NEW)
+
+    @staticmethod
+    def save_rd_authorizations(rd_auth_manager):
+        """Save RD authorizations to JSON"""
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "data", "rd_authorizations.json")
+
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        data = rd_auth_manager.to_dict()
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+    @staticmethod
+    def load_rd_authorizations():
+        """Load RD authorizations from JSON"""
+        from RDAuthorization import RDAuthorizationManager
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.join(current_dir, "data", "rd_authorizations.json")
+
+        if not os.path.exists(file_path):
+            return RDAuthorizationManager()
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            return RDAuthorizationManager.from_dict(data)
+        except Exception as e:
+            print(f"Error loading RD authorizations: {e}")
+            return RDAuthorizationManager()
