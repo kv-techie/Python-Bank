@@ -9,6 +9,7 @@ from DataStore import DataStore
 from FixedDeposit import FixedDeposit
 from loan import Loan
 from LoanEvaluator import LoanEvaluator
+from RDAuthorization import RDAuthorizationManager  # NEW: Import authorization manager
 from RecurringDeposit import RecurringDeposit
 from Transaction import Transaction
 
@@ -20,23 +21,22 @@ class Bank:
         self.accounts: List[Account] = []
         self.customers: List[Customer] = []
         self.loans: List[Loan] = []
-        self.credit_cards: List[CreditCard] = []  # Initialize credit cards list
-        self.international_registry = None  # ✅ FIXED: Removed ()
-        self.load()  # This will load everything including international registry
+        self.credit_cards: List[CreditCard] = []
+        self.international_registry = None
         self.fixed_deposits = {}
         self.recurring_deposits = {}
+        self.rd_authorizations = None  # NEW: RD authorization manager
+        self.load()  # Load all data
 
     def load(self):
         """Load all bank data from JSON files"""
-        # Load existing data
         self.accounts = DataStore.load_accounts()
         self.customers = DataStore.load_customers()
         self.loans = DataStore.load_loans()
-
-        # ✅ ADD THIS: Load international accounts
         self.international_registry = DataStore.load_international_accounts()
         self.fixed_deposits = DataStore.load_fixed_deposits()
         self.recurring_deposits = DataStore.load_recurring_deposits()
+        self.rd_authorizations = DataStore.load_rd_authorizations()  # NEW: Load authorizations
 
     def save(self):
         """Save all accounts, customers, and loans to persistent storage"""
@@ -44,13 +44,16 @@ class Bank:
         DataStore.save_customers(self.customers)
         DataStore.save_loans(self.loans)
 
-        # ✅ ADD THIS: Save international accounts
         if hasattr(self, "international_registry") and self.international_registry:
             DataStore.save_international_accounts(
                 self.international_registry, verbose=False
             )
         DataStore.save_fixed_deposits(self.fixed_deposits)
         DataStore.save_recurring_deposits(self.recurring_deposits)
+        
+        # NEW: Save authorizations
+        if hasattr(self, "rd_authorizations") and self.rd_authorizations:
+            DataStore.save_rd_authorizations(self.rd_authorizations)
 
     def save_data(self):
         """Alias for save() method for compatibility"""
@@ -262,7 +265,6 @@ class Bank:
             print("Insufficient balance to pay EMI.")
             return
 
-        # Update loan and account
         account.balance -= emi_amount
         loan.emis_paid += 1
 
@@ -271,7 +273,6 @@ class Bank:
             loan.closure_date = BankClock.today()
             print("Loan fully repaid and closed.")
 
-        # Log transaction
         ts = BankClock.get_formatted_datetime()
         txn_id = f"EMI{loan.loan_id}{loan.emis_paid:02d}"
         txn = Transaction(
@@ -364,11 +365,9 @@ class Bank:
             start_date=BankClock.today(),
         )
 
-        # Disburse to account
         old_balance = account.balance
         account.balance += principal
 
-        # Create transaction record for loan disbursement
         timestamp_int = int(datetime.now().timestamp())
         txn_id = f"TXN{timestamp_int}{len(account.transactions):04d}"
 
@@ -383,10 +382,7 @@ class Bank:
         )
         account.transactions.append(loan_disbursement)
 
-        # Add loan to bank's loan list
         self.add_loan(loan)
-
-        # Save everything
         self.save()
 
         print("\n✅ Loan Disbursed!")
@@ -421,7 +417,6 @@ class Bank:
     ) -> CreditCard:
         """Issue a new credit card for an account"""
         if credit_limit is None:
-            # Calculate credit limit using CreditEvaluator
             from datetime import datetime
 
             dob = datetime.strptime(customer.dob, "%Y-%m-%d")
@@ -430,7 +425,7 @@ class Bank:
             if hasattr(customer, "salary") and customer.salary:
                 annual_income = customer.salary * 12
             else:
-                annual_income = 180000  # Default minimum
+                annual_income = 180000
 
             cibil_score = getattr(customer, "cibil_score", 650)
 
@@ -448,7 +443,6 @@ class Bank:
         )
         account.add_card(credit_card)
 
-        # Link card info under customer for utilization tracking
         if not hasattr(customer, "credit_cards"):
             customer.credit_cards = []
         customer.credit_cards.append(
@@ -478,11 +472,9 @@ class Bank:
         total_processed = 0
 
         for account in self.accounts:
-            # Process recurring bills (returns number processed for the account)
             bills_processed = account.process_recurring_bills(today, self)
             total_processed += bills_processed
 
-            # Process salary credits
             if account.salary_profile and account.salary_profile.should_credit_today(
                 today
             ):
@@ -495,7 +487,6 @@ class Bank:
                         f"  ⏭️  Skipping salary for {account.username} (not due today or already processed)"
                     )
 
-            # Process credit card bills
             account.process_credit_card_bills(today)
 
         self.save()
@@ -505,6 +496,8 @@ class Bank:
 
         return total_processed
 
+    # ========== FIXED DEPOSITS ==========
+
     def create_fixed_deposit(
         self,
         account: "Account",
@@ -513,7 +506,6 @@ class Bank:
     ) -> Tuple[bool, str, Optional[FixedDeposit]]:
         """Create a new Fixed Deposit"""
 
-        # Validate amount
         if principal_amount < FixedDeposit.MIN_AMOUNT:
             return (
                 False,
@@ -528,14 +520,12 @@ class Bank:
                 None,
             )
 
-        # Validate tenure
         if tenure_months not in FixedDeposit.INTEREST_RATES:
             valid_tenures = ", ".join(
                 str(t) for t in sorted(FixedDeposit.INTEREST_RATES.keys())
             )
             return False, f"Invalid tenure. Valid options: {valid_tenures} months", None
 
-        # Check if account has sufficient balance
         min_balance = account._min_operational_balance
         if account.balance - principal_amount < min_balance:
             return (
@@ -544,10 +534,8 @@ class Bank:
                 None,
             )
 
-        # Deduct from account
         account.balance -= principal_amount
 
-        # Determine if senior citizen - FIX: Get customer first
         from datetime import datetime
 
         is_senior_citizen = False
@@ -558,14 +546,12 @@ class Bank:
                 age = (datetime.now() - dob).days // 365
                 is_senior_citizen = age >= 60
             except (ValueError, AttributeError):
-                pass  # Default to non-senior if error
+                pass
 
-        # Get applicable interest rate
         interest_rate = FixedDeposit.get_applicable_rate(
             tenure_months, is_senior_citizen
         )
 
-        # Create FD
         fd_number = FixedDeposit.generate_fd_number()
         fd = FixedDeposit(
             fd_number=fd_number,
@@ -576,10 +562,8 @@ class Bank:
             is_senior_citizen=is_senior_citizen,
         )
 
-        # Store FD in dictionary
         self.fixed_deposits[fd_number] = fd
 
-        # Create transaction
         txn = Transaction(
             type="FD_OPENED",
             amount=-principal_amount,
@@ -610,6 +594,20 @@ New Balance: Rs. {account.balance:,.2f}
 """
         return True, message, fd
 
+    def get_fds_for_account(self, account_number: str) -> List[FixedDeposit]:
+        """Get all FDs for a specific account"""
+        return [
+            fd
+            for fd in self.fixed_deposits.values()
+            if fd.account_number == account_number
+        ]
+
+    def get_fd_by_number(self, fd_number: str) -> Optional[FixedDeposit]:
+        """Get FD by FD number"""
+        return self.fixed_deposits.get(fd_number)
+
+    # ========== RECURRING DEPOSITS ==========
+
     def create_recurring_deposit(
         self,
         account: "Account",
@@ -620,7 +618,6 @@ New Balance: Rs. {account.balance:,.2f}
     ) -> Tuple[bool, str, Optional[RecurringDeposit]]:
         """Create a new Recurring Deposit"""
 
-        # Validate amount
         if monthly_installment < RecurringDeposit.MIN_MONTHLY_AMOUNT:
             return (
                 False,
@@ -635,14 +632,12 @@ New Balance: Rs. {account.balance:,.2f}
                 None,
             )
 
-        # Validate tenure
         if tenure_months not in RecurringDeposit.INTEREST_RATES:
             valid_tenures = ", ".join(
                 str(t) for t in sorted(RecurringDeposit.INTEREST_RATES.keys())
             )
             return False, f"Invalid tenure. Valid options: {valid_tenures} months", None
 
-        # Determine if senior citizen - FIX: Get customer first
         from datetime import datetime
 
         is_senior_citizen = False
@@ -653,14 +648,12 @@ New Balance: Rs. {account.balance:,.2f}
                 age = (datetime.now() - dob).days // 365
                 is_senior_citizen = age >= 60
             except (ValueError, AttributeError):
-                pass  # Default to non-senior if error
+                pass
 
-        # Get applicable interest rate
         interest_rate = RecurringDeposit.get_applicable_rate(
             tenure_months, is_senior_citizen
         )
 
-        # Create RD
         rd_number = RecurringDeposit.generate_rd_number()
         rd = RecurringDeposit(
             rd_number=rd_number,
@@ -673,13 +666,11 @@ New Balance: Rs. {account.balance:,.2f}
             autopay_day=autopay_day,
         )
 
-        # Store RD in dictionary
         self.recurring_deposits[rd_number] = rd
 
-        # Create transaction for RD opening
         txn = Transaction(
             type="RD_OPENED",
-            amount=0.0,  # No deduction at opening
+            amount=0.0,
             resulting_balance=account.balance,
             metadata={
                 "rd_number": rd_number,
@@ -701,45 +692,70 @@ New Balance: Rs. {account.balance:,.2f}
             )
 
         message = f"""
-    ✅ Recurring Deposit Created Successfully!
-    
-    RD Number: {rd_number}
-    Monthly Installment: Rs. {monthly_installment:,.2f}
-    Tenure: {tenure_months} months
-    Interest Rate: {interest_rate}% p.a.
-    {" (Senior Citizen Rate)" if is_senior_citizen else ""}
-    Maturity Date: {rd.maturity_date.strftime("%d-%m-%Y")}
-    Expected Maturity Amount: Rs. {rd.calculate_maturity_amount():,.2f}
-    {autopay_info}
-    """
+✅ Recurring Deposit Created Successfully!
+
+RD Number: {rd_number}
+Monthly Installment: Rs. {monthly_installment:,.2f}
+Tenure: {tenure_months} months
+Interest Rate: {interest_rate}% p.a.
+{" (Senior Citizen Rate)" if is_senior_citizen else ""}
+Maturity Date: {rd.maturity_date.strftime("%d-%m-%Y")}
+Expected Maturity Amount: Rs. {rd.calculate_maturity_amount():,.2f}
+{autopay_info}
+"""
         return True, message, rd
 
     def process_all_autopay_rds(self) -> List[Tuple[str, bool, str]]:
         """
-        Process autopay for all active RDs
-        Called by automated system (e.g., during time simulation or daily maintenance)
+        Process autopay for all active RDs (WITH AUTHORIZATION SUPPORT)
         Returns: List of (rd_number, success, message)
         """
         results = []
 
         for rd in self.recurring_deposits.values():
             if rd.autopay_enabled and rd.status == "Active":
-                # Get linked account - FIX: Use get_account method which searches the list
-                account = self.get_account(rd.account_number)
-                if account:
-                    success, message = rd.process_autopay(account)
-                    if success or "Failed" in message:  # Log both success and failures
+                # NEW: Check if there's an authorization
+                auth = self.rd_authorizations.get_authorization_for_rd(rd.rd_number)
+                
+                if auth and auth.is_active():
+                    # Use payer's account for authorized payment
+                    payer_account = self.get_account(auth.payer_account_number)
+                    if payer_account:
+                        success, message = self.rd_authorizations.process_authorized_payment(
+                            rd.rd_number,
+                            rd.monthly_installment,
+                            rd.installments_paid + 1,
+                            payer_account
+                        )
+                        
+                        if success:
+                            # Update RD's payment tracking
+                            payment = {
+                                "date": BankClock.now().isoformat(),
+                                "amount": rd.monthly_installment,
+                                "installment_number": rd.installments_paid + 1,
+                                "method": "Autopay (Authorized)",
+                            }
+                            rd.payment_history.append(payment)
+                            rd.installments_paid += 1
+                            rd.total_deposited += rd.monthly_installment
+                            
+                            # Check if completed
+                            if rd.installments_paid >= rd.tenure_months:
+                                rd.status = "Completed"
+                            else:
+                                rd.next_autopay_date = rd._calculate_next_autopay_date()
+                        
                         results.append((rd.rd_number, success, message))
+                else:
+                    # No authorization - use beneficiary's own account (original logic)
+                    account = self.get_account(rd.account_number)
+                    if account:
+                        success, message = rd.process_autopay(account)
+                        if success or "Failed" in message:
+                            results.append((rd.rd_number, success, message))
 
         return results
-
-    def get_fds_for_account(self, account_number: str) -> List[FixedDeposit]:
-        """Get all FDs for a specific account"""
-        return [
-            fd
-            for fd in self.fixed_deposits.values()
-            if fd.account_number == account_number
-        ]
 
     def get_rds_for_account(self, account_number: str) -> List[RecurringDeposit]:
         """Get all RDs for a specific account"""
@@ -749,13 +765,62 @@ New Balance: Rs. {account.balance:,.2f}
             if rd.account_number == account_number
         ]
 
-    def get_fd_by_number(self, fd_number: str) -> Optional[FixedDeposit]:
-        """Get FD by FD number"""
-        return self.fixed_deposits.get(fd_number)
-
     def get_rd_by_number(self, rd_number: str) -> Optional[RecurringDeposit]:
         """Get RD by RD number"""
         return self.recurring_deposits.get(rd_number)
+
+    # ========== RD AUTHORIZATION MANAGEMENT (NEW) ==========
+
+    def create_rd_authorization(
+        self,
+        rd_number: str,
+        payer_customer: Customer,
+        payer_account: Account,
+    ) -> Tuple[bool, str]:
+        """Create authorization for cross-account RD payment"""
+        rd = self.get_rd_by_number(rd_number)
+        if not rd:
+            return False, f"RD {rd_number} not found"
+        
+        beneficiary_account = self.get_account(rd.account_number)
+        if not beneficiary_account:
+            return False, "Beneficiary account not found"
+        
+        # Set limit with 10% buffer for flexibility
+        monthly_limit = rd.monthly_installment * 1.1
+        
+        success, message, auth = self.rd_authorizations.create_authorization(
+            rd_number=rd_number,
+            beneficiary_customer_id=beneficiary_account.customer_id,
+            beneficiary_account_number=rd.account_number,
+            payer_customer_id=payer_customer.customer_id,
+            payer_account_number=payer_account.account_number,
+            monthly_limit=monthly_limit,
+        )
+        
+        if success:
+            self.save()
+        
+        return success, message
+
+    def get_rd_authorization(self, rd_number: str):
+        """Get authorization for an RD"""
+        return self.rd_authorizations.get_authorization_for_rd(rd_number)
+
+    def get_authorizations_as_payer(self, customer_id: str):
+        """Get all authorizations where customer is paying"""
+        return self.rd_authorizations.get_authorizations_by_payer(customer_id)
+
+    def get_authorizations_as_beneficiary(self, customer_id: str):
+        """Get all authorizations where customer is beneficiary"""
+        return self.rd_authorizations.get_authorizations_by_beneficiary(customer_id)
+
+    def revoke_rd_authorization(self, auth_id: str, reason: str, revoked_by: str) -> Tuple[bool, str]:
+        """Revoke an RD authorization"""
+        success, message = self.rd_authorizations.revoke_authorization(auth_id, reason, revoked_by)
+        if success:
+            self.save()
+        return success, message
 
 
 # End of Bank class
