@@ -466,6 +466,8 @@ class Bank:
 
     def process_daily_tasks(self):
         """Process all daily automated tasks"""
+        from BankClock import BankClock
+
         today = BankClock.today()
 
         print(f"\n{'=' * 60}")
@@ -473,7 +475,14 @@ class Bank:
         print(f"{'=' * 60}\n")
         total_processed = 0
 
-        for account in self.accounts:
+        # Process account-level tasks
+        # Check if self.accounts is a list or dict
+        if isinstance(self.accounts, list):
+            accounts_to_process = self.accounts
+        else:
+            accounts_to_process = self.accounts.values()
+
+        for account in accounts_to_process:
             bills_processed = account.process_recurring_bills(today, self)
             total_processed += bills_processed
 
@@ -491,12 +500,245 @@ class Bank:
 
             account.process_credit_card_bills(today)
 
+        # Process RD autopay
+        rd_processed, rd_failed = self.process_rd_autopay()
+        total_processed += rd_processed
+
+        # Process FD maturity
+        if hasattr(self, "process_fd_maturity"):
+            self.process_fd_maturity()
+
+        # Process RD maturity
+        if hasattr(self, "process_rd_maturity"):
+            self.process_rd_maturity()
+
+        # Process loan EMI (if implemented)
+        if hasattr(self, "process_loan_emi"):
+            self.process_loan_emi()
+
         self.save()
         print(f"\n{'=' * 60}")
         print("Daily tasks completed")
         print(f"{'=' * 60}\n")
 
         return total_processed
+
+    def process_rd_autopay(self):
+        """Process RD autopay for all accounts with active RDs"""
+        from datetime import datetime
+
+        from BankClock import BankClock
+
+        current_date = BankClock.today()
+        current_day = current_date.day
+
+        print("\n🔄 Processing RD Autopay...")
+        payments_processed = 0
+        payments_failed = 0
+
+        # Check if recurring_deposits exists
+        if not hasattr(self, "recurring_deposits") or not self.recurring_deposits:
+            print("   ℹ️  No recurring deposits found")
+            return 0, 0
+
+        # Get all account numbers in the system (to filter relevant RDs)
+        valid_account_numbers = {acc.account_number for acc in self.accounts}
+
+        # Iterate through all RDs directly
+        for rd in self.recurring_deposits.values():
+            # Skip if not active
+            if rd.status != "Active":
+                continue
+
+            # CRITICAL FIX: Skip if account doesn't exist in the system
+            if rd.account_number not in valid_account_numbers:
+                continue
+
+            # Check for active authorization FIRST (authorized RDs might not have autopay_enabled)
+            active_auth = None
+            if hasattr(self, "rd_authorizations"):
+                active_auth = self.rd_authorizations.get_active_authorization(
+                    rd.rd_number
+                )
+
+            # For authorized RDs, check the RD's autopay_day even if autopay_enabled is False
+            # For non-authorized RDs, require autopay_enabled=True
+            if active_auth:
+                # Authorized RD - check if today matches autopay day
+                if rd.autopay_day != current_day:
+                    continue
+            else:
+                # Regular RD - check if autopay is enabled AND today is autopay day
+                if not rd.autopay_enabled or rd.autopay_day != current_day:
+                    continue
+
+            # Check if already paid this month
+            if rd.payment_history:
+                last_payment_date = datetime.fromisoformat(
+                    rd.payment_history[-1]["date"]
+                )
+                if (
+                    last_payment_date.year == current_date.year
+                    and last_payment_date.month == current_date.month
+                ):
+                    print(f"   ⏭️  Skipping {rd.rd_number} (already paid this month)")
+                    continue
+
+            # Find the account (we already know it exists from the check above)
+            account = None
+            for acc in self.accounts:
+                if acc.account_number == rd.account_number:
+                    account = acc
+                    break
+
+            if not account:
+                # This shouldn't happen due to the earlier check, but keep as safety
+                payments_failed += 1
+                continue
+
+            if active_auth:
+                # Process authorized payment
+                payer_account = None
+                for acc in self.accounts:
+                    if acc.account_number == active_auth.payer_account_number:
+                        payer_account = acc
+                        break
+
+                if payer_account:
+                    success, message = (
+                        self.rd_authorizations.process_authorized_payment(
+                            rd_number=rd.rd_number,
+                            amount=rd.monthly_installment,
+                            installment_number=rd.installments_paid + 1,
+                            payer_account=payer_account,
+                        )
+                    )
+
+                    if success:
+                        # Update RD's payment tracking
+                        payment = {
+                            "date": current_date.isoformat(),
+                            "amount": rd.monthly_installment,
+                            "installment_number": rd.installments_paid + 1,
+                            "method": "Autopay (Authorized)",
+                        }
+                        rd.payment_history.append(payment)
+                        rd.installments_paid += 1
+                        rd.total_deposited += rd.monthly_installment
+                        rd.last_payment_date = current_date
+
+                        # Check if completed
+                        if rd.installments_paid >= rd.tenure_months:
+                            rd.status = "Completed"
+
+                        print(
+                            f"   ✓ Authorized payment for {rd.rd_number}: Rs. {rd.monthly_installment:,.2f}"
+                        )
+                        payments_processed += 1
+                    else:
+                        print(f"   ✗ Failed: {message}")
+                        payments_failed += 1
+                else:
+                    print("   ⚠️  Payer account not found")
+                    payments_failed += 1
+            else:
+                # Regular autopay
+                success, message = rd.process_autopay(account)
+
+                if success:
+                    print(
+                        f"   ✓ Autopay for {rd.rd_number}: Rs. {rd.monthly_installment:,.2f}"
+                    )
+                    payments_processed += 1
+                else:
+                    if "not due yet" not in message.lower():
+                        print(f"   ✗ Failed: {message}")
+                        payments_failed += 1
+
+        if payments_processed > 0 or payments_failed > 0:
+            print(
+                f"\n   📊 Summary: Processed {payments_processed}, Failed {payments_failed}"
+            )
+        else:
+            print("   ℹ️  No RD autopay due today")
+
+        return payments_processed, payments_failed
+
+    def process_rd_maturity(self):
+        """Process RD maturity for fully paid RDs"""
+        from BankClock import BankClock
+
+        if not hasattr(self, "recurring_deposits"):
+            return 0
+
+        current_date = BankClock.today()
+        matured_count = 0
+
+        for rd in self.recurring_deposits.values():
+            # Check if RD is active and fully paid
+            if rd.status == "Active" and rd.installments_paid >= rd.tenure_months:
+                # Find the account
+                account = None
+                if isinstance(self.accounts, list):
+                    for acc in self.accounts:
+                        if acc.account_number == rd.account_number:
+                            account = acc
+                            break
+                else:
+                    account = self.accounts.get(rd.account_number)
+
+                if account and hasattr(self, "mature_recurring_deposit"):
+                    success, message, maturity_amount = self.mature_recurring_deposit(
+                        rd.rd_number, account
+                    )
+                    if success:
+                        print(
+                            f"   ✓ RD {rd.rd_number} matured: Rs. {maturity_amount:,.2f} credited"
+                        )
+                        matured_count += 1
+
+        if matured_count > 0:
+            print(f"\n   📊 RD Maturity Summary: {matured_count} RD(s) matured")
+
+        return matured_count
+
+    def process_fd_maturity(self):
+        """Process FD maturity for matured FDs"""
+        from BankClock import BankClock
+
+        if not hasattr(self, "fixed_deposits"):
+            return 0
+
+        current_date = BankClock.today()
+        matured_count = 0
+
+        for fd in self.fixed_deposits.values():
+            # Check if FD has matured
+            if fd.status == "Active" and current_date >= fd.maturity_date:
+                # Find the account
+                account = None
+                if isinstance(self.accounts, list):
+                    for acc in self.accounts:
+                        if acc.account_number == fd.account_number:
+                            account = acc
+                            break
+                else:
+                    account = self.accounts.get(fd.account_number)
+
+                if account and hasattr(self, "mature_fixed_deposit"):
+                    success, message, maturity_amount = self.mature_fixed_deposit(
+                        fd.fd_number, account
+                    )
+                    if success:
+                        print(
+                            f"   ✓ FD {fd.fd_number} matured: Rs. {maturity_amount:,.2f} credited"
+                        )
+                        matured_count += 1
+
+        if matured_count > 0:
+            print(f"\n   📊 FD Maturity Summary: {matured_count} FD(s) matured")
+
+        return matured_count
 
     # ========== FIXED DEPOSITS ==========
 

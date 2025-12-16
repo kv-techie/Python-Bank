@@ -858,3 +858,10 @@ Monthly Payment Limit: Rs. {monthly_limit:,.2f}
             1 for auth in self.authorizations.values() if auth.is_pending_verification()
         )
         return f"RDAuthorizationManager(total={len(self.authorizations)}, active={active_count}, pending={pending_count})"
+
+    def get_active_authorization(self, rd_number: str) -> Optional[RDAuthorization]:
+        """
+        Get the active (verified and active status) authorization for an RD
+        Alias for get_authorization_for_rd for compatibility
+        """
+        return self.get_authorization_for_rd(rd_number)
