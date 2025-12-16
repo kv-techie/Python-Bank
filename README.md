@@ -1,6 +1,6 @@
-# 🏦 Scala Bank – Python Banking System v5.0
+# 🏦 Scala Bank – Python Banking System v6.0
 
-A comprehensive, feature-rich **banking simulation system** written in Python, mimicking real-world financial operations such as credit scoring, loan processing, automated payments, and card services.
+A comprehensive, feature-rich **banking simulation system** written in Python, mimicking real-world financial operations such as credit scoring, loan processing, automated payments, card services, investments, and international transfers.
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)]()
 [![License](https://img.shields.io/badge/License-Private-red.svg)]()
@@ -32,6 +32,12 @@ A comprehensive, feature-rich **banking simulation system** written in Python, m
 
 ✔ Recurring bills, salary automation, & EMI logic
 
+✔ Investment products (Fixed Deposits & Recurring Deposits)
+
+✔ International transfers with currency conversion
+
+✔ Account closure formalities & reward points system
+
 ✔ Real-time transaction registry & analytics
 
 ✔ Fully integrated **time simulation** engine
@@ -51,11 +57,12 @@ A comprehensive, feature-rich **banking simulation system** written in Python, m
 ### 🏦 Account Management
 
 * 5 account types with different rules & minimum balances:
-
-* Pride (₹2,000), Bespoke (₹2,00,000), Club (₹10,000), Delite (₹5,000), Future (₹0)
+  * Pride (₹2,000), Bespoke (₹2,00,000), Club (₹10,000), Delite (₹5,000), Future (₹0)
 * AMB enforcement, cheque tracking
 * Minor account protection (daily usage limits)
 * Internal & NEFT/RTGS transfers
+* **Account closure** with formalities and clearance certificates
+* International account support for cross-border transactions
 
 ### 💳 Card Services
 
@@ -63,25 +70,27 @@ A comprehensive, feature-rich **banking simulation system** written in Python, m
 
 * VISA/Mastercard/RuPay networks
 * Spending limits
-* Block/Unblock
+* Block/Unblock functionality
 
 **Credit Cards**
 
 * Automatic credit limit evaluation using:
-
   * CIBIL score
   * Salary profile
   * Employer category
   * Debt-to-Income ratio
-  * Billing cycles, grace periods, rewards, and interest
-  * **Luhn algorithm** validation
+* Billing cycles, grace periods, rewards, and interest
+* **Luhn algorithm** validation
+* **Credit limit enhancement** based on usage patterns
+* **Reward points system** with redemption options
 
 ### 💰 Loan Management
 
 * EMI calculation (compound interest)
 * Automated approval rules (score, income, DTI)
 * Transaction-linked repayment history
-* Loan Closure Certificate
+* **Loan closure certificates** with complete audit trail
+* Multiple loan types support
 
 ### 📊 CIBIL Credit Scoring
 
@@ -101,25 +110,53 @@ Score categorization:
 ### 💵 Salary & Bills Automation
 
 * Automated salary credit (tax applied if > ₹18L/yr)
-* Recurring bill engine
+* Recurring bill engine with NACH mandate support
 * Expense categorization (Netflix, utilities, rent…)
+* **NACH ID generator** for automated payment authorizations
+
+### 💎 Investment Products
+
+**Fixed Deposits (FD)**
+
+* Flexible tenure options
+* Competitive interest rates
+* Premature withdrawal with penalty
+* Maturity processing
+
+**Recurring Deposits (RD)**
+
+* Monthly installment-based savings
+* NACH authorization for auto-debit
+* Interest calculation on maturity
+* Penalty handling for missed payments
+
+### 🌍 International Banking
+
+* **Cross-border transfers** with SWIFT/IBAN support
+* Real-time currency conversion
+* Integration with **International Bank Registry**
+* Support for multiple foreign currencies
+* Compliance with international transfer regulations
 
 ### ⏱️ Time Simulation System
 
 * Fast-forward days/weeks/months
 * Automatically processes:
-
   * EMI
   * Bills
   * Salaries
   * Random spending
   * Interest calculations
+  * RD installments
+  * FD maturities
 
 ### 📈 Financial Analytics
 
 * Expense breakdown by category
 * 7/30/90-day trends
 * Full transaction history with metadata
+* Account closure reports
+* Investment portfolio tracking
 
 ---
 
@@ -129,31 +166,45 @@ Score categorization:
 Python-Bank/
 ├── backend/
 │   ├── Account.py
+│   ├── AccountClosure.py
+│   ├── AddNewIntlAccounts.py
 │   ├── Bank.py
 │   ├── BankingApp.py
-│   ├── Card.py
-│   ├── Customer.py
-│   ├── Transaction.py
-│   ├── loan.py
-│   ├── CIBIL.py
-│   ├── CreditEvaluator.py
-│   ├── LoanEvaluator.py
-│   ├── RecurringBill.py
-│   ├── SalaryProfile.py
-│   ├── ExpenseSimulator.py
 │   ├── BankClock.py
+│   ├── Card.py
+│   ├── CIBIL.py
+│   ├── ClosureFormalities.py
+│   ├── CreditEvaluator.py
+│   ├── CreditLimitEnhancement.py
+│   ├── Customer.py
 │   ├── DataStore.py
+│   ├── ExpenseSimulator.py
+│   ├── FixedDeposit.py
+│   ├── InternationalBankRegistry.py
+│   ├── InternationalTransfer.py
+│   ├── loan.py
+│   ├── LoanEvaluator.py
+│   ├── MainInterface.py
+│   ├── NachIdGenerator.py
+│   ├── RDAuthorization.py
+│   ├── RecurringBill.py
+│   ├── RecurringDeposit.py
+│   ├── RewardPointsManager.py
+│   ├── SalaryProfile.py
+│   ├── Serializers.py
+│   ├── Transaction.py
 │   ├── TransactionRegistry.py
-│   └── MainInterface.py
+│   └── verify_transfer.py
 ```
 
 🗄️ **Data Persistence**
 
 * JSON storage:
-
   * `accounts.json`
   * `customers.json`
   * `loans.json`
+  * `fixed_deposits.json`
+  * `recurring_deposits.json`
   * `activity.log`
 
 ---
@@ -195,13 +246,19 @@ python MainInterface.py
 
 ## 💻 Usage (Quick Guide)
 
-| Action            | Path                             |
-| ----------------- | -------------------------------- |
-| Create Account    | Main Menu → Open New Account     |
-| Set Salary        | Manage Salary → Configure Salary |
-| Apply Credit Card | Card Management → Apply          |
-| Make Purchases    | Card Management → Spend          |
-| Simulate Time     | Fast Forward → Select Days       |
+| Action                   | Path                                    |
+| ------------------------ | --------------------------------------- |
+| Create Account           | Main Menu → Open New Account            |
+| Set Salary               | Manage Salary → Configure Salary        |
+| Apply Credit Card        | Card Management → Apply                 |
+| Make Purchases           | Card Management → Spend                 |
+| Open Fixed Deposit       | Investment → Fixed Deposit              |
+| Start Recurring Deposit  | Investment → Recurring Deposit          |
+| International Transfer   | Transfers → International               |
+| Close Account            | Account Services → Close Account        |
+| Enhance Credit Limit     | Card Management → Request Enhancement   |
+| Redeem Reward Points     | Card Management → Rewards               |
+| Simulate Time            | Fast Forward → Select Days              |
 
 Each operation prints the results + audit logs.
 
@@ -209,38 +266,32 @@ Each operation prints the results + audit logs.
 
 ## 📁 Project Structure
 
-| Layer          | Files                                          | Responsibilities         |
-| -------------- | ---------------------------------------------- | ------------------------ |
-| Core Banking   | Account, Bank, Customer                        | Accounts, balance, KYC   |
-| Cards          | Card, CreditEvaluator                          | Debit/Credit card engine |
-| Credit/Loans   | CIBIL, LoanEvaluator, loan                     | Score & approval         |
-| Automation     | RecurringBill, SalaryProfile, ExpenseSimulator | Auto-pay & spending      |
-| Infrastructure | BankClock, DataStore, Registry                 | Time & persistence       |
-| UI             | BankingApp, MainInterface                      | CLI menus                |
+| Layer              | Files                                                                      | Responsibilities                    |
+| ------------------ | -------------------------------------------------------------------------- | ----------------------------------- |
+| Core Banking       | Account, Bank, Customer, AccountClosure                                    | Accounts, balance, KYC, closures    |
+| Cards              | Card, CreditEvaluator, CreditLimitEnhancement, RewardPointsManager         | Debit/Credit card engine & rewards  |
+| Credit/Loans       | CIBIL, LoanEvaluator, loan, ClosureFormalities                             | Score, approval & closures          |
+| Investments        | FixedDeposit, RecurringDeposit, RDAuthorization                            | FD/RD management                    |
+| International      | InternationalTransfer, InternationalBankRegistry, AddNewIntlAccounts       | Cross-border transactions           |
+| Automation         | RecurringBill, SalaryProfile, ExpenseSimulator, NachIdGenerator            | Auto-pay, spending & NACH           |
+| Infrastructure     | BankClock, DataStore, TransactionRegistry, Serializers                     | Time, persistence & auditing        |
+| UI                 | BankingApp, MainInterface                                                  | CLI menus                           |
 
-> **~6,000+ lines of Python** across modular components.
+> **~8,000+ lines of Python** across modular components.
 
 ---
 
 ## 🔮 Future Enhancements
 
-Web interface (React)
-
-MongoDB migration
-
-ATM + cheque book simulation
-
-Investments (FD, MF, SIP)
-
-Multi-currency support
-
-PDF statements
-
-CI/CD & Docker
-
-AI-powered fraud detection
-
-
+- Web interface (React)
+- MongoDB migration
+- ATM simulation
+- Mutual Funds & SIP
+- Multi-currency support enhancements
+- PDF statements
+- Tax document generation (Form 16 & Form 26AS)
+- CI/CD & Docker
+- AI-powered fraud detection
 
 ---
 
