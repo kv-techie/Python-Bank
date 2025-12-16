@@ -11,6 +11,7 @@ from CreditEvaluator import CreditEvaluator
 from Customer import Customer
 from ExpenseSimulator import ExpenseSimulator
 from FixedDeposit import FixedDeposit
+from RDStatement import RDStatement
 from RecurringBill import PaymentMethod, RecurringBill, RecurringBillFactory
 from RecurringDeposit import RecurringDeposit
 from Transaction import Transaction
@@ -3166,13 +3167,14 @@ Choose an option:
 11 View FD Details
 12 View RD Details
 13 RD Authorization Management
-13 Back to Main Menu
+14 View RD Statement of Account
+15 Back to Main Menu
             """)
 
             choice = self.read_valid_choice(
                 "Enter your choice: ",
-                [str(i) for i in range(1, 15)],
-                "Invalid choice. Please enter a number from 1 to 14.",
+                [str(i) for i in range(1, 16)],
+                "Invalid choice. Please enter a number from 1 to 15.",
             )
 
             if choice == "1":
@@ -3202,6 +3204,8 @@ Choose an option:
             elif choice == "13":
                 self.rd_authorization_menu(customer, account)
             elif choice == "14":
+                self.view_rd_statement(customer, account)
+            elif choice == "15":
                 break
 
     def open_fixed_deposit(self, account: Account):
@@ -4691,6 +4695,61 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             self.bank.save()
 
         input("\nPress Enter to continue...")
+
+    def view_rd_statement(self, customer: Customer, account: Account):
+        """View detailed statement for an RD"""
+        # Get all RDs for this account
+        rdstatement = RDStatement(self.bank)
+        statements = rdstatement.get_all_rd_statements(account.account_number)
+
+        if not statements:
+            print("📭 No RDs found for this account")
+            input("Press Enter to continue...")
+            return
+
+        # Display list of RDs
+        print("\n" + "=" * 80)
+        print(
+            f"RECURRING DEPOSITS - {account.first_name} {account.last_name}"
+        )  # ✅ FIXED
+        print("=" * 80)
+
+        for idx, stmt in enumerate(statements, 1):
+            print(f"\n{idx}. RD: {stmt['rd_number']} | {stmt['status']}")
+            print(
+                f"   Monthly: Rs. {stmt['monthly_installment']:,.2f} | Paid: {stmt['installments_paid']}/{stmt['tenure_months']} months"
+            )
+            print(
+                f"   Payee: {stmt['payee_name']} | Beneficiary: {stmt['beneficiary_name']}"
+            )
+
+        # Select RD
+        try:
+            rdchoice = int(input("\nSelect RD number (or 0 to go back): "))
+            if rdchoice == 0:
+                return
+            if 1 <= rdchoice <= len(statements):
+                selectedstatement = statements[rdchoice - 1]
+
+                # Display full statement
+                rdstatement.print_rd_statement(selectedstatement)
+
+                # Option to export
+                export = input("\nExport statement to file? (y/n): ").strip().lower()
+                if export == "y":
+                    filename = rdstatement.export_rd_statement_to_text(
+                        selectedstatement["rd_number"]
+                    )
+                    if filename:
+                        print(f"✓ Statement exported to: {filename}")
+                    else:
+                        print("❌ Failed to export statement")
+
+                input("\nPress Enter to continue...")
+            else:
+                print("❌ Invalid selection")
+        except ValueError:
+            print("❌ Invalid input")
 
 
 if __name__ == "__main__":
