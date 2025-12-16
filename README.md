@@ -34,6 +34,10 @@ A comprehensive, feature-rich **banking simulation system** written in Python, m
 
 ✔ Investment products (Fixed Deposits & Recurring Deposits)
 
+✔ **RD Authorization system with OTP verification**
+
+✔ **Comprehensive RD Statement generation and export**
+
 ✔ International transfers with currency conversion
 
 ✔ Account closure formalities & reward points system
@@ -83,6 +87,7 @@ A comprehensive, feature-rich **banking simulation system** written in Python, m
 * **Luhn algorithm** validation
 * **Credit limit enhancement** based on usage patterns
 * **Reward points system** with redemption options
+* Bill payment with automatic reward points accumulation
 
 ### 💰 Loan Management
 
@@ -113,30 +118,48 @@ Score categorization:
 * Recurring bill engine with NACH mandate support
 * Expense categorization (Netflix, utilities, rent…)
 * **NACH ID generator** for automated payment authorizations
+* Credit card bill payment via recurring bills with reward points
 
 ### 💎 Investment Products
 
 **Fixed Deposits (FD)**
 
-* Flexible tenure options
-* Competitive interest rates
+* Flexible tenure options (3–120 months)
+* Competitive interest rates with senior citizen bonus
 * Premature withdrawal with penalty
-* Maturity processing
+* Maturity processing with automatic credit
+* Current value tracking
 
 **Recurring Deposits (RD)**
 
 * Monthly installment-based savings
+* **RD Authorization System** – Allow others to pay your RD installments
+  * OTP-based verification (6-digit code, 30-min expiry)
+  * Secure multi-party payment setup
+  * Real-time status tracking (Active, Pending, Revoked, Suspended)
+  * Payment history and audit trail
+  * Payer can pay for beneficiary's RD while beneficiary receives maturity amount
+* **RD Statement of Accounts**
+  * Comprehensive statement generation
+  * Payment history tracking
+  * Shows payee vs. beneficiary details
+  * Export to text file
+  * Displays autopay status and financial projections
 * NACH authorization for auto-debit
 * Interest calculation on maturity
 * Penalty handling for missed payments
+* Manual and automatic installment payment
+* Premature closure with penalty calculation
 
 ### 🌍 International Banking
 
 * **Cross-border transfers** with SWIFT/IBAN support
-* Real-time currency conversion
+* Real-time currency conversion (10+ currencies)
 * Integration with **International Bank Registry**
 * Support for multiple foreign currencies
 * Compliance with international transfer regulations
+* Daily transfer limits with usage tracking
+* Purpose-based transfer categorization
 
 ### ⏱️ Time Simulation System
 
@@ -148,6 +171,7 @@ Score categorization:
   * Random spending
   * Interest calculations
   * RD installments
+  * RD authorized payments
   * FD maturities
 
 ### 📈 Financial Analytics
@@ -157,6 +181,8 @@ Score categorization:
 * Full transaction history with metadata
 * Account closure reports
 * Investment portfolio tracking
+* Reward points dashboard
+* Credit card statement analysis
 
 ---
 
@@ -206,6 +232,7 @@ Python-Bank/
   * `fixed_deposits.json`
   * `recurring_deposits.json`
   * `activity.log`
+  * `rd_authorizations.json`
 
 ---
 
@@ -246,19 +273,23 @@ python MainInterface.py
 
 ## 💻 Usage (Quick Guide)
 
-| Action                   | Path                                    |
-| ------------------------ | --------------------------------------- |
-| Create Account           | Main Menu → Open New Account            |
-| Set Salary               | Manage Salary → Configure Salary        |
-| Apply Credit Card        | Card Management → Apply                 |
-| Make Purchases           | Card Management → Spend                 |
-| Open Fixed Deposit       | Investment → Fixed Deposit              |
-| Start Recurring Deposit  | Investment → Recurring Deposit          |
-| International Transfer   | Transfers → International               |
-| Close Account            | Account Services → Close Account        |
-| Enhance Credit Limit     | Card Management → Request Enhancement   |
-| Redeem Reward Points     | Card Management → Rewards               |
-| Simulate Time            | Fast Forward → Select Days              |
+| Action                          | Path                                          |
+| ------------------------------- | --------------------------------------------- |
+| Create Account                  | Main Menu → Open New Account                  |
+| Set Salary                      | Manage Salary → Configure Salary              |
+| Apply Credit Card               | Card Management → Apply                       |
+| Make Purchases                  | Card Management → Spend                       |
+| Open Fixed Deposit              | Investment → Fixed Deposit                    |
+| Start Recurring Deposit         | Investment → Recurring Deposit                |
+| **Create RD Authorization**     | **Investment → RD Authorization → Create**    |
+| **Verify RD Authorization**     | **Investment → RD Authorization → Verify**    |
+| **View RD Statement**           | **Investment → View RD Statement**            |
+| **Export RD Statement**         | **Investment → View RD Statement → Export**   |
+| International Transfer          | Transfers → International                     |
+| Close Account                   | Account Services → Close Account              |
+| Enhance Credit Limit            | Card Management → Request Enhancement         |
+| Redeem Reward Points            | Card Management → Rewards                     |
+| Simulate Time                   | Fast Forward → Select Days                    |
 
 Each operation prints the results + audit logs.
 
@@ -266,18 +297,18 @@ Each operation prints the results + audit logs.
 
 ## 📁 Project Structure
 
-| Layer              | Files                                                                      | Responsibilities                    |
-| ------------------ | -------------------------------------------------------------------------- | ----------------------------------- |
-| Core Banking       | Account, Bank, Customer, AccountClosure                                    | Accounts, balance, KYC, closures    |
-| Cards              | Card, CreditEvaluator, CreditLimitEnhancement, RewardPointsManager         | Debit/Credit card engine & rewards  |
-| Credit/Loans       | CIBIL, LoanEvaluator, loan, ClosureFormalities                             | Score, approval & closures          |
-| Investments        | FixedDeposit, RecurringDeposit, RDAuthorization                            | FD/RD management                    |
-| International      | InternationalTransfer, InternationalBankRegistry, AddNewIntlAccounts       | Cross-border transactions           |
-| Automation         | RecurringBill, SalaryProfile, ExpenseSimulator, NachIdGenerator            | Auto-pay, spending & NACH           |
-| Infrastructure     | BankClock, DataStore, TransactionRegistry, Serializers                     | Time, persistence & auditing        |
-| UI                 | BankingApp, MainInterface                                                  | CLI menus                           |
+| Layer              | Files                                                                      | Responsibilities                              |
+| ------------------ | -------------------------------------------------------------------------- | --------------------------------------------- |
+| Core Banking       | Account, Bank, Customer, AccountClosure                                    | Accounts, balance, KYC, closures              |
+| Cards              | Card, CreditEvaluator, CreditLimitEnhancement, RewardPointsManager         | Debit/Credit card engine & rewards            |
+| Credit/Loans       | CIBIL, LoanEvaluator, loan, ClosureFormalities                             | Score, approval & closures                    |
+| Investments        | FixedDeposit, RecurringDeposit, RDAuthorization, **RDStatement**           | FD/RD management, auth & statements           |
+| International      | InternationalTransfer, InternationalBankRegistry, AddNewIntlAccounts       | Cross-border transactions                     |
+| Automation         | RecurringBill, SalaryProfile, ExpenseSimulator, NachIdGenerator            | Auto-pay, spending & NACH                     |
+| Infrastructure     | BankClock, DataStore, TransactionRegistry, Serializers                     | Time, persistence & auditing                  |
+| UI                 | BankingApp, MainInterface                                                  | CLI menus                                     |
 
-> **~8,000+ lines of Python** across modular components.
+> **~8,500+ lines of Python** across modular components.
 
 ---
 
@@ -292,6 +323,8 @@ Each operation prints the results + audit logs.
 - Tax document generation (Form 16 & Form 26AS)
 - CI/CD & Docker
 - AI-powered fraud detection
+- Mobile app integration
+- Biometric authentication
 
 ---
 
