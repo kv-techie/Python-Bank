@@ -3200,7 +3200,7 @@ Choose an option:
             elif choice == "12":
                 self.view_rd_details(account)
             elif choice == "13":
-                self.rd_authorization_management(account)
+                self.rd_authorization_menu(customer, account)
             elif choice == "14":
                 break
 
@@ -3921,13 +3921,14 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 4  Revoke Authorization
 5  Update Authorization Limit
 6  View Authorization Details
+7  Verify Pending Authorizations
 7  Back to FD/RD Menu
             """)
 
             choice = self.read_valid_choice(
                 "Enter your choice: ",
-                [str(i) for i in range(1, 8)],
-                "Invalid choice. Please enter a number from 1 to 7.",
+                [str(i) for i in range(1, 9)],
+                "Invalid choice. Please enter a number from 1 to 8.",
             )
 
             if choice == "1":
@@ -3943,16 +3944,20 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             elif choice == "6":
                 self.view_authorization_details(customer)
             elif choice == "7":
+                self.verify_pending_authorizations(customer)
+            elif choice == "8":
                 break
 
     def create_rd_authorization(self, customer: Customer, beneficiary_account: Account):
-        """Create a new RD authorization"""
+        """Create a new RD authorization with OTP verification"""
         print("\n" + "=" * 80)
         print("CREATE RD AUTHORIZATION")
         print("=" * 80)
         print("""
     This allows someone else to pay monthly installments for YOUR Recurring Deposit.
     The payer's account will be debited, but YOU will receive the maturity amount.
+    
+    🔐 SECURITY: The payer must verify with a 6-digit code before activation.
         """)
 
         # Step 1: Select RD
@@ -3969,10 +3974,13 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             # Check if already authorized
             existing_auth = self.bank.get_rd_authorization(rd.rd_number)
             auth_status = ""
-            if existing_auth and existing_auth.is_active():
-                auth_status = (
-                    f" [Already Authorized by {existing_auth.payer_customer_id}]"
-                )
+            if existing_auth:
+                if existing_auth.is_active():
+                    auth_status = (
+                        f" [✓ Authorized by {existing_auth.payer_customer_id}]"
+                    )
+                elif existing_auth.is_pending_verification():
+                    auth_status = f" [⏳ Pending Verification from {existing_auth.payer_customer_id}]"
 
             print(
                 f"{idx}. {rd.rd_number} - Rs. {rd.monthly_installment:,.2f}/month "
@@ -3983,19 +3991,31 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             rd_choice = int(input(f"\nSelect RD (1-{len(active_rds)}): "))
             if rd_choice < 1 or rd_choice > len(active_rds):
                 print("❌ Invalid choice")
+                input("\nPress Enter to continue...")
                 return
         except ValueError:
             print("❌ Invalid input")
+            input("\nPress Enter to continue...")
             return
 
         selected_rd = active_rds[rd_choice - 1]
 
         # Check if already authorized
         existing_auth = self.bank.get_rd_authorization(selected_rd.rd_number)
-        if existing_auth and existing_auth.is_active():
-            print(
-                f"\n⚠️  This RD already has an active authorization from {existing_auth.payer_customer_id}"
-            )
+        if existing_auth:
+            if existing_auth.is_active():
+                print(
+                    f"\n⚠️  This RD already has an ACTIVE authorization from {existing_auth.payer_customer_id}"
+                )
+            elif existing_auth.is_pending_verification():
+                print(
+                    f"\n⚠️  This RD has a PENDING authorization from {existing_auth.payer_customer_id}"
+                )
+                otp_status = existing_auth.get_otp_status()
+                print(
+                    f"   Status: Awaiting verification ({otp_status['minutes_remaining']} minutes remaining)"
+                )
+
             replace = (
                 input("Revoke existing and create new authorization? (yes/no): ")
                 .strip()
@@ -4007,8 +4027,10 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                     "Replaced with new authorization",
                     customer.customer_id,
                 )
+                print("✓ Previous authorization revoked")
             else:
                 print("❌ Authorization cancelled")
+                input("\nPress Enter to continue...")
                 return
 
         # Step 2: Get payer details
@@ -4022,10 +4044,12 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
         if not payer_customer:
             print(f"\n❌ Customer ID '{payer_customer_id}' not found")
+            input("\nPress Enter to continue...")
             return
 
         if payer_customer.customer_id == customer.customer_id:
             print("\n❌ You cannot authorize yourself")
+            input("\nPress Enter to continue...")
             return
 
         # Get payer's accounts
@@ -4033,9 +4057,13 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
         if not payer_accounts:
             print(f"\n❌ No accounts found for customer {payer_customer_id}")
+            input("\nPress Enter to continue...")
             return
 
         print(f"\n✓ Payer: {payer_customer.first_name} {payer_customer.last_name}")
+        print(f"  Phone: {payer_customer.phone_number}")
+        print(f"  Email: {payer_customer.email}")
+
         print("\nPayer's Accounts:")
         for idx, acc in enumerate(payer_accounts, 1):
             print(
@@ -4048,9 +4076,11 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             )
             if acc_choice < 1 or acc_choice > len(payer_accounts):
                 print("❌ Invalid choice")
+                input("\nPress Enter to continue...")
                 return
         except ValueError:
             print("❌ Invalid input")
+            input("\nPress Enter to continue...")
             return
 
         payer_account = payer_accounts[acc_choice - 1]
@@ -4093,36 +4123,87 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         print("   • Payer's account will be auto-debited monthly")
         print("   • Beneficiary will receive the full maturity amount")
         print("   • Authorization can be revoked anytime by either party")
+        print("\n🔐 Security:")
+        print("   • A 6-digit verification code will be generated")
+        print("   • Share this code with the payer via phone/email")
+        print("   • Payer must verify within 30 minutes")
+        print("   • Authorization activates ONLY after verification")
         print("=" * 80)
 
         confirm = input("\nCreate authorization? (yes/no): ").strip().lower()
 
         if confirm not in ["yes", "y"]:
             print("\n❌ Authorization cancelled")
+            input("\nPress Enter to continue...")
             return
 
-        # Create authorization
-        success, message = self.bank.create_rd_authorization(
+        # Create authorization with OTP
+        success, message, auth, otp = self.bank.create_rd_authorization(
             rd_number=selected_rd.rd_number,
             payer_customer=payer_customer,
             payer_account=payer_account,
         )
 
-        print("\n" + message)
-
         if success:
+            print("\n" + "=" * 80)
+            print("✅ AUTHORIZATION REQUEST CREATED")
+            print("=" * 80)
+            print(message)
+
+            # Display OTP prominently
+            print("\n" + "╔" + "=" * 78 + "╗")
+            print("║" + " " * 20 + "VERIFICATION CODE (OTP)" + " " * 35 + "║")
+            print("╠" + "=" * 78 + "╣")
+            print("║" + " " * 30 + f"{otp}" + " " * 42 + "║")
+            print("╚" + "=" * 78 + "╝")
+
+            print("\n⚠️  CRITICAL INSTRUCTIONS:")
+            print("=" * 80)
+            print("1. 📞 SHARE this 6-digit code with the PAYER:")
             print(
-                "\n✅ The RD will now be automatically paid from the payer's account."
+                f"   → Payer Name: {payer_customer.first_name} {payer_customer.last_name}"
             )
-            print("   Both parties can view and manage this authorization.")
+            print(f"   → Customer ID: {payer_customer.customer_id}")
+            print(f"   → Phone: {payer_customer.phone_number}")
+            print(f"   → Email: {payer_customer.email}")
+            print()
+            print("2. 🔐 Payer must VERIFY this code from their account:")
+            print("   → Login → FD/RD Menu → RD Authorization → Verify Authorization")
+            print()
+            print("3. ⏰ CODE EXPIRES in 30 minutes")
+            print()
+            print("4. 🔢 Maximum 3 verification attempts allowed")
+            print()
+            print(
+                "5. ✅ Authorization becomes ACTIVE only after successful verification"
+            )
+            print()
+            print(
+                "6. 💡 SECURITY TIP: Share this code securely (phone call, encrypted message)"
+            )
+            print("=" * 80)
+
+            print("\n📝 Next Steps:")
+            print("   1. Contact the payer and share the 6-digit code")
+            print("   2. Payer logs into their account")
+            print("   3. Payer navigates to: RD Authorization → Verify Authorization")
+            print("   4. Payer enters the code")
+            print("   5. Once verified, autopay will begin")
+
+            print("\n" + "=" * 80)
+            print(f"Authorization ID: {auth.auth_id}")
+            print(f"Status: {auth.status}")
+            print("=" * 80)
+        else:
+            print(f"\n❌ Failed to create authorization: {message}")
 
         input("\nPress Enter to continue...")
 
     def view_authorizations_as_payer(self, customer: Customer):
         """View authorizations where current customer is the payer"""
-        print("\n" + "=" * 100)
+        print("\n" + "=" * 110)
         print("AUTHORIZATIONS WHERE I'M THE PAYER")
-        print("=" * 100)
+        print("=" * 110)
 
         auths = self.bank.get_authorizations_as_payer(customer.customer_id)
 
@@ -4131,11 +4212,20 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             input("\nPress Enter to continue...")
             return
 
-        print(f"\nYou are paying for {len(auths)} RD(s):\n")
+        # Check for pending verifications
+        pending = self.bank.get_pending_authorizations_for_payer(customer.customer_id)
+        if pending:
+            print(
+                f"\n⚠️  You have {len(pending)} PENDING authorization(s) awaiting your verification!"
+            )
+            print("   → Go to 'Verify Authorization' menu to activate them")
+            print()
+
+        print(f"You are paying for {len(auths)} RD(s):\n")
         print(
-            f"{'Auth ID':<25} {'RD Number':<20} {'Beneficiary':<15} {'Monthly Limit':<18} {'Status':<15} {'Paid':<10}"
+            f"{'Auth ID':<25} {'RD Number':<20} {'Beneficiary':<15} {'Monthly Limit':<18} {'Status':<20} {'Paid':<10}"
         )
-        print("-" * 100)
+        print("-" * 110)
 
         for auth in auths:
             beneficiary = self.bank.get_customer_by_id(auth.beneficiary_customer_id)
@@ -4145,23 +4235,69 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                 else "Unknown"
             )
 
+            # Enhanced status display
+            status_display = auth.status
+            if auth.is_pending_verification():
+                otp_status = auth.get_otp_status()
+                status_display = f"⏳ Pending ({otp_status['minutes_remaining']}m left)"
+            elif auth.is_active():
+                status_display = "✅ Active"
+            elif auth.status == "Suspended":
+                status_display = "⏸️  Suspended"
+            elif auth.status == "Revoked":
+                status_display = "❌ Revoked"
+            elif auth.status == "Expired":
+                status_display = "⌛ Expired"
+            elif auth.status == "Blocked":
+                status_display = "🚫 Blocked"
+
             print(
                 f"{auth.auth_id:<25} {auth.rd_number:<20} {beneficiary_name:<15} "
-                f"Rs. {auth.monthly_limit:>12,.2f} {auth.status:<15} {auth.total_payments:>3d}"
+                f"Rs. {auth.monthly_limit:>12,.2f} {status_display:<20} {auth.total_payments:>3d}"
             )
 
-        print("=" * 100)
+        print("=" * 110)
 
         # Summary
-        total_limit = sum(auth.monthly_limit for auth in auths if auth.is_active())
+        active_auths = [auth for auth in auths if auth.is_active()]
+        pending_auths = [auth for auth in auths if auth.is_pending_verification()]
+
+        total_limit = sum(auth.monthly_limit for auth in active_auths)
         total_paid = sum(auth.total_amount_paid for auth in auths)
 
         print("\n📊 Summary:")
+        print(f"   Active Authorizations: {len(active_auths)}/{len(auths)}")
+        if pending_auths:
+            print(
+                f"   ⏳ Pending Verification: {len(pending_auths)} (Action Required!)"
+            )
         print(f"   Total Monthly Obligation: Rs. {total_limit:,.2f}")
-        print(f"   Total Amount Paid: Rs. {total_paid:,.2f}")
-        print(
-            f"   Active Authorizations: {sum(1 for auth in auths if auth.is_active())}/{len(auths)}"
-        )
+        print(f"   Total Amount Paid (All Time): Rs. {total_paid:,.2f}")
+
+        # Payment breakdown by status
+        if len(auths) > len(active_auths):
+            print("\n📋 Authorization Status Breakdown:")
+            status_counts = {}
+            for auth in auths:
+                status = auth.status
+                status_counts[status] = status_counts.get(status, 0) + 1
+
+            for status, count in sorted(status_counts.items()):
+                icon = {
+                    "Active": "✅",
+                    "Pending_Verification": "⏳",
+                    "Suspended": "⏸️",
+                    "Revoked": "❌",
+                    "Expired": "⌛",
+                    "Blocked": "🚫",
+                }.get(status, "•")
+                print(f"   {icon} {status.replace('_', ' ')}: {count}")
+
+        print("\n💡 Actions Available:")
+        if pending_auths:
+            print("   • Use 'Verify Authorization' to activate pending requests")
+        print("   • Use 'View Authorization Details' to see payment history")
+        print("   • Use 'Revoke Authorization' to stop payments")
 
         input("\nPress Enter to continue...")
 
@@ -4425,6 +4561,134 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
             if len(auth.payment_history) > 10:
                 print(f"\n... and {len(auth.payment_history) - 10} more payment(s)")
+
+        input("\nPress Enter to continue...")
+
+    def verify_pending_authorizations(self, customer: Customer):
+        """Verify RD authorization using OTP (Payer side)"""
+        print("\n" + "=" * 80)
+        print("VERIFY RD AUTHORIZATION")
+        print("=" * 80)
+
+        # Get pending authorizations for this payer
+        pending = self.bank.get_pending_authorizations_for_payer(customer.customer_id)
+
+        if not pending:
+            print("\n📭 No pending authorizations found")
+            print("\nℹ️  Pending authorizations are requests where someone wants YOU")
+            print("   to pay for their RD. You need to verify them with an OTP.")
+            input("\nPress Enter to continue...")
+            return
+
+        print(f"\n⏳ You have {len(pending)} pending authorization(s):\n")
+        print(
+            f"{'#':<3} {'Auth ID':<25} {'RD Number':<20} {'Beneficiary':<20} {'Monthly':<15} {'Expires In'}"
+        )
+        print("-" * 100)
+
+        for idx, auth in enumerate(pending, 1):
+            beneficiary = self.bank.get_customer_by_id(auth.beneficiary_customer_id)
+            beneficiary_name = (
+                f"{beneficiary.first_name} {beneficiary.last_name}"
+                if beneficiary
+                else "Unknown"
+            )
+
+            # Calculate time remaining
+            from BankClock import BankClock
+
+            time_left = auth.otp_expires_at - BankClock.now()
+            minutes_left = max(0, int(time_left.total_seconds() / 60))
+
+            print(
+                f"{idx:<3} {auth.auth_id:<25} {auth.rd_number:<20} {beneficiary_name:<20} "
+                f"Rs. {auth.monthly_limit:>10,.2f}  {minutes_left} min"
+            )
+
+        print("=" * 100)
+
+        try:
+            choice = int(
+                input(f"\nSelect authorization to verify (1-{len(pending)}): ")
+            )
+            if choice < 1 or choice > len(pending):
+                print("❌ Invalid choice")
+                return
+        except ValueError:
+            print("❌ Invalid input")
+            return
+
+        selected_auth = pending[choice - 1]
+
+        # Show details
+        print("\n" + "=" * 80)
+        print("AUTHORIZATION DETAILS")
+        print("=" * 80)
+
+        beneficiary = self.bank.get_customer_by_id(
+            selected_auth.beneficiary_customer_id
+        )
+        rd = self.bank.get_rd_by_number(selected_auth.rd_number)
+
+        print("\n📋 RD Details:")
+        print(f"   RD Number: {selected_auth.rd_number}")
+        if rd:
+            print(f"   Monthly Installment: Rs. {rd.monthly_installment:,.2f}")
+            print(f"   Tenure: {rd.tenure_months} months")
+            print(
+                f"   Remaining: {rd.tenure_months - rd.installments_paid} installments"
+            )
+
+        print("\n👤 Beneficiary (Will receive maturity):")
+        if beneficiary:
+            print(f"   Name: {beneficiary.first_name} {beneficiary.last_name}")
+            print(f"   Customer ID: {beneficiary.customer_id}")
+            print(f"   Phone: {beneficiary.phone_number}")
+
+        print("\n💰 Payment Details:")
+        print(f"   Your Monthly Obligation: Rs. {selected_auth.monthly_limit:,.2f}")
+        if rd:
+            total_remaining = rd.monthly_installment * (
+                rd.tenure_months - rd.installments_paid
+            )
+            print(f"   Total Remaining: Rs. {total_remaining:,.2f}")
+
+        print("\n⏰ OTP Status:")
+        print(f"   Attempts Used: {selected_auth.otp_attempts}/3")
+        time_left = selected_auth.otp_expires_at - BankClock.now()
+        minutes_left = max(0, int(time_left.total_seconds() / 60))
+        print(f"   Time Remaining: {minutes_left} minutes")
+
+        print("\n" + "=" * 80)
+        print("⚠️  By verifying, you agree to:")
+        print("   • Auto-pay the monthly installments from your account")
+        print("   • The beneficiary will receive the maturity amount")
+        print("   • You can revoke authorization anytime")
+        print("=" * 80)
+
+        proceed = input("\nProceed with verification? (yes/no): ").strip().lower()
+        if proceed not in ["yes", "y"]:
+            print("\n❌ Verification cancelled")
+            return
+
+        # Get OTP
+        otp = input("\n🔐 Enter 6-digit verification code: ").strip()
+
+        if len(otp) != 6 or not otp.isdigit():
+            print("\n❌ Invalid OTP format. Must be 6 digits.")
+            return
+
+        # Verify
+        success, message = self.bank.verify_rd_authorization(
+            selected_auth.auth_id, otp, customer.customer_id
+        )
+
+        print(f"\n{message}")
+
+        if success:
+            print("\n🎉 Authorization is now ACTIVE!")
+            print("   Monthly installments will be auto-debited from your account")
+            self.bank.save()
 
         input("\nPress Enter to continue...")
 

@@ -9,7 +9,7 @@ from DataStore import DataStore
 from FixedDeposit import FixedDeposit
 from loan import Loan
 from LoanEvaluator import LoanEvaluator
-from RDAuthorization import RDAuthorizationManager  # NEW: Import authorization manager
+from RDAuthorization import RDAuthorization  # NEW: Import authorization manager
 from RecurringDeposit import RecurringDeposit
 from Transaction import Transaction
 
@@ -36,7 +36,9 @@ class Bank:
         self.international_registry = DataStore.load_international_accounts()
         self.fixed_deposits = DataStore.load_fixed_deposits()
         self.recurring_deposits = DataStore.load_recurring_deposits()
-        self.rd_authorizations = DataStore.load_rd_authorizations()  # NEW: Load authorizations
+        self.rd_authorizations = (
+            DataStore.load_rd_authorizations()
+        )  # NEW: Load authorizations
 
     def save(self):
         """Save all accounts, customers, and loans to persistent storage"""
@@ -50,7 +52,7 @@ class Bank:
             )
         DataStore.save_fixed_deposits(self.fixed_deposits)
         DataStore.save_recurring_deposits(self.recurring_deposits)
-        
+
         # NEW: Save authorizations
         if hasattr(self, "rd_authorizations") and self.rd_authorizations:
             DataStore.save_rd_authorizations(self.rd_authorizations)
@@ -716,18 +718,20 @@ Expected Maturity Amount: Rs. {rd.calculate_maturity_amount():,.2f}
             if rd.autopay_enabled and rd.status == "Active":
                 # NEW: Check if there's an authorization
                 auth = self.rd_authorizations.get_authorization_for_rd(rd.rd_number)
-                
+
                 if auth and auth.is_active():
                     # Use payer's account for authorized payment
                     payer_account = self.get_account(auth.payer_account_number)
                     if payer_account:
-                        success, message = self.rd_authorizations.process_authorized_payment(
-                            rd.rd_number,
-                            rd.monthly_installment,
-                            rd.installments_paid + 1,
-                            payer_account
+                        success, message = (
+                            self.rd_authorizations.process_authorized_payment(
+                                rd.rd_number,
+                                rd.monthly_installment,
+                                rd.installments_paid + 1,
+                                payer_account,
+                            )
                         )
-                        
+
                         if success:
                             # Update RD's payment tracking
                             payment = {
@@ -739,13 +743,13 @@ Expected Maturity Amount: Rs. {rd.calculate_maturity_amount():,.2f}
                             rd.payment_history.append(payment)
                             rd.installments_paid += 1
                             rd.total_deposited += rd.monthly_installment
-                            
+
                             # Check if completed
                             if rd.installments_paid >= rd.tenure_months:
                                 rd.status = "Completed"
                             else:
                                 rd.next_autopay_date = rd._calculate_next_autopay_date()
-                        
+
                         results.append((rd.rd_number, success, message))
                 else:
                     # No authorization - use beneficiary's own account (original logic)
@@ -776,20 +780,24 @@ Expected Maturity Amount: Rs. {rd.calculate_maturity_amount():,.2f}
         rd_number: str,
         payer_customer: Customer,
         payer_account: Account,
-    ) -> Tuple[bool, str]:
-        """Create authorization for cross-account RD payment"""
+    ) -> Tuple[bool, str, Optional["RDAuthorization"], Optional[str]]:
+        """
+        Create authorization for cross-account RD payment
+        Returns: (success, message, authorization, otp)
+        """
         rd = self.get_rd_by_number(rd_number)
         if not rd:
-            return False, f"RD {rd_number} not found"
-        
+            return False, f"RD {rd_number} not found", None, None
+
         beneficiary_account = self.get_account(rd.account_number)
         if not beneficiary_account:
-            return False, "Beneficiary account not found"
-        
+            return False, "Beneficiary account not found", None, None
+
         # Set limit with 10% buffer for flexibility
         monthly_limit = rd.monthly_installment * 1.1
-        
-        success, message, auth = self.rd_authorizations.create_authorization(
+
+        # Create authorization with OTP
+        success, message, auth, otp = self.rd_authorizations.create_authorization(
             rd_number=rd_number,
             beneficiary_customer_id=beneficiary_account.customer_id,
             beneficiary_account_number=rd.account_number,
@@ -797,11 +805,34 @@ Expected Maturity Amount: Rs. {rd.calculate_maturity_amount():,.2f}
             payer_account_number=payer_account.account_number,
             monthly_limit=monthly_limit,
         )
-        
+
         if success:
             self.save()
-        
+
+        return success, message, auth, otp
+
+    def verify_rd_authorization(
+        self, auth_id: str, otp: str, verifier_customer_id: str
+    ) -> Tuple[bool, str]:
+        """Verify RD authorization with OTP from payer's side"""
+        success, message = self.rd_authorizations.verify_authorization(
+            auth_id, otp, verifier_customer_id
+        )
+
+        if success:
+            self.save()
+
         return success, message
+
+    def get_rd_authorization_by_id(self, auth_id: str) -> Optional["RDAuthorization"]:
+        """Get authorization by ID"""
+        return self.rd_authorizations.get_authorization_by_id(auth_id)
+
+    def get_pending_authorizations_for_payer(
+        self, customer_id: str
+    ) -> List["RDAuthorization"]:
+        """Get authorizations pending OTP verification for a payer"""
+        return self.rd_authorizations.get_pending_authorizations_for_payer(customer_id)
 
     def get_rd_authorization(self, rd_number: str):
         """Get authorization for an RD"""
@@ -815,9 +846,13 @@ Expected Maturity Amount: Rs. {rd.calculate_maturity_amount():,.2f}
         """Get all authorizations where customer is beneficiary"""
         return self.rd_authorizations.get_authorizations_by_beneficiary(customer_id)
 
-    def revoke_rd_authorization(self, auth_id: str, reason: str, revoked_by: str) -> Tuple[bool, str]:
+    def revoke_rd_authorization(
+        self, auth_id: str, reason: str, revoked_by: str
+    ) -> Tuple[bool, str]:
         """Revoke an RD authorization"""
-        success, message = self.rd_authorizations.revoke_authorization(auth_id, reason, revoked_by)
+        success, message = self.rd_authorizations.revoke_authorization(
+            auth_id, reason, revoked_by
+        )
         if success:
             self.save()
         return success, message
