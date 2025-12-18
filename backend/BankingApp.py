@@ -3,7 +3,7 @@ from typing import List
 
 from Account import Account
 from Bank import Bank
-from BankClock import BankClock
+from BankClock import BankClock, switch_to_real_mode, switch_to_virtual_mode
 from Card import Card, CreditCard, DebitCard
 from CIBIL import add_credit_inquiry, calculate_cibil_score
 from ClosureFormalities import ClosureFormalities
@@ -259,12 +259,13 @@ Customer ID: {customer.customer_id}
     16  Close Card
     17  Close Account
     18  Fixed Deposit and Recurring Deposit
-    19  Logout
+    19  Change Clock Mode
+    20  Logout
             """)
             menu_choice = self.read_valid_choice(
                 "Enter your choice: ",
-                [str(i) for i in range(1, 20)],
-                "Invalid choice. Please enter a number from 1 to 19.",
+                [str(i) for i in range(1, 21)],
+                "Invalid choice. Please enter a number from 1 to 20.",
             )
 
             if menu_choice == "1":
@@ -309,6 +310,8 @@ Customer ID: {customer.customer_id}
             elif menu_choice == "18":
                 self.fd_rd_menu(customer, selected_account)  # ✅ FIX: Added ()
             elif menu_choice == "19":
+                self.change_clock_mode()
+            elif menu_choice == "20":
                 print("Logged out successfully.")
                 active = False
 
@@ -4750,6 +4753,37 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                 print("❌ Invalid selection")
         except ValueError:
             print("❌ Invalid input")
+
+    def change_clock_mode(self):
+        """Change clock mode during runtime"""
+
+        print("\n" + "=" * 60)
+        print("CHANGE CLOCK MODE")
+        print("=" * 60)
+        print(f"Current Mode: {BankClock.get_mode()}")
+        print(f"Current Time: {BankClock.get_formatted_datetime()}")
+        print("\n1. Switch to Real-Time Mode")
+        print("2. Switch to Virtual Mode")
+        print("3. Cancel")
+
+        choice = input("\nSelect option: ").strip()
+
+        if choice == "1":
+            if BankClock.get_mode() == "REAL":
+                print("⚠️  Already in Real-Time Mode")
+            else:
+                switch_to_real_mode()
+                print("✅ Switched to Real-Time Mode")
+                print("⚠️  Time simulation is now DISABLED")
+        elif choice == "2":
+            if BankClock.get_mode() == "VIRTUAL":
+                print("⚠️  Already in Virtual Mode")
+            else:
+                switch_to_virtual_mode(freeze_at_current=True)
+                print("✅ Switched to Virtual Mode")
+                print("✅ Time simulation is now ENABLED")
+
+        input("\nPress Enter to continue...")
 
 
 if __name__ == "__main__":

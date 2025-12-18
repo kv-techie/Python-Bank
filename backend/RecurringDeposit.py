@@ -141,19 +141,26 @@ class RecurringDeposit:
         if self.status != "Active":
             return False, "RD is not active"
 
-        current_date = BankClock.now()
+        today = BankClock.today()  # ✅ Get date object like RecurringBill does
 
         # Check if it's time for autopay
-        if self.next_autopay_date and current_date >= self.next_autopay_date:
-            self.last_autopay_attempt = current_date
+        if self.next_autopay_date:
+            # Convert next_autopay_date to date if it's datetime
+            if isinstance(self.next_autopay_date, datetime):
+                next_autopay_as_date = self.next_autopay_date.date()
+            else:
+                next_autopay_as_date = self.next_autopay_date
 
-            # Check if account has sufficient balance
-            min_balance = account._min_operational_balance
-            if account.balance - self.monthly_installment < min_balance:
-                self.autopay_failures += 1
-                self.missed_payments += 1
+            if today >= next_autopay_as_date:
+                self.last_autopay_attempt = BankClock.now()  # Timestamp uses now()
 
-                message = f"""
+                # Check if account has sufficient balance
+                min_balance = account._min_operational_balance
+                if account.balance - self.monthly_installment < min_balance:
+                    self.autopay_failures += 1
+                    self.missed_payments += 1
+
+                    message = f"""
 ❌ Autopay Failed - Insufficient Balance
 RD: {self.rd_number}
 Required: Rs. {self.monthly_installment:,.2f}
@@ -162,45 +169,45 @@ Minimum Balance Required: Rs. {min_balance:,.2f}
 Missed Payments: {self.missed_payments}
 Penalty: Rs. {self.LATE_PAYMENT_PENALTY} will be charged at maturity
 """
-                # Calculate next autopay date
-                self.next_autopay_date = self._calculate_next_autopay_date()
+                    # Calculate next autopay date
+                    self.next_autopay_date = self._calculate_next_autopay_date()
 
-                return False, message
+                    return False, message
 
-            # Deduct from account
-            account.balance -= self.monthly_installment
+                # Deduct from account
+                account.balance -= self.monthly_installment
 
-            # Record payment
-            payment = {
-                "date": current_date.isoformat(),
-                "amount": self.monthly_installment,
-                "installment_number": self.installments_paid + 1,
-                "method": "Autopay",
-            }
-            self.payment_history.append(payment)
-            self.installments_paid += 1
-            self.total_deposited += self.monthly_installment
+                # Record payment
+                payment = {
+                    "date": BankClock.now().isoformat(),
+                    "amount": self.monthly_installment,
+                    "installment_number": self.installments_paid + 1,
+                    "method": "Autopay",
+                }
+                self.payment_history.append(payment)
+                self.installments_paid += 1
+                self.total_deposited += self.monthly_installment
 
-            # Create transaction in account
-            from Transaction import Transaction
+                # Create transaction in account
+                from Transaction import Transaction
 
-            txn = Transaction(
-                type="RD_AUTOPAY",
-                amount=-self.monthly_installment,
-                resulting_balance=account.balance,
-                metadata={
-                    "rd_number": self.rd_number,
-                    "installment_number": self.installments_paid,
-                    "total_installments": self.tenure_months,
-                },
-            )
-            account.transactions.append(txn)
+                txn = Transaction(
+                    type="RD_AUTOPAY",
+                    amount=-self.monthly_installment,
+                    resulting_balance=account.balance,
+                    metadata={
+                        "rd_number": self.rd_number,
+                        "installment_number": self.installments_paid,
+                        "total_installments": self.tenure_months,
+                    },
+                )
+                account.transactions.append(txn)
 
-            # Check if completed
-            if self.installments_paid >= self.tenure_months:
-                self.status = "Completed"
-                maturity_amount = self.calculate_maturity_amount()
-                message = f"""
+                # Check if completed
+                if self.installments_paid >= self.tenure_months:
+                    self.status = "Completed"
+                    maturity_amount = self.calculate_maturity_amount()
+                    message = f"""
 ✅ RD Autopay Successful - RD COMPLETED!
 RD: {self.rd_number}
 Installment: {self.installments_paid}/{self.tenure_months}
@@ -211,11 +218,11 @@ New Balance: Rs. {account.balance:,.2f}
 Expected Maturity Amount: Rs. {maturity_amount:,.2f}
 You can now mature your RD to receive the funds.
 """
-            else:
-                # Calculate next autopay date
-                self.next_autopay_date = self._calculate_next_autopay_date()
+                else:
+                    # Calculate next autopay date
+                    self.next_autopay_date = self._calculate_next_autopay_date()
 
-                message = f"""
+                    message = f"""
 ✅ RD Autopay Successful
 RD: {self.rd_number}
 Installment: {self.installments_paid}/{self.tenure_months}
@@ -224,7 +231,7 @@ New Balance: Rs. {account.balance:,.2f}
 Next Autopay: {self.next_autopay_date.strftime("%d-%m-%Y")}
 """
 
-            return True, message
+                return True, message
 
         return False, "Autopay not due yet"
 

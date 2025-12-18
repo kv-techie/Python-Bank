@@ -704,17 +704,26 @@ class Bank:
 
     def process_fd_maturity(self):
         """Process FD maturity for matured FDs"""
+        from datetime import datetime
+
         from BankClock import BankClock
 
         if not hasattr(self, "fixed_deposits"):
             return 0
 
-        current_date = BankClock.today()
+        current_date = BankClock.today()  # Returns date object
         matured_count = 0
 
         for fd in self.fixed_deposits.values():
+            # Convert fd.maturity_date to date for comparison
+            maturity_date = (
+                fd.maturity_date.date()
+                if isinstance(fd.maturity_date, datetime)
+                else fd.maturity_date
+            )
+
             # Check if FD has matured
-            if fd.status == "Active" and current_date >= fd.maturity_date:
+            if fd.status == "Active" and current_date >= maturity_date:
                 # Find the account
                 account = None
                 if isinstance(self.accounts, list):
