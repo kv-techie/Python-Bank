@@ -9,6 +9,8 @@ import string
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
+from DataStore import DataStore  # ← ADDED THIS IMPORT
+
 
 class PasswordRecoveryManager:
     """Manages password recovery operations"""
@@ -296,7 +298,7 @@ class PasswordRecoveryUI:
 
         # Step 5: Set New Password
         if PasswordRecoveryUI.set_new_password_flow(customer):
-            bank.data_store.save_customers(bank.customers)
+            DataStore.save_customers(bank.customers)  # ← FIXED
             return True
 
         return False
@@ -440,7 +442,7 @@ class PasswordRecoveryUI:
 
         if choice == "y":
             if PasswordRecoveryUI.setup_security_question_flow(customer):
-                bank.data_store.save_customers(bank.customers)
+                DataStore.save_customers(bank.customers)  # ← FIXED
                 print("✅ Account security fully updated!")
 
         input("\nPress Enter to continue...")
@@ -473,7 +475,7 @@ class PasswordRecoveryUI:
 
         # Setup new question
         if PasswordRecoveryUI.setup_security_question_flow(customer):
-            bank.data_store.save_customers(bank.customers)
+            DataStore.save_customers(bank.customers)  # ← FIXED
             print("\n✅ Security question updated successfully!")
             input("\nPress Enter to continue...")
             return True
@@ -487,6 +489,13 @@ class PasswordRecoveryUI:
         Returns: True if setup completed
         """
         print("\n" + "=" * 60)
+        print("🔒 SECURITY SETUP REQUIRED")
+        print("=" * 60)
+        print("\nFor account security, please set up a security question.")
+        print("This helps you recover your password if you forget it.")
+        print("=" * 60)
+
+        print("\n" + "=" * 60)
         print("⚠️  SECURITY SETUP REQUIRED")
         print("=" * 60)
         print("\nFor account security, please setup a security question.")
@@ -496,7 +505,7 @@ class PasswordRecoveryUI:
 
         if choice == "y":
             if PasswordRecoveryUI.setup_security_question_flow(customer):
-                bank.data_store.save_customers(bank.customers)
+                DataStore.save_customers(bank.customers)  # ← FIXED
                 print("\n✅ Security question setup complete!")
                 input("\nPress Enter to continue...")
                 return True
