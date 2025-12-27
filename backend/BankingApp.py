@@ -11,6 +11,7 @@ from CreditEvaluator import CreditEvaluator
 from Customer import Customer
 from ExpenseSimulator import ExpenseSimulator
 from FixedDeposit import FixedDeposit
+from PasswordRecovery import PasswordRecoveryUI
 from RDStatement import RDStatement
 from RecurringBill import PaymentMethod, RecurringBill, RecurringBillFactory
 from RecurringDeposit import RecurringDeposit
@@ -189,10 +190,23 @@ You can now login!
             print("Invalid credentials or account locked.")
             return
 
+        # NEW: Check if customer needs to set up security question
+        if not customer.has_security_question():
+            print("\n" + "=" * 70)
+            print("🔒 SECURITY SETUP REQUIRED")
+            print("=" * 70)
+            print("For account security, please set up a security question.")
+            print("This helps you recover your password if you forget it.")
+            print("=" * 70)
+
+            PasswordRecoveryUI.prompt_legacy_customer_setup(customer, self.bank)
+
         accounts = self.bank.get_customer_accounts(customer)
         if not accounts:
             print("No accounts found for this customer.")
             return
+
+        # ... rest of existing code ...
 
         # Account selection
         if len(accounts) > 1:
@@ -2270,14 +2284,15 @@ Current Date/Time: {BankClock.get_formatted_datetime()}
 Choose an option:
 1  Open a New Account
 2  Login to Existing Account
-3  Track Cheque ID
-4  Exit
+3  Forgot Password
+4  Track Cheque ID
+5  Exit
             """)
 
             choice = self.read_valid_choice(
                 "Enter your choice: ",
-                ["1", "2", "3", "4"],
-                "Invalid option. Please enter 1, 2, 3, or 4.",
+                ["1", "2", "3", "4", "5"],
+                "Invalid option. Please enter 1, 2, 3, 4, or 5.",
             )
 
             if choice == "1":
@@ -2285,8 +2300,10 @@ Choose an option:
             elif choice == "2":
                 self.handle_login()
             elif choice == "3":
-                self.track_cheque()
+                PasswordRecoveryUI.forgot_password_flow(self.bank)
             elif choice == "4":
+                self.track_cheque()
+            elif choice == "5":
                 print("Thank you for using Scala Bank!")
                 self.running = False
 

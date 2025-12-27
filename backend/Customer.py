@@ -5,9 +5,10 @@ from typing import List, Optional
 
 from BankClock import BankClock
 from DataStore import DataStore
+from PasswordRecovery import CustomerPasswordRecovery
 
 
-class Customer:
+class Customer(CustomerPasswordRecovery):
     """Customer class for managing customer information and linked accounts"""
 
     CUSTOMER_ID_PREFIX = "CUST"
@@ -41,6 +42,8 @@ class Customer:
         has_salary_account: bool = False,
         credit_cards: Optional[List] = None,  # hold list of CreditCard objects or dicts
     ):
+        CustomerPasswordRecovery.__init__(self)
+
         self.customer_id = customer_id
         self.username = username
         self.password = password
@@ -250,7 +253,7 @@ class Customer:
     # ===== Serialization =====
 
     def to_dict(self) -> dict:
-        return {
+        data = {
             "customerId": self.customer_id,
             "username": self.username,
             "password": self.password,
@@ -278,9 +281,14 @@ class Customer:
             ],
         }
 
+        # ✅ CRITICAL: Add password recovery data to serialization
+        data.update(self.get_password_recovery_dict())
+
+        return data
+
     @staticmethod
     def from_dict(data: dict) -> "Customer":
-        return Customer.from_storage(
+        customer = Customer.from_storage(
             customer_id=data.get("customerId"),
             username=data.get("username"),
             password=data.get("password"),
@@ -304,6 +312,11 @@ class Customer:
             has_salary_account=data.get("hasSalaryAccount", False),
             credit_cards=data.get("creditCards", []),
         )
+
+        # ✅ CRITICAL: Load password recovery data from JSON
+        customer.load_password_recovery_dict(data)
+
+        return customer
 
     def __repr__(self) -> str:
         return f"Customer({self.customer_id}, {self.username}, {self.first_name} {self.last_name})"
