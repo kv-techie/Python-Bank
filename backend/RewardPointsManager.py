@@ -8,7 +8,7 @@ class RewardPointsManager:
     """Manage credit card reward points - earning, redemption, and tracking"""
 
     # Redemption rates
-    REDEMPTION_RATE = 1  # 1 point = Rs. 0.25
+    REDEMPTION_RATE = 1  # 1 point = Rs. 1.00
     MIN_REDEMPTION_POINTS = 100  # Minimum 100 points to redeem
 
     # Earning rates (can vary by card type in future)

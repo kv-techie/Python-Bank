@@ -198,18 +198,33 @@ class TransactionType:
 
     # Credit types (money in)
     DEPOSIT = "DEPOSIT"
-    NEFT_RECEIVED = "NEFT_RECEIVED"
-    RTGS_RECEIVED = "RTGS_RECEIVED"
-    INTER_ACCOUNT_RECEIVED = "INTER_ACCOUNT_RECEIVED"
     SALARY = "SALARY"
+    SALARY_CREDIT = "SALARY_CREDIT"  # Alternate name
+    CHEQUE_DEPOSITED = "CHEQUE_DEPOSITED"
+    CREDIT = "CREDIT"
 
     # Debit types (money out)
     WITHDRAW = "WITHDRAW"
     NEFT_SENT = "NEFT_SENT"
     RTGS_SENT = "RTGS_SENT"
     INTER_ACCOUNT_SENT = "INTER_ACCOUNT_SENT"
+    SWIFT_SENT = "SWIFT_SENT"
     EXPENSE = "EXPENSE"
     BILL_PAYMENT = "BILL_PAYMENT"
+    CHEQUE_BOUNCE = "CHEQUE_BOUNCE"
+    CHEQUE_CLEARED = "CHEQUE_CLEARED"  # Can be credit or debit depending on context
+    DEBIT = "DEBIT"
+
+    # Credit types for SWIFT
+    NEFT_RECEIVED = "NEFT_RECEIVED"
+    RTGS_RECEIVED = "RTGS_RECEIVED"
+    INTER_ACCOUNT_RECEIVED = "INTER_ACCOUNT_RECEIVED"
+    SWIFT_RECEIVED = "SWIFT_RECEIVED"
+
+    # Card types
+    DEBIT_CARD_PURCHASE = "DEBIT_CARD_PURCHASE"
+    CREDIT_CARD_PURCHASE = "CREDIT_CARD_PURCHASE"
+    CREDIT_CARD_PAYMENT = "CREDIT_CARD_PAYMENT"
 
     # Fee types
     AMB_FEE = "AMB_FEE"
@@ -224,7 +239,13 @@ class TransactionType:
             TransactionType.NEFT_RECEIVED,
             TransactionType.RTGS_RECEIVED,
             TransactionType.INTER_ACCOUNT_RECEIVED,
+            TransactionType.SWIFT_RECEIVED,
             TransactionType.SALARY,
+            TransactionType.SALARY_CREDIT,
+            TransactionType.CHEQUE_DEPOSITED,
+            TransactionType.CREDIT,
+            "ACCOUNT_CLOSURE_DISBURSEMENT",  # Funds returned on account closure
+            "REWARD_REDEMPTION",  # Rewards credited back
         ]
 
     @staticmethod
@@ -235,9 +256,20 @@ class TransactionType:
             TransactionType.NEFT_SENT,
             TransactionType.RTGS_SENT,
             TransactionType.INTER_ACCOUNT_SENT,
+            TransactionType.SWIFT_SENT,
             TransactionType.EXPENSE,
             TransactionType.BILL_PAYMENT,
             TransactionType.AMB_FEE,
             TransactionType.AMB_FEE_SETTLED,
             TransactionType.TAX_DEDUCTED,
+            TransactionType.CHEQUE_BOUNCE,
+            TransactionType.CHEQUE_CLEARED,  # When cleared, it's a debit for issuing account
+            TransactionType.DEBIT_CARD_PURCHASE,
+            TransactionType.CREDIT_CARD_PAYMENT,
+            "CREDIT_CARD_BILL_PAYMENT",  # Credit card bill payments
+            "CREDIT_CARD_PURCHASE",  # Credit card purchases  
+            "RECURRING_BILL",  # Recurring bill payments
+            "RECURRING_BILL_CREDIT_CARD_PAYMENT",  # Recurring bill via credit card
+            "RD_AUTH_PAYMENT",  # RD authorization payments
+            TransactionType.DEBIT,
         ]

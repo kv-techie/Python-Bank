@@ -13,17 +13,23 @@ class AccountClosureService:
     """Service for handling account and card closures"""
 
     @staticmethod
-    def close_account(account: "Account", bank) -> Tuple[bool, str, Optional[str]]:
+    def close_account(
+        account: "Account", bank, disbursement_details: Optional[dict] = None
+    ) -> Tuple[bool, str, Optional[str]]:
         """
         Close a bank account after validating closure conditions
 
         Args:
             account: Account to close
             bank: Bank instance (to access loans and remove account)
+            disbursement_details: Dict containing disbursement method and details
 
         Returns:
             (success, message, closure_certificate_path)
         """
+        # Load transactions if needed
+        account._load_transactions_if_needed()
+        
         # Validation checks
         validation_result = AccountClosureService._validate_account_closure(
             account, bank
@@ -33,6 +39,61 @@ class AccountClosureService:
 
         # Get final balance
         final_balance = account.balance
+
+        # Handle disbursement
+        disbursement_info = "Transfer via Cheque"
+        if (
+            disbursement_details
+            and disbursement_details.get("method") == "bank_transfer"
+        ):
+            beneficiary = disbursement_details.get("beneficiary")
+            if beneficiary:
+                # Check if it's an internal account (starts with 5621)
+                if beneficiary.account_number.startswith("5621"):
+                    # Transfer internally to the beneficiary account
+                    recipient_account = bank.find_account_by_number(
+                        beneficiary.account_number
+                    )
+                    if recipient_account:
+                        recipient_account.balance += final_balance
+
+                        # Log the internal transfer
+                        DataStore.append_activity(
+                            timestamp=BankClock.get_formatted_datetime(),
+                            username=recipient_account.username,
+                            account_number=recipient_account.account_number,
+                            action="ACCOUNT_CLOSURE_DISBURSEMENT",
+                            amount=final_balance,
+                            resulting_balance=recipient_account.balance,
+                            metadata=f"fromAccount={account.account_number};customerId={recipient_account.customer_id}",
+                        )
+
+                        disbursement_info = f"Internal Bank Transfer to {beneficiary.account_number} ({beneficiary.beneficiary_name})"
+                else:
+                    # External bank transfer
+                    disbursement_info = f"NEFT Transfer to {beneficiary.account_number} ({beneficiary.bank_name})"
+
+        elif disbursement_details and disbursement_details.get("method") == "cheque":
+            # Issue a proper cheque using the new cheque system
+            active_book = account.cheque_book_manager.get_active_cheque_book()
+            if not active_book:
+                # Allocate numbers from bank's global counter
+                starting_number = bank.allocate_cheque_numbers(50)
+                account.cheque_book_manager.create_and_issue_cheque_book(starting_number)
+                active_book = account.cheque_book_manager.get_active_cheque_book()
+            
+            unused_cheques = active_book.get_unused_cheques()
+            if unused_cheques:
+                cheque_number = unused_cheques[0].cheque_number
+                cheque_id = account.issue_cheque(
+                    cheque_number,
+                    final_balance,
+                    f"{account.first_name} {account.last_name}",
+                    BankClock.today().isoformat()
+                )
+                disbursement_info = f"Cheque {cheque_number} (ID: {cheque_id})"
+            else:
+                disbursement_info = "Cheque Transfer (No available cheque)"
 
         # Close all linked cards
         cards_closed = []
@@ -54,7 +115,7 @@ class AccountClosureService:
 
         # Generate closure certificate
         certificate_path = AccountClosureService._generate_closure_certificate(
-            account, final_balance, cards_closed
+            account, final_balance, cards_closed, disbursement_info
         )
 
         # Log closure activity
@@ -129,9 +190,15 @@ class AccountClosureService:
 
     @staticmethod
     def _generate_closure_certificate(
-        account: "Account", final_balance: float, cards_closed: list
+        account: "Account",
+        final_balance: float,
+        cards_closed: list,
+        disbursement_info: str = "Pending",
     ) -> str:
         """Generate account closure certificate"""
+        # Load transactions if needed
+        account._load_transactions_if_needed()
+        
         timestamp = BankClock.get_formatted_datetime()
         closure_date = BankClock.today().strftime("%d-%m-%Y")
 
@@ -178,8 +245,12 @@ CARDS TERMINATED
 {"=" * 70}
 
 This certificate confirms that the above account has been closed
-and all linked cards have been terminated. The final balance of
-Rs. {final_balance:.2f} INR will be disbursed as per RBI guidelines.
+and all linked cards have been terminated.
+
+FINAL DISBURSEMENT
+----------------------------------------------------------------------
+Final Balance:          Rs. {final_balance:.2f} INR
+Disbursement Method:    {disbursement_info}
 
 All recurring payments, loans, and outstanding dues have been cleared.
 
@@ -195,7 +266,7 @@ System: Python Bank Management System v1.0
         os.makedirs("data/closure_certificates", exist_ok=True)
         file_path = f"data/closure_certificates/account_closure_{account.account_number}_{account.customer_id}.txt"
 
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(certificate_content)
 
         return file_path
@@ -363,7 +434,7 @@ System: Python Bank Management System v1.0
         os.makedirs("data/card_closures", exist_ok=True)
         file_path = f"data/card_closures/{card_type.lower()}_card_closure_{card.card_number[-4:]}_{account.customer_id}.txt"
 
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             f.write(certificate_content)
 
         return file_path

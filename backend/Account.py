@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from BankClock import BankClock
 from Card import Card, CreditCard, DebitCard
+from ChequeBook import ChequeBookManager
 from DataStore import DataStore
 from RecurringBill import RecurringBill
 from SalaryProfile import SalaryProfile
@@ -47,15 +48,31 @@ class Account:
         self.account_type = account_type
         self.account_number = account_number
         self.balance = balance
-        self.transactions = transactions if transactions is not None else []
+        self.transactions = transactions or []
+        self._transactions_loaded = bool(
+            transactions
+        )  # Track if transactions are loaded
         self.failed_attempts = failed_attempts
         self.locked = locked
         self.pending_amb_fees = pending_amb_fees
         self.cards: List[Card] = []
 
+        # Beneficiaries for transfers during closure
+        self.beneficiaries: List = []
+
+        # Cheque book management
+        self.cheque_book_manager = ChequeBookManager(account_number)
+        # Auto-issue first cheque book
+        self.cheque_book_manager.create_and_issue_cheque_book()
+
         # Simulation features
         self.recurring_bills: List[RecurringBill] = []
         self.salary_profile: Optional[SalaryProfile] = None
+
+        # Tax management
+        self.tax_exemptions: List = []  # List of TaxExemption objects
+        self.itr_filings: List = []  # List of ITRFilingRecord objects
+        self.form_26as: Optional[object] = None  # Form26AS instance
 
         # Private constants
         self._min_operational_balance = 300.0
@@ -71,6 +88,14 @@ class Account:
         }
         self._amb_fee_amount = 300.0
 
+    def _load_transactions_if_needed(self):
+        """Load all transactions from storage when first accessed"""
+        if not self._transactions_loaded:
+            from DataStore import DataStore
+
+            self.transactions = DataStore.load_account_transactions(self.account_number)
+            self._transactions_loaded = True
+
     @property
     def is_minor_account(self) -> bool:
         """Check if this is a minor account (Future type)"""
@@ -82,6 +107,7 @@ class Account:
 
     def get_today_withdrawals(self) -> float:
         """Get total withdrawals made today"""
+        self._load_transactions_if_needed()  # ADD THIS LINE
         today = BankClock.today()
         total = 0.0
 
@@ -100,6 +126,7 @@ class Account:
 
     def get_today_transactions(self) -> float:
         """Get total transaction amount for today (withdrawals + transfers sent)"""
+        self._load_transactions_if_needed()  # ADD THIS LINE
         today = BankClock.today()
         total = 0.0
 
@@ -486,6 +513,226 @@ class Account:
         if enforce_min:
             self._check_and_apply_amb_fee()
 
+    def pay_to_beneficiary(
+        self,
+        beneficiary_id: str,
+        amount: float,
+        requested_mode: str,
+        beneficiary_manager,
+    ) -> bool:
+        """
+        Pay money to a saved beneficiary
+
+        Args:
+            beneficiary_id: ID of the beneficiary to pay
+            amount: Amount to pay
+            requested_mode: Transfer mode (NEFT, RTGS, etc.)
+            beneficiary_manager: BeneficiaryManager instance containing the beneficiary
+
+        Returns:
+            True if payment was successful, False otherwise
+        """
+        # Get the beneficiary
+        beneficiary = beneficiary_manager.get_beneficiary(beneficiary_id)
+        if not beneficiary:
+            print(f"Beneficiary with ID {beneficiary_id} not found.")
+            return False
+
+        # Check if beneficiary is active
+        if beneficiary.status != "Active":
+            print(f"Cannot pay to inactive beneficiary. Status: {beneficiary.status}")
+            return False
+
+        if amount <= 0:
+            print("Payment amount must be positive.")
+            return False
+
+        # Check minor account limits
+        if self.is_minor_account:
+            today_transactions = self.get_today_transactions()
+            if today_transactions + amount > self._minor_daily_transaction_limit:
+                remaining = self._minor_daily_transaction_limit - today_transactions
+                print(
+                    "Payment amount exceeds daily transaction limit for minor accounts."
+                )
+                print(
+                    f"Daily transaction limit: Rs. {self._minor_daily_transaction_limit:.2f} INR"
+                )
+                print(f"Already transacted today: Rs. {today_transactions:.2f} INR")
+                print(f"Remaining limit: Rs. {remaining:.2f} INR")
+                return False
+
+        # Determine actual transfer mode
+        actual_mode = requested_mode
+        if requested_mode != "INTER_ACCOUNT":
+            if amount >= 200000.0 and requested_mode == "NEFT":
+                actual_mode = "RTGS"
+                print(
+                    f"Amount Rs. {amount:.2f} INR is >= Rs. 2,00,000.00. Automatically routing to RTGS."
+                )
+            elif amount < 200000.0 and requested_mode == "RTGS":
+                actual_mode = "NEFT"
+                print(
+                    f"Amount Rs. {amount:.2f} INR is below RTGS threshold (Rs. 2,00,000.00). Routing to NEFT instead."
+                )
+
+        # Check operational balance
+        enforce_min = actual_mode != "INTER_ACCOUNT"
+        if enforce_min and (self.balance - amount < self._min_operational_balance):
+            print(
+                f"Insufficient funds. Must keep at least Rs. {self._min_operational_balance:.2f} INR."
+            )
+            return False
+
+        # Process payment
+        self.balance -= amount
+
+        cheque_id = (
+            f"CHQ{random.randint(1000000000, 9999999999)}"
+            if actual_mode != "INTER_ACCOUNT"
+            else None
+        )
+
+        txn = Transaction(
+            type=f"{actual_mode}_SENT",
+            amount=amount,
+            resulting_balance=self.balance,
+            cheque_id=cheque_id,
+        )
+
+        self.transactions.append(txn)
+
+        # Update beneficiary usage
+        beneficiary.mark_used()
+
+        metadata = (
+            f"requestedMode={requested_mode};routedMode={actual_mode};"
+            f"beneficiaryId={beneficiary_id};beneficiaryName={beneficiary.beneficiary_name};"
+            f"beneficiaryAccount={beneficiary.account_number}"
+        )
+        if self.is_minor_account:
+            metadata += ";minorAccount=true"
+
+        DataStore.append_activity(
+            timestamp=txn.timestamp,
+            username=self.username,
+            account_number=self.account_number,
+            action=f"{actual_mode}_SENT_TO_BENEFICIARY",
+            amount=amount,
+            resulting_balance=self.balance,
+            txn_id=txn.id,
+            cheque_id=cheque_id,
+            metadata=metadata,
+        )
+
+        print(
+            f"{actual_mode} payment to {beneficiary.beneficiary_name} successful. "
+            f"Sent: Rs. {amount:.2f} INR | Transaction ID: {txn.id}"
+        )
+        if cheque_id:
+            print(f"Cheque ID: {cheque_id}")
+
+        if self.is_minor_account:
+            new_transactions = self.get_today_transactions()
+            print(
+                f"Remaining daily transaction limit: Rs. {self._minor_daily_transaction_limit - new_transactions:.2f} INR"
+            )
+
+        if enforce_min:
+            self._check_and_apply_amb_fee()
+
+        return True
+
+    # ===== Cheque Management Methods =====
+
+    def issue_cheque(
+        self, cheque_number: str, amount: float, payee_name: str, date_presentable: str
+    ) -> Optional[str]:
+        """
+        Issue a cheque from the account
+
+        Args:
+            cheque_number: Cheque serial number
+            amount: Cheque amount
+            payee_name: Name of payee
+            date_presentable: Date when cheque can be presented (YYYY-MM-DD)
+
+        Returns:
+            Cheque ID if successful, None otherwise
+        """
+
+        # Validate cheque number exists and is unused
+        active_book = self.cheque_book_manager.get_active_cheque_book()
+        if not active_book:
+            print("No active cheque book available. Please request a new one.")
+            return None
+
+        cheque = active_book.get_cheque_by_number(cheque_number)
+        if not cheque:
+            print(
+                f"Cheque number {cheque_number} not found in your active cheque book."
+            )
+            return None
+
+        if cheque.status.value != "ISSUED":
+            print(f"Cheque {cheque_number} is already {cheque.status.value}.")
+            return None
+
+        # Update cheque details
+        cheque.amount = amount
+        cheque.payee_name = payee_name
+        cheque.date_presentable = date_presentable
+
+        print(
+            f"[OK] Cheque {cheque_number} issued to {payee_name} for Rs. {amount:,.2f}"
+        )
+
+        return cheque.cheque_id
+
+    def get_cheque_book_status(self) -> None:
+        """Display current cheque book status"""
+        books = self.cheque_book_manager.get_all_cheque_books()
+        if not books:
+            print("No cheque books available.")
+            return
+
+        print("\n" + "=" * 70)
+        print("CHEQUE BOOK STATUS")
+        print("=" * 70)
+
+        for book in books:
+            summary = book.get_summary()
+            print(f"\n📕 Cheque Book: {book.cheque_book_id}")
+            print(f"   Status: {summary['status']}")
+            print(f"   Total Cheques: {summary['total_cheques']}")
+            print(
+                f"   Used: {summary['used_count']} | Unused: {summary['unused_count']}"
+            )
+            print(f"   Cleared: {summary['cleared']} | Bounced: {summary['bounced']}")
+            print(f"   Pending: {summary['pending']}")
+
+    def get_cheque_history(self) -> None:
+        """Display cheque history"""
+        cheques = self.cheque_book_manager.get_all_cheques()
+        if not cheques:
+            print("No cheques found.")
+            return
+
+        print("\n" + "=" * 70)
+        print("CHEQUE HISTORY")
+        print("=" * 70)
+
+        for cheque in sorted(
+            cheques, key=lambda x: x.issued_on or datetime.now(), reverse=True
+        ):
+            print(f"\n{cheque}")
+            print(f"  Amount: {cheque.get_formatted_amount()}")
+            print(f"  Payee: {cheque.payee_name}")
+            print(f"  Presentable: {cheque.get_formatted_date()}")
+            if cheque.status.value == "BOUNCED":
+                print(f"  Bounce Reason: {cheque.bounce_reason}")
+                print(f"  Fee Deducted: Rs. {cheque.bounce_fee_deducted:,.2f}")
+
     def show_transactions(
         self,
         limit: int = 10,
@@ -500,6 +747,7 @@ class Account:
             transaction_type_filter: Filter by transaction type
             card_filter: Filter by specific card (last 4 digits)
         """
+        self._load_transactions_if_needed()  # ADD THIS LINE
         if not self.transactions:
             print("No transactions found.")
             return
@@ -515,11 +763,25 @@ class Account:
                 return {}
             if isinstance(txn.metadata, dict):
                 return txn.metadata
+            # If it's a string, parse it (format: "key1=val1;key2=val2")
+            if isinstance(txn.metadata, str) and txn.metadata:
+                parsed = {}
+                for pair in txn.metadata.split(";"):
+                    if "=" in pair:
+                        key, val = pair.split("=", 1)
+                        parsed[key] = val
+                return parsed
             # If it's a string or other type, return empty dict
             return {}
 
         # Apply filters
-        if transaction_type_filter == "LOAN_EMI":
+        if transaction_type_filter == "DEPOSIT":
+            transactions = [t for t in transactions if t.type == "DEPOSIT"]
+
+        elif transaction_type_filter == "WITHDRAW":
+            transactions = [t for t in transactions if t.type == "WITHDRAW"]
+
+        elif transaction_type_filter == "LOAN_EMI":
             transactions = [t for t in transactions if t.type == "LOAN_EMI"]
 
         elif transaction_type_filter == "LEGACY_BANKING":
@@ -529,6 +791,7 @@ class Account:
                 for t in transactions
                 if t.type in ["DEPOSIT", "WITHDRAW"]
                 and not get_metadata(t).get("card_number")
+                and not get_metadata(t).get("cardNumber")
             ]
 
         elif transaction_type_filter == "DEBIT_CARD":
@@ -565,13 +828,42 @@ class Account:
                 if t.type in ["INTER_ACCOUNT_SENT", "INTER_ACCOUNT_RECEIVED"]
             ]
 
+        elif transaction_type_filter == "SWIFT":
+            # Both sent and received
+            transactions = [
+                t for t in transactions if t.type in ["SWIFT_SENT", "SWIFT_RECEIVED"]
+            ]
+
         elif transaction_type_filter == "SALARY_TAX":
             transactions = [
-                t for t in transactions if t.type in ["SALARY", "TAX_DEDUCTED"]
+                t
+                for t in transactions
+                if t.type in ["SALARY", "SALARY_CREDIT", "TAX_DEDUCTED"]
             ]
 
         elif transaction_type_filter == "EXPENSE":
             transactions = [t for t in transactions if t.type == "EXPENSE"]
+
+        elif transaction_type_filter == "BILL_PAYMENT":
+            transactions = [t for t in transactions if t.type == "BILL_PAYMENT"]
+
+        elif transaction_type_filter == "CHEQUE":
+            # All cheque-related transactions
+            transactions = [
+                t
+                for t in transactions
+                if t.type in ["CHEQUE_CLEARED", "CHEQUE_DEPOSITED", "CHEQUE_BOUNCE"]
+                or (t.cheque_id and t.cheque_id != "")
+            ]
+
+        elif transaction_type_filter == "FEES":
+            # All fee-related transactions
+            transactions = [
+                t
+                for t in transactions
+                if t.type
+                in ["AMB_FEE", "AMB_FEE_SETTLED", "TAX_DEDUCTED", "CHEQUE_BOUNCE"]
+            ]
 
         elif card_filter:
             # Filter by specific card
@@ -603,12 +895,20 @@ class Account:
             card_info = ""
             metadata = get_metadata(txn)
 
-            if metadata and "card_number" in metadata:
-                card_number = metadata["card_number"]
-                card_type = metadata.get("card_type", "")
-                card_info = (
-                    f"{card_type[:1]}****{card_number[-4:]}"  # D****1234 or C****5678
+            # Check for card info in metadata (supports both dict and CSV string formats)
+            if metadata and ("card_number" in metadata or "cardNumber" in metadata):
+                # New format: card_number, card_type
+                card_number = metadata.get(
+                    "card_number", metadata.get("cardNumber", "")
                 )
+                card_type = metadata.get("card_type", metadata.get("network", ""))
+                if card_number:
+                    if len(card_type) > 1:
+                        # Show network name for CSV format (VISA, MasterCard, etc.)
+                        card_info = f"{card_type}"
+                    else:
+                        # Show abbreviated format for dict format (D****1234, C****5678)
+                        card_info = f"{card_type[:1]}****{card_number[-4:]}"
             elif txn.type in ["DEPOSIT", "WITHDRAW"]:
                 card_info = "Legacy"
             else:
@@ -621,6 +921,7 @@ class Account:
                 "RTGS_RECEIVED",
                 "INTER_ACCOUNT_RECEIVED",
                 "SALARY",
+                "SALARY_TAX_REFUND",  # Tax refund
                 "LOAN_CREDIT",
                 "SWIFT_RECEIVED",  # ← ADDED
             ]:
@@ -651,9 +952,14 @@ class Account:
 
         print("=" * 130)
 
-        # Show summary statistics
-        total_credit = sum(t.amount for t in transactions if t.amount > 0)
-        total_debit = sum(abs(t.amount) for t in transactions if t.amount < 0)
+        # Show summary statistics - use transaction type to classify credits/debits
+        from Transaction import TransactionType
+
+        credit_types = TransactionType.get_all_credit_types()
+        debit_types = TransactionType.get_all_debit_types()
+
+        total_credit = sum(t.amount for t in transactions if t.type in credit_types)
+        total_debit = sum(t.amount for t in transactions if t.type in debit_types)
 
         print(
             f"\n📊 Summary: Total Credit: Rs. {total_credit:,.2f} | Total Debit: Rs. {total_debit:,.2f}"
@@ -877,14 +1183,25 @@ class Account:
 
     # ========== SALARY MANAGEMENT ==========
 
-    def set_salary(self, gross_salary: float, salary_day: int):
+    def set_salary(
+        self,
+        gross_salary: float,
+        salary_day: int,
+        employee_epf_contribution: float = 0.0,
+        professional_tax: float = 0.0,
+        other_deductions: float = 0.0,
+    ):
         """Set salary profile for this account"""
         if salary_day < 1 or salary_day > 28:
             print("Salary day must be between 1 and 28")
             return
 
         self.salary_profile = SalaryProfile(
-            gross_salary=gross_salary, salary_day=salary_day
+            gross_salary=gross_salary,
+            salary_day=salary_day,
+            employee_epf_contribution=employee_epf_contribution,
+            professional_tax=professional_tax,
+            other_deductions=other_deductions,
         )
         tax = self.salary_profile.calculate_tax()
         tax_rate = (
@@ -892,17 +1209,31 @@ class Account:
         )  # ✓ Fixed: use self.salary_profile
         net_salary = self.salary_profile.get_net_salary()
         annual_income = gross_salary * 12
+        total_deductions = (
+            employee_epf_contribution + professional_tax + other_deductions
+        )
 
         print("Salary profile set:")
         print(f"   Gross Monthly Salary: Rs. {gross_salary:,.2f} INR")
         print(f"   Annual Income: Rs. {annual_income:,.2f} INR")
 
+        # Show company deductions if any
+        if total_deductions > 0:
+            print("\n   Company Deductions:")
+            if employee_epf_contribution > 0:
+                print(f"      EPF: Rs. {employee_epf_contribution:,.2f}")
+            if professional_tax > 0:
+                print(f"      Professional Tax: Rs. {professional_tax:,.2f}")
+            if other_deductions > 0:
+                print(f"      Other Deductions: Rs. {other_deductions:,.2f}")
+            print(f"      Total: Rs. {total_deductions:,.2f}")
+
         if tax > 0:
             print(
-                f"   Monthly Tax ({tax_rate:.0f}%): Rs. {tax:,.2f} INR"
+                f"   Monthly Income Tax ({tax_rate:.0f}%): Rs. {tax:,.2f} INR"
             )  # ✓ Dynamic rate
         else:
-            print("   Monthly Tax: Rs. 0.00 INR")
+            print("   Monthly Income Tax: Rs. 0.00 INR")
 
         print(f"   Net Monthly Salary: Rs. {net_salary:,.2f} INR")
 
@@ -924,15 +1255,33 @@ class Account:
             tax_rate = profile.get_tax_rate()  # ✓ ADD THIS LINE
             net_salary = profile.get_net_salary()
             annual_income = profile.gross_salary * 12
+            total_deductions = (
+                profile.employee_epf_contribution
+                + profile.professional_tax
+                + profile.other_deductions
+            )
 
             print("\nSalary Details")
-            print("=" * 50)
+            print("=" * 60)
             print(f"Gross Monthly Salary: Rs. {profile.gross_salary:,.2f} INR")
             print(f"Annual Income: Rs. {annual_income:,.2f} INR")
 
+            # Show company deductions if any
+            if total_deductions > 0:
+                print(f"\n{'Company Deductions':<30}")
+                if profile.employee_epf_contribution > 0:
+                    print(
+                        f"  EPF Contribution: Rs. {profile.employee_epf_contribution:>13,.2f}"
+                    )
+                if profile.professional_tax > 0:
+                    print(f"  Professional Tax: Rs. {profile.professional_tax:>13,.2f}")
+                if profile.other_deductions > 0:
+                    print(f"  Other Deductions: Rs. {profile.other_deductions:>13,.2f}")
+                print(f"  Total: Rs. {total_deductions:>24,.2f}")
+
             if tax > 0:
                 print(
-                    f"Monthly Tax Deduction ({tax_rate:.0f}%): Rs. {tax:,.2f} INR"
+                    f"Monthly Income Tax ({tax_rate:.0f}%): Rs. {tax:,.2f} INR"
                 )  # ✓ CHANGED
                 print(f"Net Monthly Salary: Rs. {net_salary:,.2f} INR")
             else:
@@ -944,7 +1293,7 @@ class Account:
             if profile.last_salary_date:
                 print(f"Last Salary Date: {profile.last_salary_date}")
 
-            print("=" * 50)
+            print("=" * 60)
         else:
             print("No salary profile configured")
 
@@ -952,11 +1301,15 @@ class Account:
 
     def show_expense_analysis(self, days: int = 30):
         """Show expense analysis for the last N days"""
+        # Load transactions if needed
+        self._load_transactions_if_needed()
+
         cutoff_date = BankClock.today() - timedelta(days=days)
 
         recent_expenses = []
         for txn in self.transactions:
-            if (txn.type == "EXPENSE" or txn.type == "BILL_PAYMENT") and txn.category:
+            # Include EXPENSE and BILL_PAYMENT transactions (with or without category)
+            if txn.type in ["EXPENSE", "BILL_PAYMENT"]:
                 try:
                     txn_date = datetime.strptime(
                         txn.timestamp, "%d-%m-%Y %H:%M:%S"
@@ -970,10 +1323,10 @@ class Account:
             print(f"No expenses found in the last {days} days.")
             return
 
-        # Group by category
+        # Group by category (use "Uncategorized" if no category)
         by_category = {}
         for txn in recent_expenses:
-            category = txn.category
+            category = txn.category if txn.category else "Uncategorized"
             if category not in by_category:
                 by_category[category] = 0.0
             by_category[category] += txn.amount
@@ -987,7 +1340,7 @@ class Account:
         print("=" * 60)
 
         for category, amount in sorted_categories:
-            percentage = (amount / total) * 100
+            percentage = (amount / total) * 100 if total > 0 else 0
             print(f"{category:<25} Rs. {amount:>14.2f} {percentage:>11.1f}%")
 
         print("=" * 60)
@@ -1004,6 +1357,10 @@ class Account:
         print(f"Expiry: {card.expiry_date.strftime('%m/%Y')}")
         if isinstance(card, CreditCard):
             print(f"Credit Limit: Rs. {card.credit_limit:,.2f} INR")
+
+    def add_beneficiary(self, beneficiary):
+        """Add a beneficiary to this account"""
+        self.beneficiaries.append(beneficiary)
 
     def get_card_by_id(self, card_id: str) -> Optional[Card]:
         """Get card by card ID"""
@@ -1268,14 +1625,14 @@ class Account:
     def _load_used_numbers():
         """Load used account numbers from file"""
         if os.path.exists(Account._used_numbers_file):
-            with open(Account._used_numbers_file, "r") as f:
+            with open(Account._used_numbers_file, "r", encoding="utf-8") as f:
                 Account._used_account_numbers = set(line.strip() for line in f)
 
     @staticmethod
     def _save_used_numbers():
         """Save used account numbers to file"""
         os.makedirs(os.path.dirname(Account._used_numbers_file), exist_ok=True)
-        with open(Account._used_numbers_file, "w") as f:
+        with open(Account._used_numbers_file, "w", encoding="utf-8") as f:
             for num in Account._used_account_numbers:
                 f.write(num + "\n")
 
@@ -1396,6 +1753,8 @@ Branch Code: {Account.ACCOUNT_NUMBER_PREFIX}"""
             if self.salary_profile
             else None,
             "cards": [c.to_dict() for c in self.cards],
+            "chequeBookManager": self.cheque_book_manager.to_dict(),
+            "itrFilings": [f.to_dict() for f in self.itr_filings],
         }
 
     @staticmethod
@@ -1431,6 +1790,18 @@ Branch Code: {Account.ACCOUNT_NUMBER_PREFIX}"""
 
         # Load cards
         acc.cards = [Card.from_dict(c) for c in data.get("cards", [])]
+
+        # Load cheque book manager
+        if data.get("chequeBookManager"):
+            acc.cheque_book_manager = ChequeBookManager.from_dict(
+                data["chequeBookManager"]
+            )
+
+        # Load ITR filings
+        if data.get("itrFilings"):
+            from ITRFiling import ITRFilingRecord
+
+            acc.itr_filings = [ITRFilingRecord.from_dict(f) for f in data["itrFilings"]]
 
         return acc
 

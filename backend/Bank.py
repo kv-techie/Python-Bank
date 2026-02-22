@@ -31,31 +31,88 @@ class Bank:
     def load(self):
         """Load all bank data from JSON files"""
         self.accounts = DataStore.load_accounts()
+
         self.customers = DataStore.load_customers()
+
         self.loans = DataStore.load_loans()
+
         self.international_registry = DataStore.load_international_accounts()
+
         self.fixed_deposits = DataStore.load_fixed_deposits()
+
         self.recurring_deposits = DataStore.load_recurring_deposits()
-        self.rd_authorizations = (
-            DataStore.load_rd_authorizations()
-        )  # NEW: Load authorizations
+
+        self.rd_authorizations = DataStore.load_rd_authorizations()
+
+    def reload_account_with_transactions(
+        self, account_number: str
+    ) -> Optional[Account]:
+        """
+        Force reload a specific account with ALL its transactions from storage
+        Useful when viewing transaction history after transfers
+
+        Args:
+            account_number: Account number to reload
+
+        Returns:
+            Account object with full transaction history loaded
+        """
+        from DataStore import DataStore
+
+        # Find the account in memory
+        account = self.get_account(account_number)
+        if account:
+            # Load ALL transactions for this account
+            account.transactions = DataStore.load_account_transactions(account_number)
+            account._transactions_loaded = True
+            print(
+                f"✓ Reloaded account {account_number} with {len(account.transactions)} transactions"
+            )
+            return account
+
+        print(f"⚠ Account {account_number} not found")
+        return None
 
     def save(self):
         """Save all accounts, customers, and loans to persistent storage"""
+        import time
+
+        start = time.time()
+
+        t = time.time()
         DataStore.save_accounts(self.accounts)
+        print(f"⏱️  Accounts saved in {time.time() - t:.2f}s")
+
+        t = time.time()
         DataStore.save_customers(self.customers)
+        print(f"⏱️  Customers saved in {time.time() - t:.2f}s")
+
+        t = time.time()
         DataStore.save_loans(self.loans)
+        print(f"⏱️  Loans saved in {time.time() - t:.2f}s")
 
         if hasattr(self, "international_registry") and self.international_registry:
+            t = time.time()
             DataStore.save_international_accounts(
                 self.international_registry, verbose=False
             )
+            print(f"⏱️  International accounts saved in {time.time() - t:.2f}s")
+
+        t = time.time()
         DataStore.save_fixed_deposits(self.fixed_deposits)
+        print(f"⏱️  Fixed deposits saved in {time.time() - t:.2f}s")
+
+        t = time.time()
         DataStore.save_recurring_deposits(self.recurring_deposits)
+        print(f"⏱️  Recurring deposits saved in {time.time() - t:.2f}s")
 
         # NEW: Save authorizations
         if hasattr(self, "rd_authorizations") and self.rd_authorizations:
+            t = time.time()
             DataStore.save_rd_authorizations(self.rd_authorizations)
+            print(f"⏱️  RD authorizations saved in {time.time() - t:.2f}s")
+
+        print(f"✅ Total save time: {time.time() - start:.2f}s")
 
     def save_data(self):
         """Alias for save() method for compatibility"""
@@ -342,6 +399,7 @@ class Bank:
         interest_rate: float,
         tenure_months: int,
         account: Account,
+        loan_type: str = "PERSONAL",
     ) -> Tuple[bool, Optional[Loan], str]:
         """
         Evaluates, creates, and (if approved) adds/disburses the loan. Returns (approved, Loan/None, reason).
@@ -365,6 +423,7 @@ class Bank:
             approval_reason=reason,
             status="Active",
             start_date=BankClock.today(),
+            loan_type=loan_type,
         )
 
         old_balance = account.balance
@@ -383,6 +442,24 @@ class Bank:
             metadata=f"loan_id={loan_id};principal={principal:.2f};tenure={tenure_months}months;rate={interest_rate}%",
         )
         account.transactions.append(loan_disbursement)
+
+        # Log the transaction to activity file
+        from DataStore import DataStore
+
+        DataStore.append_activity(
+            timestamp=BankClock.get_formatted_datetime(),
+            username=customer.username
+            if hasattr(customer, "username")
+            else account.username,
+            account_number=account.account_number,
+            action="LOAN_CREDIT",
+            amount=principal,
+            mode=None,
+            resulting_balance=account.balance,
+            txn_id=txn_id,
+            cheque_id=None,
+            metadata=f"loan_id={loan_id};principal={principal:.2f};tenure={tenure_months}months;rate={interest_rate}%",
+        )
 
         self.add_loan(loan)
         self.save()

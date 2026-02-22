@@ -63,7 +63,7 @@ class CreditEvaluator:
             limit = base_limit
 
         # Employer category adjustment
-        emp_cat = employer_category.lower()
+        emp_cat = (employer_category or "pvt").lower()
         if emp_cat == "govt":
             limit *= 1.3  # Government employees get 30% higher limit
         elif emp_cat == "mnc":

@@ -440,7 +440,7 @@ class PasswordRecoveryUI:
 
         choice = input("\nSetup security question? (y/n): ").strip().lower()
 
-        if choice == "y":
+        if choice in ["y", "yes"]:
             if PasswordRecoveryUI.setup_security_question_flow(customer):
                 DataStore.save_customers(bank.customers)  # ← FIXED
                 print("✅ Account security fully updated!")
@@ -503,7 +503,7 @@ class PasswordRecoveryUI:
 
         choice = input("\nSetup now? (y/n): ").strip().lower()
 
-        if choice == "y":
+        if choice in ["y", "yes"]:
             if PasswordRecoveryUI.setup_security_question_flow(customer):
                 DataStore.save_customers(bank.customers)  # ← FIXED
                 print("\n✅ Security question setup complete!")

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import List, Optional, Tuple
 
+from Card import CreditCard
 from DataStore import DataStore
 from Transaction import Transaction
 
@@ -22,14 +23,17 @@ class ExpenseSimulator:
 
     # Predefined expense templates with realistic ranges and probabilities
     EXPENSE_TEMPLATES = [
-        ExpenseTemplate("Groceries", 200, 2000, 0.4),  # 40% chance per day
-        ExpenseTemplate("Food & Dining", 100, 800, 0.5),  # 50% chance per day
-        ExpenseTemplate("Transportation", 50, 500, 0.6),  # 60% chance per day
-        ExpenseTemplate("Shopping", 500, 5000, 0.1),  # 10% chance per day
-        ExpenseTemplate("Healthcare", 300, 3000, 0.05),  # 5% chance per day
-        ExpenseTemplate("Entertainment", 200, 1500, 0.15),  # 15% chance per day
-        ExpenseTemplate("Education", 500, 3000, 0.05),  # 5% chance per day
-        ExpenseTemplate("Personal Care", 100, 1000, 0.1),  # 10% chance per day
+        ExpenseTemplate("Groceries", 500, 1500, 0.15),  # 15% (2-3 times weekly)
+        ExpenseTemplate("Food & Dining", 100, 400, 0.15),  # 15% (occasional eating out)
+        ExpenseTemplate("Transportation", 50, 200, 0.6),  # 60% (daily commute)
+        ExpenseTemplate("Shopping", 1000, 3000, 0.05),  # 5% (2 times per month)
+        ExpenseTemplate("Healthcare", 500, 2000, 0.03),  # 3% (doctor visits, medicines)
+        ExpenseTemplate("Entertainment", 200, 1000, 0.1),  # 10% (weekly entertainment)
+        ExpenseTemplate("Education", 1000, 5000, 0.02),  # 2% (monthly - tuition/books)
+        ExpenseTemplate("Personal Care", 200, 800, 0.05),  # 5% (biweekly - soaps, etc)
+        ExpenseTemplate(
+            "Utilities", 2000, 4000, 0.05
+        ),  # 5% (monthly - electricity, water, etc)
     ]
 
     # Directory of realistic merchant names by category
@@ -121,11 +125,97 @@ class ExpenseSimulator:
             "Parlour",
             "Grooming Lounge",
         ],
+        "Utilities": [
+            "BESCOM",
+            "BWSSB",
+            "Gas Agency",
+            "Airtel",
+            "Jio",
+            "Vodafone",
+            "Hathway",
+            "ACT Fibernet",
+        ],
         "Bills": ["BESCOM", "BWSSB", "Gas Agency", "DTH Provider", "Telecom"],
     }
 
     # Available payment methods (UPI and Credit Card removed as per requirements)
     PAYMENT_METHODS = ["Debit Card", "Net Banking"]
+
+    @staticmethod
+    def process_expense(account, template, amount: float) -> bool:
+        """
+        Process a single expense - routes to credit card if available, otherwise debit
+
+        Args:
+            account: The account to charge
+            template: The expense template
+            amount: The expense amount
+
+        Returns:
+            True if expense processed successfully
+        """
+        merchant = ExpenseSimulator.get_random_merchant(template.category)
+        payment_method = ExpenseSimulator.get_random_payment_method()
+
+        # Get active credit cards (not blocked, not expired)
+        active_credit_cards = [
+            c
+            for c in account.cards
+            if isinstance(c, CreditCard) and not c.blocked and not c.is_expired()
+        ]
+
+        # 70% chance to use credit card if available, 30% use debit
+        use_credit = active_credit_cards and random.random() < 0.7
+
+        if use_credit:
+            # Use credit card
+            card = random.choice(active_credit_cards)
+
+            # Check if card has sufficient credit
+            if card.available_credit() >= amount:
+                success, message, txn_id = card.make_purchase(
+                    amount, merchant, template.category, account
+                )
+
+                if success:
+                    DataStore.append_activity(
+                        timestamp=date.today(),  # Will be overridden by transaction timestamp
+                        username=account.username,
+                        account_number=account.account_number,
+                        action="EXPENSE",
+                        amount=amount,
+                        resulting_balance=card.available_credit(),
+                        txn_id=txn_id,
+                        metadata=f"category={template.category};merchant={merchant};method=CreditCard;card={card.network}****{card.card_number[-4:]}",
+                    )
+                    return True
+
+        # Fall back to debit (from account balance)
+        if account.balance - amount >= 300:  # Maintain minimum operational balance
+            account.balance -= amount
+            txn = Transaction(
+                type="EXPENSE",
+                amount=amount,
+                resulting_balance=account.balance,
+                category=template.category,
+                merchant=merchant,
+                payment_method=payment_method,
+            )
+            account.transactions.append(txn)
+
+            DataStore.append_activity(
+                timestamp=txn.timestamp,
+                username=account.username,
+                account_number=account.account_number,
+                action="EXPENSE",
+                amount=amount,
+                resulting_balance=account.balance,
+                txn_id=txn.id,
+                metadata=f"category={template.category};merchant={merchant};method={payment_method}",
+            )
+            return True
+
+        return False
 
     @staticmethod
     def get_random_merchant(category: str) -> str:
@@ -257,33 +347,7 @@ class ExpenseSimulator:
         # ========== RANDOM EXPENSE GENERATION ==========
         expenses = ExpenseSimulator.generate_daily_expenses()
         for template, amount in expenses:
-            # Only process if sufficient balance exists
-            if account.balance - amount >= 300:  # Maintain minimum operational balance
-                merchant = ExpenseSimulator.get_random_merchant(template.category)
-                payment_method = ExpenseSimulator.get_random_payment_method()
-
-                account.balance -= amount
-                txn = Transaction(
-                    type="EXPENSE",
-                    amount=amount,
-                    resulting_balance=account.balance,
-                    category=template.category,
-                    merchant=merchant,
-                    payment_method=payment_method,
-                )
-                account.transactions.append(txn)
-
-                DataStore.append_activity(
-                    timestamp=txn.timestamp,
-                    username=account.username,
-                    account_number=account.account_number,
-                    action="EXPENSE",
-                    amount=amount,
-                    resulting_balance=account.balance,
-                    txn_id=txn.id,
-                    metadata=f"category={template.category};merchant={merchant};method={payment_method}",
-                )
-
+            if ExpenseSimulator.process_expense(account, template, amount):
                 transaction_count += 1
 
         return transaction_count

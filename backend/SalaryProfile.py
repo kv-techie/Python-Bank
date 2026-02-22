@@ -12,6 +12,11 @@ class SalaryProfile:
     gross_salary: float
     salary_day: int  # Day of month salary is credited (1-28)
     last_salary_date: Optional[date] = None
+    
+    # NEW: Employee deductions (for tax calculation with deductions)
+    employee_epf_contribution: float = 0.0  # Monthly EPF deducted (12% of basic)
+    professional_tax: float = 0.0  # Monthly professional tax
+    other_deductions: float = 0.0  # Other monthly deductions
 
     def calculate_tax(self) -> float:
         """
@@ -142,6 +147,55 @@ class SalaryProfile:
         else:
             return 0.0
 
+    def calculate_tax_with_deductions(self, deductions_dict: dict) -> float:
+        """
+        Calculate monthly tax after applying deductions (Option B: Deductions reduce taxable income)
+        
+        Args:
+            deductions_dict: Dictionary with section -> annual_amount
+                e.g., {"16": 50000, "10(13A)": 360000, "80C": 150000, "80D": 50000, "24": 240000}
+        
+        Returns:
+            Monthly tax amount after deductions
+        """
+        # Calculate annual gross
+        annual_gross = self.gross_salary * 12
+        
+        # Sum all deductions
+        total_annual_deductions = sum(deductions_dict.values())
+        
+        # Taxable income
+        taxable_annual = max(0, annual_gross - total_annual_deductions)
+        
+        # Apply tax slab to taxable income (not gross)
+        tax_rate = self._get_tax_rate_for_income(taxable_annual)
+        annual_tax = round(taxable_annual * tax_rate, 2)
+        
+        # Return monthly tax
+        return round(annual_tax / 12, 2)
+    
+    def _get_tax_rate_for_income(self, annual_income: float) -> float:
+        """
+        Get tax rate for a specific annual income
+        (Used for tax-after-deductions calculation)
+        
+        Args:
+            annual_income: Annual taxable income
+        
+        Returns:
+            Tax rate as decimal
+        """
+        if annual_income > 3000000:  # > ₹30,00,000
+            return 0.30
+        elif annual_income > 2600000:  # > ₹26,00,000
+            return 0.25
+        elif annual_income > 2200000:  # > ₹22,00,000
+            return 0.20
+        elif annual_income > 1800000:  # > ₹18,00,000
+            return 0.15
+        else:
+            return 0.0
+
     def copy(self, **changes):
         """
         Create a copy of this profile with specified changes
@@ -172,6 +226,9 @@ class SalaryProfile:
             "lastSalaryDate": self.last_salary_date.isoformat()
             if self.last_salary_date
             else None,
+            "employeeEpfContribution": self.employee_epf_contribution,
+            "professionalTax": self.professional_tax,
+            "otherDeductions": self.other_deductions,
         }
 
     def credit_salary(self, account) -> tuple[bool, str]:
@@ -250,6 +307,9 @@ class SalaryProfile:
             gross_salary=data["grossSalary"],
             salary_day=data["salaryDay"],
             last_salary_date=last_salary_date,
+            employee_epf_contribution=data.get("employeeEpfContribution", 0.0),
+            professional_tax=data.get("professionalTax", 0.0),
+            other_deductions=data.get("otherDeductions", 0.0),
         )
 
     def __repr__(self) -> str:

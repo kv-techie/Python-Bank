@@ -14,7 +14,9 @@ class DataStore:
     ACTIVITY_PATH = "data/account_activity.csv"
     CUSTOMER_JSON_PATH = "data/customers.json"
     LOANS_JSON_PATH = "data/loans.json"
-    RD_AUTHORIZATIONS_JSON_PATH = "data/rd_authorizations.json"  # New: RD authorizations
+    RD_AUTHORIZATIONS_JSON_PATH = (
+        "data/rd_authorizations.json"  # New: RD authorizations
+    )
 
     _lock = Lock()
 
@@ -115,10 +117,11 @@ class DataStore:
     @staticmethod
     def load_accounts() -> List:
         """
-        Load accounts from storage and replay activity log
+        Load accounts WITHOUT transactions for fast startup
+        Transactions are loaded on-demand when needed
 
         Returns:
-            List of Account objects
+            List of Account objects (without transaction history loaded)
         """
         from Account import Account
 
@@ -130,7 +133,13 @@ class DataStore:
                 try:
                     with open(DataStore.JSON_PATH, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        accounts = [Account.from_dict(acc_data) for acc_data in data]
+
+                        for acc_data in data:
+                            # Skip loading transactions for fast startup
+                            acc_data["transactions"] = []  # Empty array
+                            accounts.append(Account.from_dict(acc_data))
+                    return accounts
+
                 except Exception as e:
                     print(f"[DataStore] Error loading JSON accounts: {e}")
                     accounts = []
@@ -166,10 +175,106 @@ class DataStore:
                 except Exception as e:
                     print(f"[DataStore] Error loading CSV accounts: {e}")
 
-            # Replay activity log
-            DataStore._load_and_replay_activity(accounts)
+                # For CSV-loaded accounts, replay activity log
+                DataStore._load_and_replay_activity(accounts)
 
             return accounts
+
+    @staticmethod
+    def load_account_transactions(account_number: str) -> List:
+        """
+        Load ALL transactions for a specific account from activity CSV
+        Called on-demand when transactions are first accessed
+
+        Args:
+            account_number: Account number to load transactions for
+
+        Returns:
+            List of Transaction objects for this account
+        """
+        from Transaction import Transaction
+
+        if not os.path.exists(DataStore.ACTIVITY_PATH):
+            return []
+
+        transactions = []
+
+        try:
+            with open(DataStore.ACTIVITY_PATH, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+
+                for row in reader:
+                    try:
+                        account_no = row.get("accountNumber", "")
+
+                        # Only load transactions for this specific account
+                        if account_no != account_number:
+                            continue
+
+                        timestamp = row.get("timestamp", "")
+                        action = row.get("action", "")
+                        amount_str = row.get("amount", "")
+                        res_bal_str = row.get("resultingBalance", "")
+                        txn_id = row.get("txnId", "")
+                        cheque_id = row.get("chequeId", "")
+                        metadata = row.get("metadata", "")
+
+                        # Only load actual transaction types (not system events)
+                        transaction_actions = [
+                            "DEPOSIT",
+                            "WITHDRAW",
+                            "NEFT_SENT",
+                            "NEFT_RECEIVED",
+                            "RTGS_SENT",
+                            "RTGS_RECEIVED",
+                            "INTER_ACCOUNT_SENT",
+                            "INTER_ACCOUNT_RECEIVED",
+                            "AMB_FEE",
+                            "AMB_FEE_SETTLED",
+                            "BILL_PAYMENT",
+                            "EXPENSE",
+                            "SALARY_CREDIT",
+                            "SALARY_TAX_DEDUCTION",
+                            "SALARY_TAX_REFUND",
+                            "RD_AUTH_PAYMENT",
+                            "LOAN_EMI_NACH_DEBIT",
+                            "LOAN_CREDIT",
+                            "CREDIT_CARD_PURCHASE",
+                            "CREDIT_CARD_BILL_PAYMENT",
+                            "DEBIT_CARD_PURCHASE",
+                            "SWIFT_SENT",
+                            "SWIFT_RECEIVED",
+                            "CHEQUE_DEPOSIT",
+                            "CHEQUE_WITHDRAWAL",
+                        ]
+
+                        if action in transaction_actions and txn_id:
+                            try:
+                                amount = float(amount_str) if amount_str else 0.0
+                                res_balance = float(res_bal_str) if res_bal_str else 0.0
+
+                                # Don't add duplicates
+                                if not any(t.id == txn_id for t in transactions):
+                                    txn = Transaction(
+                                        id=txn_id,
+                                        type=action,
+                                        amount=amount,
+                                        resulting_balance=res_balance,
+                                        timestamp=timestamp,
+                                        cheque_id=cheque_id if cheque_id else None,
+                                        metadata=metadata,
+                                    )
+                                    transactions.append(txn)
+                            except ValueError:
+                                pass
+                    except Exception:
+                        pass  # Skip malformed rows
+
+            return transactions
+
+        except Exception as e:
+            print(f"[DataStore] Error loading transactions for {account_number}: {e}")
+            return []
 
     @staticmethod
     def _load_and_replay_activity(accounts: List):
@@ -224,6 +329,7 @@ class DataStore:
                             "BILL_PAYMENT",
                             "EXPENSE",
                             "SALARY_CREDIT",
+                            "SALARY_TAX_REFUND",  # Tax refund from ITR
                             "RD_AUTH_PAYMENT",  # New: authorized RD payment
                         ]
                         if action in transaction_actions and amount_str and res_bal_str:
@@ -267,11 +373,15 @@ class DataStore:
                 DataStore._ensure_dir(temp_json)
                 with open(temp_json, "w", encoding="utf-8") as f:
                     account_dicts = [acc.to_dict() for acc in accounts]
-                    json.dump(account_dicts, f, indent=2)
+                    json.dump(account_dicts, f)
 
                 DataStore._atomic_replace(temp_json, DataStore.JSON_PATH, "JSON")
+                # print(f"✅ JSON saved successfully to {DataStore.JSON_PATH}")  # Debug
             except Exception as e:
-                print(f"[DataStore] Error saving accounts to JSON: {e}")
+                print(f"❌ [DataStore] Error saving accounts to JSON: {e}")
+                import traceback
+
+                traceback.print_exc()  # Print full error trace
                 if os.path.exists(temp_json):
                     os.remove(temp_json)
 
@@ -335,7 +445,11 @@ class DataStore:
                 try:
                     with open(DataStore.CUSTOMER_JSON_PATH, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        return [Customer.from_dict(cust_data) for cust_data in data]
+                        customers = [
+                            Customer.from_dict(cust_data) for cust_data in data
+                        ]
+                        print(f"✓ Loaded {len(customers)} customers")
+                        return customers
                 except Exception as e:
                     print(f"[DataStore] Error loading customers: {e}")
                     return []
@@ -344,7 +458,7 @@ class DataStore:
     @staticmethod
     def save_customers(customers: List):
         """
-        Save customers to JSON storage
+        Save customers to JSON storage (optimized - no indent for speed)
 
         Args:
             customers: List of Customer objects to save
@@ -355,7 +469,8 @@ class DataStore:
                 DataStore._ensure_dir(temp_json)
                 with open(temp_json, "w", encoding="utf-8") as f:
                     customer_dicts = [cust.to_dict() for cust in customers]
-                    json.dump(customer_dicts, f, indent=2)
+                    # Remove indent=2 for 3-5x faster write speed
+                    json.dump(customer_dicts, f)
 
                 DataStore._atomic_replace(
                     temp_json, DataStore.CUSTOMER_JSON_PATH, "CUSTOMER_JSON"
@@ -458,6 +573,7 @@ class DataStore:
     # ------------------------------------------
     # Utility function to parse metadata from string
 
+    @staticmethod
     def parse_metadata(metadata_str: Optional[str]) -> dict:
         """
         Parse semicolon-separated key=value pairs in metadata string.

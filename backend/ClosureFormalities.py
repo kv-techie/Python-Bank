@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING, List
 
 from AccountClosure import AccountClosureService
+from BankClock import BankClock
+from Beneficiary import Beneficiary
 from Card import CreditCard
 
 if TYPE_CHECKING:
@@ -89,6 +91,59 @@ class ClosureFormalities:
             bank.save()
         else:
             print(f"\n❌ {message}")
+
+    @staticmethod
+    def _add_new_beneficiary_for_closure(
+        account: "Account", bank: "Bank", disbursement_details: dict
+    ) -> dict:
+        """Helper to add a new beneficiary during account closure"""
+        print("\nAdd New Beneficiary:")
+        print("-" * 40)
+
+        beneficiary_name = input("Beneficiary Name: ").strip()
+        if not beneficiary_name:
+            print("❌ Name cannot be empty.")
+            return disbursement_details
+
+        account_number = input("Beneficiary Account Number: ").strip()
+        if not account_number:
+            print("❌ Account number cannot be empty.")
+            return disbursement_details
+
+        ifsc_code = input("IFSC Code: ").strip()
+        if not ifsc_code:
+            print("❌ IFSC code cannot be empty.")
+            return disbursement_details
+
+        bank_name = input("Bank Name: ").strip()
+        if not bank_name:
+            print("❌ Bank name cannot be empty.")
+            return disbursement_details
+
+        account_type = input(
+            "Account Type (Savings/Current) [default: Savings]: "
+        ).strip()
+        if not account_type:
+            account_type = "Savings"
+
+        # Create new beneficiary
+        beneficiary = Beneficiary(
+            beneficiary_name=beneficiary_name,
+            account_number=account_number,
+            ifsc_code=ifsc_code,
+            bank_name=bank_name,
+            account_type=account_type,
+        )
+
+        # Add to account
+        account.add_beneficiary(beneficiary)
+
+        disbursement_details["beneficiary"] = beneficiary
+        disbursement_details["method"] = "bank_transfer"
+
+        print(f"✅ Beneficiary added: {beneficiary_name}")
+
+        return disbursement_details
 
     @staticmethod
     def close_account_menu(
@@ -228,6 +283,124 @@ class ClosureFormalities:
             print("❌ Account number does not match. Closure cancelled.")
             return False
 
+        # Disbursement method selection
+        print("\n" + "-" * 60)
+        print("DISBURSEMENT METHOD")
+        print("-" * 60)
+        print(f"Final Balance to Disburse: Rs. {account.balance:,.2f} INR")
+        print("\nSelect disbursement method:")
+        print("1️⃣  Issue Cheque")
+        print("2️⃣  Bank Transfer")
+
+        disbursement_method = input("\nEnter your choice (1 or 2): ").strip()
+
+        disbursement_details = {
+            "method": None,
+            "beneficiary": None,
+            "cheque_number": None,
+        }
+
+        if disbursement_method == "1":
+            disbursement_details["method"] = "cheque"
+            # Cheque number will be auto-assigned from cheque book manager
+            print("\n✅ Cheque Method Selected")
+            print(f"Amount: Rs. {account.balance:,.2f} INR")
+            print(f"Payable to: {account.first_name} {account.last_name}")
+            print("Cheque will be issued from your cheque book immediately.")
+
+        elif disbursement_method == "2":
+            print("\n" + "-" * 60)
+            print("BANK TRANSFER DETAILS")
+            print("-" * 60)
+
+            # Check for existing beneficiaries
+            if account.beneficiaries:
+                print("\nYour existing beneficiaries:")
+                for idx, ben in enumerate(account.beneficiaries, 1):
+                    print(
+                        f"{idx}. {ben.beneficiary_name} - {ben.account_number[-4:]} ({ben.bank_name})"
+                    )
+
+                print(f"{len(account.beneficiaries) + 1}. Add new beneficiary")
+                ben_choice = input("\nSelect beneficiary (enter number): ").strip()
+
+                try:
+                    ben_idx = int(ben_choice) - 1
+                    if 0 <= ben_idx < len(account.beneficiaries):
+                        disbursement_details["beneficiary"] = account.beneficiaries[
+                            ben_idx
+                        ]
+                        disbursement_details["method"] = "bank_transfer"
+                    elif ben_idx == len(account.beneficiaries):
+                        disbursement_details = (
+                            ClosureFormalities._add_new_beneficiary_for_closure(
+                                account, bank, disbursement_details
+                            )
+                        )
+                    else:
+                        print("❌ Invalid selection.")
+                        return False
+                except ValueError:
+                    print("❌ Invalid input.")
+                    return False
+            else:
+                # No existing beneficiaries - add new one
+                disbursement_details = (
+                    ClosureFormalities._add_new_beneficiary_for_closure(
+                        account, bank, disbursement_details
+                    )
+                )
+
+            if disbursement_details["beneficiary"] is None:
+                print("❌ No beneficiary selected. Closure cancelled.")
+                return False
+
+            # Validate account
+            beneficiary = disbursement_details["beneficiary"]
+            print("\n✅ Bank Transfer Method Selected")
+            print(f"Beneficiary: {beneficiary.beneficiary_name}")
+            print(f"Account: {beneficiary.account_number}")
+            print(f"IFSC: {beneficiary.ifsc_code}")
+            print(f"Bank: {beneficiary.bank_name}")
+            print(f"Amount: Rs. {account.balance:,.2f} INR")
+
+            # Check if account starts with 5621 (internal account)
+            if beneficiary.account_number.startswith("5621"):
+                print("\n🔍 Validating internal account...")
+                recipient_account = bank.find_account_by_number(
+                    beneficiary.account_number
+                )
+
+                if recipient_account:
+                    print(
+                        f"✅ Account found: {recipient_account.first_name} {recipient_account.last_name}"
+                    )
+                    print(f"   Account Type: {recipient_account.account_type}")
+                    print(
+                        f"   Current Balance: Rs. {recipient_account.balance:,.2f} INR"
+                    )
+                    print(
+                        f"   Updated Balance: Rs. {recipient_account.balance + account.balance:,.2f} INR"
+                    )
+                    disbursement_details["validated_internal"] = True
+                else:
+                    print(
+                        f"⚠️  WARNING: Cannot find internal account {beneficiary.account_number}"
+                    )
+                    confirm_transfer = (
+                        input("Proceed anyway? (yes/no): ").strip().lower()
+                    )
+                    if confirm_transfer not in ["yes", "y"]:
+                        print("Closure cancelled.")
+                        return False
+                    disbursement_details["validated_internal"] = False
+            else:
+                print("\n✅ External bank account - will be transferred via NEFT")
+
+        else:
+            print("❌ Invalid selection.")
+            return False
+
         # Final confirmation
         confirm3 = input("\nType 'CLOSE ACCOUNT' to finalize: ").strip()
 
@@ -237,7 +410,9 @@ class ClosureFormalities:
 
         # Process closure
         print("\n🔄 Processing account closure...")
-        success, message, cert_path = AccountClosureService.close_account(account, bank)
+        success, message, cert_path = AccountClosureService.close_account(
+            account, bank, disbursement_details
+        )
 
         if success:
             print("\n" + "=" * 60)

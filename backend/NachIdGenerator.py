@@ -1,7 +1,8 @@
 import os
+import random
 import threading
 from datetime import datetime
-import random
+
 
 class NachIdGenerator:
     _used_nach_ids = set()
@@ -11,13 +12,13 @@ class NachIdGenerator:
     @classmethod
     def _load_used_ids(cls):
         if os.path.exists(cls._storage_file):
-            with open(cls._storage_file, "r") as file:
+            with open(cls._storage_file, "r", encoding="utf-8") as file:
                 cls._used_nach_ids = set(line.strip() for line in file if line.strip())
 
     @classmethod
     def _save_used_ids(cls):
         os.makedirs(os.path.dirname(cls._storage_file), exist_ok=True)
-        with open(cls._storage_file, "w") as file:
+        with open(cls._storage_file, "w", encoding="utf-8") as file:
             for nach_id in cls._used_nach_ids:
                 file.write(nach_id + "\n")
 

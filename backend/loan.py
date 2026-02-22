@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Optional
 
 
 class Loan:
@@ -14,6 +15,8 @@ class Loan:
         approval_reason: str = "",
         start_date: date = None,
         closure_date: date = None,
+        nach_mandate_id: Optional[str] = None,  # NACH mandate for auto-deduction
+        loan_type: str = "PERSONAL",  # Loan type: PERSONAL, HOME, CAR, EDUCATION
     ):
         self.loan_id = loan_id
         self.customer_id = customer_id
@@ -25,6 +28,8 @@ class Loan:
         self.approval_reason = approval_reason
         self.start_date = start_date
         self.closure_date = closure_date
+        self.nach_mandate_id = nach_mandate_id  # NACH mandate link
+        self.loan_type = loan_type  # Loan type for tax deduction identification
 
     def calculate_emi(self) -> float:
         """Calculate monthly EMI using reducing balance method"""
@@ -35,6 +40,23 @@ class Loan:
             return P / n
         emi = (P * r * (1 + r) ** n) / ((1 + r) ** n - 1)
         return round(emi, 2)
+
+    def get_remaining_balance(self) -> float:
+        """Calculate remaining principal balance after EMIs paid"""
+        if self.emis_paid == 0:
+            return self.principal
+
+        emi = self.calculate_emi()
+        P = self.principal
+        r = self.interest_rate / (12 * 100)
+        n = self.emis_paid
+
+        if r == 0:
+            return P - (emi * n)
+
+        # Remaining balance = P * (1 + r)^n - EMI * [((1 + r)^n - 1) / r]
+        remaining = P * ((1 + r) ** n) - emi * (((1 + r) ** n - 1) / r)
+        return max(0, round(remaining, 2))
 
     def to_dict(self):
         return {
@@ -50,6 +72,8 @@ class Loan:
             "closure_date": self.closure_date.isoformat()
             if self.closure_date
             else None,
+            "nach_mandate_id": self.nach_mandate_id,
+            "loan_type": self.loan_type,
         }
 
     @staticmethod
@@ -69,4 +93,6 @@ class Loan:
             closure_date=date.fromisoformat(data["closure_date"])
             if data.get("closure_date")
             else None,
+            nach_mandate_id=data.get("nach_mandate_id"),
+            loan_type=data.get("loan_type", "PERSONAL"),
         )

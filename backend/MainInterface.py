@@ -42,12 +42,14 @@ def choose_clock_mode():
 
 def main():
     """Main entry point for the application"""
+
     try:
         # Choose clock mode at startup
         choose_clock_mode()
 
         # Start the banking app
         app = BankingApp()
+
         app.run()
 
     except KeyboardInterrupt:

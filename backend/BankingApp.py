@@ -1,20 +1,25 @@
 from datetime import date
-from typing import List
+from typing import Dict, List
 
 from Account import Account
 from Bank import Bank
 from BankClock import BankClock, switch_to_real_mode, switch_to_virtual_mode
 from Card import Card, CreditCard, DebitCard
+from Cheque import ChequeStatus
 from CIBIL import add_credit_inquiry, calculate_cibil_score
 from ClosureFormalities import ClosureFormalities
 from CreditEvaluator import CreditEvaluator
 from Customer import Customer
 from ExpenseSimulator import ExpenseSimulator
 from FixedDeposit import FixedDeposit
+from ITRFiling import ITRFiling
 from PasswordRecovery import PasswordRecoveryUI
 from RDStatement import RDStatement
 from RecurringBill import PaymentMethod, RecurringBill, RecurringBillFactory
 from RecurringDeposit import RecurringDeposit
+from TaxCalculator import TaxCalculator
+from TaxDeductionAnalyzer import TaxDeductionAnalyzer
+from TaxExemption import DeductionStatus, DeductionType, TaxExemption
 from Transaction import Transaction
 
 
@@ -37,15 +42,21 @@ class BankingApp:
                 print("Invalid date. Please use YYYY-MM-DD.")
 
     @staticmethod
-    def read_positive_double(prompt: str) -> float:
+    def read_positive_double(prompt: str, allow_zero: bool = False) -> float:
         """Read and validate a positive number"""
         while True:
             try:
                 value = float(input(prompt))
-                if value > 0:
-                    return value
+                if allow_zero:
+                    if value >= 0:
+                        return value
+                    else:
+                        print("Please enter a non-negative number.")
                 else:
-                    print("Please enter a positive number.")
+                    if value > 0:
+                        return value
+                    else:
+                        print("Please enter a positive number.")
             except ValueError:
                 print("Please enter a valid number.")
 
@@ -270,16 +281,18 @@ Customer ID: {customer.customer_id}
     13  View Expense Analysis
     14  Loan Menu
     15  Card Management
-    16  Close Card
-    17  Close Account
-    18  Fixed Deposit and Recurring Deposit
-    19  Change Clock Mode
-    20  Logout
+    16  Cheque Management
+    17  Close Card
+    18  Close Account
+    19  Fixed Deposit and Recurring Deposit
+    20  Change Clock Mode
+    21  Tax Planning & Exemptions 📊
+    22  Logout
             """)
             menu_choice = self.read_valid_choice(
                 "Enter your choice: ",
-                [str(i) for i in range(1, 21)],
-                "Invalid choice. Please enter a number from 1 to 20.",
+                [str(i) for i in range(1, 23)],
+                "Invalid choice. Please enter a number from 1 to 22.",
             )
 
             if menu_choice == "1":
@@ -313,19 +326,23 @@ Customer ID: {customer.customer_id}
             elif menu_choice == "15":
                 self.card_management_menu(selected_account)
             elif menu_choice == "16":
-                ClosureFormalities.close_card_menu(selected_account, self.bank)
+                self.cheque_management_menu(selected_account)
             elif menu_choice == "17":
+                ClosureFormalities.close_card_menu(selected_account, self.bank)
+            elif menu_choice == "18":
                 closure_success = ClosureFormalities.close_account_menu(
                     selected_account, customer, accounts, self.bank
                 )
                 if closure_success:
                     # Account was closed, exit to main menu
                     active = False
-            elif menu_choice == "18":
-                self.fd_rd_menu(customer, selected_account)  # ✅ FIX: Added ()
             elif menu_choice == "19":
-                self.change_clock_mode()
+                self.fd_rd_menu(customer, selected_account)  # ✅ FIX: Added ()
             elif menu_choice == "20":
+                self.change_clock_mode()
+            elif menu_choice == "21":
+                self.tax_planning_menu(customer, selected_account)
+            elif menu_choice == "22":
                 print("Logged out successfully.")
                 active = False
 
@@ -387,6 +404,588 @@ Customer ID: {customer.customer_id}
 
             else:
                 print("Invalid choice")
+
+    # ========== CHEQUE MANAGEMENT ==========
+
+    def cheque_management_menu(self, account: Account):
+        """Cheque management submenu"""
+        while True:
+            print("\n" + "=" * 50)
+            print("CHEQUE MANAGEMENT")
+            print("=" * 50)
+            print("1. Issue Cheque")
+            print("2. View Cheque Book Status")
+            print("3. View Cheque History")
+            print("4. Present Cheque for Clearing")
+            print("5. Deposit Cheque from Another Account")
+            print("6. Cancel Cheque")
+            print("7. Back to Main Menu")
+            print("=" * 50)
+
+            choice = input("Enter your choice: ").strip()
+
+            if choice == "1":
+                self.issue_cheque(account)
+
+            elif choice == "2":
+                account.get_cheque_book_status()
+
+            elif choice == "3":
+                self.view_cheque_history(account)
+
+            elif choice == "4":
+                self.present_cheque_for_clearing(account)
+
+            elif choice == "5":
+                self.deposit_cheque_from_other_account(account)
+
+            elif choice == "6":
+                self.cancel_cheque(account)
+
+            elif choice == "7":
+                break
+
+            else:
+                print("Invalid choice")
+
+    def issue_cheque(self, account: Account):
+        """Issue a new cheque from the account"""
+        print("\n" + "=" * 60)
+        print("ISSUE CHEQUE")
+        print("=" * 60)
+
+        # Get unused cheque number
+        active_book = account.cheque_book_manager.get_active_cheque_book()
+        if not active_book:
+            print("\n[INFO] Creating new cheque book...")
+            # Allocate numbers from bank's global counter
+            starting_number = self.bank.allocate_cheque_numbers(50)
+            account.cheque_book_manager.create_and_issue_cheque_book(starting_number)
+            active_book = account.cheque_book_manager.get_active_cheque_book()
+
+        unused_cheques = active_book.get_unused_cheques()
+        if not unused_cheques:
+            print("\n[INFO] Current cheque book fully used. Creating new book...")
+            # Allocate numbers from bank's global counter
+            starting_number = self.bank.allocate_cheque_numbers(50)
+            account.cheque_book_manager.create_and_issue_cheque_book(starting_number)
+            active_book = account.cheque_book_manager.get_active_cheque_book()
+            unused_cheques = active_book.get_unused_cheques()
+
+        if not unused_cheques:
+            print("\n[ERROR] Cannot create new cheque book.")
+            return
+
+        cheque_number = unused_cheques[0].cheque_number
+
+        print(f"\nCheque Number: {cheque_number}")
+        print(f"Available Balance: Rs. {account.balance:,.2f} INR")
+
+        # Get cheque details
+        try:
+            amount = float(input("Enter cheque amount (Rs.): ").strip())
+            if amount <= 0:
+                print("[ERROR] Amount must be greater than 0")
+                return
+            if amount > 10000000:  # Reasonable limit
+                print("[ERROR] Amount exceeds maximum limit")
+                return
+
+            payee_name = input("Enter payee name: ").strip()
+            if not payee_name:
+                print("[ERROR] Payee name cannot be empty")
+                return
+
+            print("\nSelect presentable date:")
+            print("1. Today")
+            print("2. Custom date (YYYY-MM-DD format)")
+            date_choice = input("Enter choice (1 or 2): ").strip()
+
+            if date_choice == "1":
+                from BankClock import BankClock
+
+                date_presentable = BankClock.today().isoformat()
+            elif date_choice == "2":
+                date_presentable = input("Enter date (YYYY-MM-DD): ").strip()
+                # Validate date format
+                try:
+                    from datetime import datetime
+
+                    datetime.strptime(date_presentable, "%Y-%m-%d")
+                except ValueError:
+                    print("[ERROR] Invalid date format")
+                    return
+            else:
+                print("[ERROR] Invalid choice")
+                return
+
+            # Issue the cheque
+            cheque_id = account.issue_cheque(
+                cheque_number, amount, payee_name, date_presentable
+            )
+
+            print("\n" + "=" * 60)
+            print("[SUCCESS] CHEQUE ISSUED")
+            print("=" * 60)
+            print(f"Cheque ID: {cheque_id}")
+            print(f"Cheque Number: {cheque_number}")
+            print(f"Amount: Rs. {amount:,.2f} INR")
+            print(f"Payee: {payee_name}")
+            print(f"Presentable From: {date_presentable}")
+            print("=" * 60)
+
+            self.bank.save()
+            # Force reload account with fresh transactions from storage
+            self.bank.reload_account_with_transactions(account.account_number)
+
+        except ValueError:
+            print("[ERROR] Invalid amount entered")
+
+    def view_cheque_history(self, account: Account):
+        """View cheque history for the account"""
+        print("\n" + "=" * 60)
+        print("CHEQUE HISTORY")
+        print("=" * 60)
+
+        cheque_books = account.cheque_book_manager.get_all_cheque_books()
+        if not cheque_books:
+            print("\nNo cheque books found for this account.")
+            return
+
+        total_issued = 0
+        total_cleared = 0
+        total_bounced = 0
+
+        for book in cheque_books:
+            for cheque in book.cheques.values():
+                if cheque.status == ChequeStatus.ISSUED:
+                    total_issued += 1
+                elif cheque.status == ChequeStatus.CLEARED:
+                    total_cleared += 1
+                elif cheque.status == ChequeStatus.BOUNCED:
+                    total_bounced += 1
+
+        print(f"\nTotal Cheques Issued: {total_issued}")
+        print(f"Total Cleared: {total_cleared}")
+        print(f"Total Bounced: {total_bounced}")
+
+        # Show recent cheques
+        all_cheques = []
+        for book in cheque_books:
+            for cheque in book.cheques.values():
+                if cheque.amount > 0:  # Only show cheques that have been issued
+                    all_cheques.append(cheque)
+
+        if all_cheques:
+            print("\n" + "-" * 60)
+            print("Recent Cheques:")
+            print("-" * 60)
+            # Show last 10 cheques
+            for cheque in all_cheques[-10:]:
+                print(f"\nCheque: {cheque.cheque_number} (ID: {cheque.cheque_id})")
+                print(f"  Status: {cheque.status.value}")
+                print(f"  Payee: {cheque.payee_name}")
+                print(f"  Amount: Rs. {cheque.amount:,.2f}")
+                print(f"  Presentable: {cheque.date_presentable}")
+                if cheque.status == ChequeStatus.BOUNCED:
+                    print(f"  Bounce Reason: {cheque.bounce_reason}")
+
+    def present_cheque_for_clearing(self, account: Account):
+        """Present cheque for clearing/payment"""
+        print("\n" + "=" * 60)
+        print("PRESENT CHEQUE FOR CLEARING")
+        print("=" * 60)
+
+        # Get all issued cheques
+        cheque_books = account.cheque_book_manager.get_all_cheque_books()
+        if not cheque_books:
+            print("\nNo cheque books found for this account.")
+            return
+
+        issued_cheques = []
+        for book in cheque_books:
+            for cheque in book.cheques.values():
+                if cheque.status == ChequeStatus.ISSUED and cheque.amount > 0:
+                    issued_cheques.append((cheque, book))
+
+        if not issued_cheques:
+            print("\nNo issued cheques available for clearing.")
+            return
+
+        # Display issued cheques
+        print("\nAvailable cheques for clearing:\n")
+        for idx, (cheque, book) in enumerate(issued_cheques, 1):
+            print(
+                f"{idx}. {cheque.cheque_number} | Payee: {cheque.payee_name} | "
+                f"Amount: Rs. {cheque.amount:,.2f} | Date: {cheque.date_presentable}"
+            )
+
+        try:
+            choice = input(
+                "\nSelect cheque by number or list index (or press ESC to cancel): "
+            ).strip()
+            if not choice or choice.lower() == "esc":
+                return
+
+            # Find the selected cheque (by index or cheque number)
+            selected_cheque = None
+            selected_book = None
+
+            # Try as index first
+            try:
+                idx = int(choice) - 1  # Convert 1-based to 0-based
+                if 0 <= idx < len(issued_cheques):
+                    selected_cheque, selected_book = issued_cheques[idx]
+            except ValueError:
+                pass
+
+            # If not found by index, try by cheque number
+            if not selected_cheque:
+                for cheque, book in issued_cheques:
+                    if cheque.cheque_number == choice:
+                        selected_cheque = cheque
+                        selected_book = book
+                        break
+
+            if not selected_cheque:
+                print(
+                    "[ERROR] Cheque not found. Please enter a valid index or cheque number."
+                )
+                return
+
+            # Check if cheque is presentable
+            if not selected_cheque.is_presentable():
+                print(
+                    "\n[ERROR] Cheque is not yet presentable or is stale (> 6 months old)"
+                )
+                return
+
+            # Present the cheque
+            print(f"\nProcessing cheque {selected_cheque.cheque_number}...")
+            is_cleared = self.bank.present_cheque_for_clearing(
+                account, selected_cheque.cheque_id
+            )
+
+            if is_cleared:
+                # Update cheque status to CLEARED
+                selected_cheque.status = ChequeStatus.CLEARED
+                print("\n" + "=" * 60)
+                print("[SUCCESS] CHEQUE CLEARED")
+                print("=" * 60)
+                print(f"Cheque Number: {selected_cheque.cheque_number}")
+                print(f"Amount: Rs. {selected_cheque.amount:,.2f}")
+                print(f"Payee: {selected_cheque.payee_name}")
+                print("Status: CLEARED")
+                print("=" * 60)
+
+            else:
+                # Update cheque status to BOUNCED
+                selected_cheque.status = ChequeStatus.BOUNCED
+                selected_cheque.bounce_reason = (
+                    "Insufficient balance or presentation issue"
+                )
+                print("\n" + "=" * 60)
+                print("[BOUNCED] CHEQUE PRESENTATION FAILED")
+                print("=" * 60)
+                print(f"Cheque Number: {selected_cheque.cheque_number}")
+                print(f"Amount: Rs. {selected_cheque.amount:,.2f}")
+                print(f"Payee: {selected_cheque.payee_name}")
+                print("Status: BOUNCED")
+                print("Fee Deducted: Rs. 500")
+                print("\n*** CIBIL IMPACT WARNING ***")
+                print("Bounce recorded and CIBIL score reduced.")
+                print("Check CIBIL report for complete impact.")
+                print("=" * 60)
+
+            self.bank.save()
+            # Force reload account with fresh transactions from storage
+            self.bank.reload_account_with_transactions(account.account_number)
+
+        except Exception as e:
+            print(f"[ERROR] {str(e)}")
+
+    def deposit_cheque_from_other_account(self, account: Account):
+        """Deposit a cheque issued by another account into this account"""
+        print("\n" + "=" * 60)
+        print("DEPOSIT CHEQUE FROM ANOTHER ACCOUNT")
+        print("=" * 60)
+
+        try:
+            # Load transactions if needed
+            account._load_transactions_if_needed()
+
+            cheque_number = input("\nEnter cheque number to deposit: ").strip()
+            if not cheque_number:
+                print("[ERROR] Cheque number cannot be empty")
+                return
+
+            # Search all accounts for this cheque
+            found_cheque = None
+            issuing_account = None
+
+            for acc in self.bank.accounts:
+                # Load transactions for all accounts
+                acc._load_transactions_if_needed()
+
+                cheque_books = acc.cheque_book_manager.get_all_cheque_books()
+                for book in cheque_books:
+                    for cheque in book.cheques.values():
+                        if cheque.cheque_number == cheque_number:
+                            found_cheque = cheque
+                            issuing_account = acc
+                            break
+                    if found_cheque:
+                        break
+                if found_cheque:
+                    break
+
+            if not found_cheque:
+                print(f"[ERROR] Cheque {cheque_number} not found in any account")
+                return
+
+            # DEBUG: Verify account reference
+            print(
+                f"\n[DEBUG] Found cheque in account: {issuing_account.account_number}"
+            )
+            is_same = False
+            for acc in self.bank.accounts:
+                if acc.account_number == issuing_account.account_number:
+                    is_same = acc is issuing_account
+                    print(
+                        f"[DEBUG] Account is {'SAME' if is_same else 'DIFFERENT'} object in bank.accounts"
+                    )
+                    break
+
+            # Verify cheque status
+            if found_cheque.status != ChequeStatus.ISSUED:
+                print(f"[ERROR] Cheque is {found_cheque.status.value}, cannot deposit")
+                return
+
+            # Verify cheque is presentable
+            if not found_cheque.is_presentable():
+                print(
+                    "[ERROR] Cheque is not yet presentable or is stale (> 6 months old)"
+                )
+                return
+
+            # Display cheque details
+            print("\n" + "-" * 60)
+            print(f"Cheque Number: {found_cheque.cheque_number}")
+            print(
+                f"Issued By: {issuing_account.first_name} {issuing_account.last_name} ({issuing_account.account_number})"
+            )
+            print(f"Payee: {found_cheque.payee_name}")
+            print(f"Amount: Rs. {found_cheque.amount:,.2f}")
+            print(f"Presentable Date: {found_cheque.date_presentable}")
+            print("-" * 60)
+
+            # Validate payee matches account holder
+            depositor_name = f"{account.first_name} {account.last_name}"
+            if found_cheque.payee_name.lower() != depositor_name.lower():
+                print(
+                    f"\n[ERROR] Cheque is payable to '{found_cheque.payee_name}', not '{depositor_name}'"
+                )
+                print("Cheque can only be deposited by the payee.")
+                return
+
+            # Confirm deposit
+            confirm = (
+                input(
+                    f"\nDeposit cheque for Rs. {found_cheque.amount:,.2f}? (yes/no): "
+                )
+                .strip()
+                .lower()
+            )
+            if confirm != "yes":
+                print("Deposit cancelled")
+                return
+
+            # Process deposit
+            # 1. Deduct from issuing account
+            if issuing_account.balance < found_cheque.amount:
+                # Bounce the cheque
+                found_cheque.status = ChequeStatus.BOUNCED
+                found_cheque.bounce_reason = "Insufficient balance in issuing account"
+                self.bank.save()
+                print("\n[BOUNCED] Insufficient balance in issuing account")
+                return
+
+            # 2. Deduct from issuing account
+            issuing_account.balance -= found_cheque.amount
+            issuing_account.transactions.append(
+                Transaction(
+                    type="CHEQUE_CLEARED",
+                    amount=found_cheque.amount,
+                    resulting_balance=issuing_account.balance,
+                    cheque_id=found_cheque.cheque_id,
+                    metadata=f"Cheque deposited to {account.account_number}",
+                )
+            )
+
+            # 3. Credit to depositing account
+            account.balance += found_cheque.amount
+            account.transactions.append(
+                Transaction(
+                    type="CHEQUE_DEPOSITED",
+                    amount=found_cheque.amount,
+                    resulting_balance=account.balance,
+                    cheque_id=found_cheque.cheque_id,
+                    metadata=f"Cheque from {issuing_account.account_number}",
+                )
+            )
+
+            # 4. Mark cheque as cleared
+            found_cheque.status = ChequeStatus.CLEARED
+
+            # DEBUG: Show transaction counts before save
+            print("\n[DEBUG] Before save:")
+            print(
+                f"  Depositing account ({account.account_number}): {len(account.transactions)} transactions"
+            )
+            if account.transactions:
+                print(f"    Last: {account.transactions[-1].type}")
+            print(
+                f"  Issuing account ({issuing_account.account_number}): {len(issuing_account.transactions)} transactions"
+            )
+            if issuing_account.transactions:
+                print(f"    Last: {issuing_account.transactions[-1].type}")
+
+            # Save all changes
+            self.bank.save()
+
+            # DEBUG: Show transaction counts after save
+            print("\n[DEBUG] After save, before reload:")
+            print(f"  Depositing account: {len(account.transactions)} transactions")
+            print(
+                f"  Issuing account: {len(issuing_account.transactions)} transactions"
+            )
+
+            # Force reload both accounts with fresh transactions from storage
+            self.bank.reload_account_with_transactions(account.account_number)
+            self.bank.reload_account_with_transactions(issuing_account.account_number)
+
+            # DEBUG: Show transaction counts after reload
+            print("\n[DEBUG] After reload:")
+            print(f"  Depositing account: {len(account.transactions)} transactions")
+            if account.transactions:
+                print(f"    Last: {account.transactions[-1].type}")
+            print(
+                f"  Issuing account: {len(issuing_account.transactions)} transactions"
+            )
+            if issuing_account.transactions:
+                print(f"    Last: {issuing_account.transactions[-1].type}")
+
+            # Show success
+            print("\n" + "=" * 60)
+            print("[SUCCESS] CHEQUE DEPOSITED")
+            print("=" * 60)
+            print(f"Cheque Number: {found_cheque.cheque_number}")
+            print(f"Amount: Rs. {found_cheque.amount:,.2f}")
+            print(f"Deposited to: {account.account_number}")
+            print(f"New Balance: Rs. {account.balance:,.2f}")
+            print("=" * 60)
+
+        except Exception as e:
+            print(f"[ERROR] {str(e)}")
+
+    def cancel_cheque(self, account: Account):
+        """Cancel an issued cheque before it's cleared"""
+        print("\n" + "=" * 60)
+        print("CANCEL CHEQUE")
+        print("=" * 60)
+
+        # Get all issued cheques from this account
+        cheque_books = account.cheque_book_manager.get_all_cheque_books()
+        if not cheque_books:
+            print("\nNo cheque books found for this account.")
+            return
+
+        issued_cheques = []
+        for book in cheque_books:
+            for cheque in book.cheques.values():
+                # Can only cancel ISSUED cheques (not cleared, bounced, or already cancelled)
+                if cheque.status == ChequeStatus.ISSUED and cheque.amount > 0:
+                    issued_cheques.append((cheque, book))
+
+        if not issued_cheques:
+            print("\nNo issued cheques available to cancel.")
+            return
+
+        # Display issued cheques
+        print("\nCheques available for cancellation:\n")
+        for idx, (cheque, book) in enumerate(issued_cheques, 1):
+            print(
+                f"{idx}. {cheque.cheque_number} | Payee: {cheque.payee_name} | "
+                f"Amount: Rs. {cheque.amount:,.2f} | Date: {cheque.date_presentable}"
+            )
+
+        try:
+            choice = input(
+                "\nSelect cheque by number or list index (or press ESC to cancel): "
+            ).strip()
+            if not choice or choice.lower() == "esc":
+                return
+
+            # Find the selected cheque (by index or cheque number)
+            selected_cheque = None
+
+            # Try as index first
+            try:
+                idx = int(choice) - 1  # Convert 1-based to 0-based
+                if 0 <= idx < len(issued_cheques):
+                    selected_cheque, _ = issued_cheques[idx]
+            except ValueError:
+                pass
+
+            # If not found by index, try by cheque number
+            if not selected_cheque:
+                for cheque, book in issued_cheques:
+                    if cheque.cheque_number == choice:
+                        selected_cheque = cheque
+                        break
+
+            if not selected_cheque:
+                print(
+                    "[ERROR] Cheque not found. Please enter a valid index or cheque number."
+                )
+                return
+
+            # Confirm cancellation
+            print("\n" + "-" * 60)
+            print(f"Cheque Number: {selected_cheque.cheque_number}")
+            print(f"Payee: {selected_cheque.payee_name}")
+            print(f"Amount: Rs. {selected_cheque.amount:,.2f}")
+            print("-" * 60)
+
+            confirm = (
+                input(f"\nCancel cheque {selected_cheque.cheque_number}? (yes/no): ")
+                .strip()
+                .lower()
+            )
+            if confirm != "yes":
+                print("Cancellation cancelled")
+                return
+
+            # Cancel the cheque
+            selected_cheque.status = ChequeStatus.CANCELLED
+            selected_cheque.cancellation_reason = "Cancelled by account holder"
+
+            # Save changes
+            self.bank.save()
+            # Force reload account with fresh transactions from storage
+            self.bank.reload_account_with_transactions(account.account_number)
+
+            # Show success
+            print("\n" + "=" * 60)
+            print("[SUCCESS] CHEQUE CANCELLED")
+            print("=" * 60)
+            print(f"Cheque Number: {selected_cheque.cheque_number}")
+            print(f"Amount: Rs. {selected_cheque.amount:,.2f}")
+            print("Status: CANCELLED")
+            print("=" * 60)
+
+        except Exception as e:
+            print(f"[ERROR] {str(e)}")
 
     def request_credit_limit_enhancement(self, account: Account):
         """Request credit limit enhancement for a credit card"""
@@ -978,6 +1577,38 @@ Customer ID: {customer.customer_id}
     # ========== LOAN MENU AND OPERATIONS ==========
 
     def loan_menu(self, customer: Customer, account: Account):
+        # Check for loans that might need type update (large loans likely to be home loans)
+        loans = self.bank.get_loans_for_customer(customer.customer_id)
+        # Consider loans over 10 lakhs as potentially home loans
+        loans_needing_type = [
+            loan
+            for loan in loans
+            if getattr(loan, "loan_type", "PERSONAL") == "PERSONAL"
+            and loan.status == "Active"
+            and loan.principal >= 1000000  # 10 lakhs or more
+        ]
+
+        if loans_needing_type:
+            print("\n" + "⚠" * 30)
+            print("⚠️  IMPORTANT: LOAN TYPE UPDATE RECOMMENDED")
+            print("⚠" * 30)
+            print(
+                f"\n📋 You have {len(loans_needing_type)} large loan(s) (₹10L+) marked as PERSONAL."
+            )
+            print("   If any of these are HOME loans, you can claim tax benefits:")
+            print("   • HOME loans: Up to ₹2,00,000 interest deduction (Section 24)")
+
+            for loan in loans_needing_type:
+                emi = loan.calculate_emi()
+                print(
+                    f"\n   • Loan {loan.loan_id}: ₹{loan.principal:,.2f} | EMI: ₹{emi:,.2f}/month"
+                )
+
+            print(
+                "\n💡 Tip: Use option 7 (Update Loan Type) to classify your loans correctly."
+            )
+            input("\nPress Enter to continue...")
+
         while True:
             print("""
 Loan Menu:
@@ -985,11 +1616,13 @@ Loan Menu:
 2  View My Loans
 3  Pay Loan EMI
 4  CIBIL Score Report
-5  Generate Loan Closure Certificate                  
-6  Back to Account Menu
+5  Generate Loan Closure Certificate
+6  NACH Mandate Management
+7  Update Loan Type (for tax deductions)
+8  Back to Account Menu
             """)
             choice = self.read_valid_choice(
-                "Enter choice: ", ["1", "2", "3", "4", "5", "6"]
+                "Enter choice: ", ["1", "2", "3", "4", "5", "6", "7", "8"]
             )
             if choice == "1":
                 self.apply_for_loan(customer, account)
@@ -1002,14 +1635,132 @@ Loan Menu:
             elif choice == "5":
                 self.generate_loan_closure_certificate(customer, account)
             elif choice == "6":
+                self.loan_nach_mandate_menu(customer, account)
+            elif choice == "7":
+                self.update_loan_type(customer, account)
+            elif choice == "8":
                 break
+
+    def update_loan_type(self, customer: Customer, account: Account):
+        """Update the loan type for existing loans to enable proper tax deductions"""
+        print("\n" + "=" * 60)
+        print("UPDATE LOAN TYPE FOR TAX DEDUCTIONS")
+        print("=" * 60)
+        print("""
+ℹ️  Loan types are important for tax deductions:
+   • HOME loans: Interest deduction up to ₹2,00,000 (Section 24)
+   • PERSONAL loans: No tax benefit
+   • CAR loans: No direct tax benefit (business use may qualify)
+   • EDUCATION loans: Interest deduction (Section 80E)
+        """)
+
+        # Get all loans for customer
+        loans = self.bank.get_loans_for_customer(customer.customer_id)
+        if not loans:
+            print("❌ You have no loans on record.")
+            input("\nPress Enter to continue...")
+            return
+
+        # Show all loans with their current types
+        print("\n📋 YOUR LOANS:")
+        print("=" * 60)
+        for idx, loan in enumerate(loans, 1):
+            loan_type = getattr(loan, "loan_type", "PERSONAL")
+            emi = loan.calculate_emi()
+            remaining = (
+                loan.get_remaining_balance()
+                if hasattr(loan, "get_remaining_balance")
+                else loan.principal
+            )
+
+            print(f"\n{idx}. Loan ID: {loan.loan_id}")
+            print(f"   Type: {loan_type}")
+            print(f"   Principal: ₹{loan.principal:,.2f}")
+            print(f"   Remaining Balance: ₹{remaining:,.2f}")
+            print(f"   EMI: ₹{emi:,.2f}/month")
+            print(f"   Status: {loan.status}")
+            print(f"   EMIs Paid: {loan.emis_paid}/{loan.tenure_months}")
+
+        print("\n" + "=" * 60)
+
+        # Select loan to update
+        loan_choices = [str(i) for i in range(1, len(loans) + 1)]
+        loan_choices.append("0")  # Option to cancel
+
+        choice = self.read_valid_choice(
+            f"\nSelect loan to update (1-{len(loans)}, 0 to cancel): ", loan_choices
+        )
+
+        if choice == "0":
+            print("Cancelled.")
+            return
+
+        selected_loan = loans[int(choice) - 1]
+        current_type = getattr(selected_loan, "loan_type", "PERSONAL")
+
+        print(
+            f"\n📌 Selected: Loan {selected_loan.loan_id} (Current Type: {current_type})"
+        )
+        print("\nSelect New Loan Type:")
+        print("1. PERSONAL - Personal loans (no tax benefit)")
+        print("2. HOME - Housing/Home loans (₹2L interest deduction)")
+        print("3. CAR - Vehicle loans (no direct tax benefit)")
+        print("4. EDUCATION - Education loans (interest deduction, no limit)")
+
+        type_choice = self.read_valid_choice(
+            "\nEnter choice (1-4): ", ["1", "2", "3", "4"]
+        )
+
+        loan_type_map = {"1": "PERSONAL", "2": "HOME", "3": "CAR", "4": "EDUCATION"}
+
+        new_type = loan_type_map[type_choice]
+
+        # Update the loan type
+        selected_loan.loan_type = new_type
+
+        # Save changes
+        self.bank.save()
+
+        print("\n" + "=" * 60)
+        print("✅ LOAN TYPE UPDATED SUCCESSFULLY!")
+        print("=" * 60)
+        print(f"Loan ID: {selected_loan.loan_id}")
+        print(f"Previous Type: {current_type}")
+        print(f"New Type: {new_type}")
+
+        if new_type == "HOME":
+            remaining = (
+                selected_loan.get_remaining_balance()
+                if hasattr(selected_loan, "get_remaining_balance")
+                else selected_loan.principal
+            )
+            monthly_rate = selected_loan.interest_rate / 100 / 12
+            monthly_interest = remaining * monthly_rate
+            annual_interest = monthly_interest * 12
+            deduction = min(annual_interest, 200000)
+
+            print("\n💰 TAX BENEFIT ESTIMATE (Section 24):")
+            print(f"   Annual Interest: ₹{annual_interest:,.2f}")
+            print(f"   Deduction Eligible: ₹{deduction:,.2f}")
+            print(f"   Tax Savings (30% bracket): ₹{deduction * 0.30:,.2f}/year")
+
+        print("\nℹ️  Tax deductions will now be automatically detected in the")
+        print("   Tax Planning & Exemptions menu.")
+
+        input("\nPress Enter to continue...")
 
     def apply_for_loan(self, customer: Customer, account: Account):
         print("\n=== Loan Application ===")
-        if not getattr(customer, "salary", None):
+
+        # Get salary from account's salary profile if available
+        if account.salary_profile:
+            customer.salary = account.salary_profile.gross_salary
+            print(f"✓ Salary Profile Found: Rs {customer.salary:,.2f}/month")
+        else:
             customer.salary = self.read_positive_double(
                 "Enter your Net Monthly Salary: "
             )
+
         if not getattr(customer, "employer_name", None):
             customer.employer_name = input("Enter your Employer Name: ").strip()
         if not getattr(customer, "employer_type", None):
@@ -1045,18 +1796,32 @@ Loan Menu:
 
         print(f"✓ Your current CIBIL Score: {customer.cibil_score} ({rating})")
 
+        # Ask for loan type
+        print("\nSelect Loan Type:")
+        print("1. Personal Loan")
+        print("2. Home Loan")
+        print("3. Car Loan")
+        print("4. Education Loan")
+        loan_type_choice = self.read_valid_choice(
+            "Enter choice (1-4): ", ["1", "2", "3", "4"]
+        )
+        loan_type_map = {"1": "PERSONAL", "2": "HOME", "3": "CAR", "4": "EDUCATION"}
+        loan_type = loan_type_map[loan_type_choice]
+        print(f"✓ Loan Type: {loan_type}")
+
         principal = self.read_positive_double("\nEnter principal amount (Rs): ")
         interest_rate = self.read_positive_double("Enter annual interest rate (%): ")
         tenure_months = int(self.read_positive_double("Enter tenure (months): "))
 
         approved, loan, msg = self.bank.evaluate_and_add_loan(
-            customer, principal, interest_rate, tenure_months, account
+            customer, principal, interest_rate, tenure_months, account, loan_type
         )
         if approved:
             print(
                 f"\n✔ Loan approved! Amount Rs.{principal:,.2f} credited to your account."
             )
             print(f"Loan ID: {loan.loan_id} | EMI: Rs.{loan.calculate_emi():.2f}/month")
+            print(f"Interest Rate: {loan.interest_rate:.2f}% p.a.")
         else:
             print(f"\n❌ Loan denied: {msg}")
 
@@ -1483,6 +2248,9 @@ Choose transfer mode:
             print(message)
 
             if foreign_account:
+                # Load transactions if needed
+                foreign_account._load_transactions_if_needed()
+
                 print("\n💰 Foreign account credited successfully")
                 print(
                     f"   New balance: {foreign_account.balance:,.2f} {foreign_account.currency}"
@@ -1618,6 +2386,9 @@ Choose transfer mode:
         account = self.bank.international_registry.find_account_by_number(account_num)
 
         if account:
+            # Load transactions if needed
+            account._load_transactions_if_needed()
+
             print("\n✓ ACCOUNT FOUND")
             print("=" * 70)
             print(f"Holder: {account.account_holder}")
@@ -1825,7 +2596,7 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
             print("\n💎 REWARD EARNINGS")
             print(f"   Monthly rewards: {int(total_monthly_rewards)} points")
             print(f"   Annual rewards: {int(total_annual_rewards)} points")
-            print(f"   Estimated value: Rs. {int(total_annual_rewards * 0.25):,.2f}")
+            print(f"   Estimated value: Rs. {int(total_annual_rewards):,.2f}")
 
             print("\n   Top reward earners:")
             for name, rewards, network in sorted(
@@ -1870,7 +2641,10 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
         input("\nPress Enter to continue...")
 
     def show_rewards_dashboard(self, account: Account):
-        """Show rewards earned from paying bills via credit card"""
+        """Show rewards earned from credit card purchases"""
+        # Load transactions if needed
+        account._load_transactions_if_needed()
+
         print("\n" + "=" * 80)
         print(f"{'💎 REWARDS DASHBOARD':^80}")
         print("=" * 80)
@@ -1878,59 +2652,116 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
         total_lifetime_rewards = 0
         monthly_rewards = 0
         rewards_by_card = {}
+        transaction_count = 0
 
-        # Analyze transactions
+        # Helper function to extract reward points from metadata
+        def get_reward_points(metadata):
+            """Extract reward points from metadata (string or dict)"""
+            if not metadata:
+                return 0
+
+            if isinstance(metadata, dict):
+                return metadata.get("reward_points_earned", 0) or metadata.get(
+                    "rewardPoints", 0
+                )
+
+            if isinstance(metadata, str):
+                # Parse metadata string like "billId=BILL1001;cardId=CARD670795177;rewardPoints=14;nachId=..."
+                try:
+                    pairs = metadata.split(";")
+                    for pair in pairs:
+                        if "=" in pair:
+                            key, value = pair.split("=", 1)
+                            if key.strip() == "rewardPoints":
+                                return int(value.strip())
+                except:
+                    pass
+            return 0
+
+        # Analyze transactions - look for CREDIT_CARD_PURCHASE and CREDIT_CARD_BILL_PAYMENT transactions
         for txn in account.transactions:
-            if txn.type == "CREDIT_CARD_BILL_PAYMENT":
-                if hasattr(txn, "metadata") and isinstance(txn.metadata, dict):
-                    if "reward_points_earned" in txn.metadata:
-                        points = txn.metadata["reward_points_earned"]
-                        total_lifetime_rewards += points
+            points = 0
 
-                        card_id = txn.metadata.get("card_id", "Unknown")
-                        if card_id not in rewards_by_card:
-                            rewards_by_card[card_id] = 0
-                        rewards_by_card[card_id] += points
+            # Check for purchase rewards OR bill payment rewards
+            if txn.type in ["CREDIT_CARD_PURCHASE", "CREDIT_CARD_BILL_PAYMENT"]:
+                points = get_reward_points(txn.metadata)
+                if points > 0:
+                    transaction_count += 1
+                    total_lifetime_rewards += points
+
+                    # Try to extract card_id from metadata
+                    card_id = "Unknown"
+                    if isinstance(txn.metadata, dict):
+                        card_id = txn.metadata.get("cardId", "Unknown")
+                    elif isinstance(txn.metadata, str):
+                        try:
+                            pairs = txn.metadata.split(";")
+                            for pair in pairs:
+                                if "cardId=" in pair:
+                                    card_id = pair.split("=")[1].strip()
+                        except:
+                            pass
+
+                    if card_id not in rewards_by_card:
+                        rewards_by_card[card_id] = {"points": 0, "count": 0}
+                    rewards_by_card[card_id]["points"] += points
+                    rewards_by_card[card_id]["count"] += 1
 
         # Calculate this month's rewards
-        current_month = BankClock.get_formatted_date()[3:10]  # MM-YYYY
+        from datetime import datetime
+
+        current_month = datetime.now().strftime("%m-%Y")
 
         for txn in account.transactions:
-            if txn.type == "CREDIT_CARD_BILL_PAYMENT":
-                txn_month = txn.timestamp[3:10]
-                if (
-                    txn_month == current_month
-                    and hasattr(txn, "metadata")
-                    and isinstance(txn.metadata, dict)
-                ):
-                    if "reward_points_earned" in txn.metadata:
-                        monthly_rewards += txn.metadata["reward_points_earned"]
+            if txn.type in ["CREDIT_CARD_PURCHASE", "CREDIT_CARD_BILL_PAYMENT"]:
+                try:
+                    # Parse transaction timestamp to get month
+                    # Timestamp format: "DD-MM-YYYY HH:MM:SS"
+                    txn_date_part = txn.timestamp.split()[0]  # Get "DD-MM-YYYY"
+                    txn_month = txn_date_part[3:10]  # Get "MM-YYYY"
+                    if txn_month == current_month:
+                        points = get_reward_points(txn.metadata)
+                        if points > 0:
+                            monthly_rewards += points
+                except:
+                    pass
 
-        print("\n📊 LIFETIME REWARDS FROM BILLS")
-        print(f"   Total points earned: {total_lifetime_rewards}")
-        print(f"   Estimated value: Rs. {total_lifetime_rewards * 0.25:,.2f}")
+        print("\n📊 LIFETIME REWARDS FROM PURCHASES")
+        print(f"   Total points earned: {int(total_lifetime_rewards)}")
+        print(f"   Estimated value: Rs. {int(total_lifetime_rewards):,.2f}")
+        if transaction_count > 0:
+            print(
+                f"   Average per transaction: {int(total_lifetime_rewards / transaction_count)} points"
+            )
 
         print("\n📅 THIS MONTH")
-        print(f"   Rewards earned: {monthly_rewards} points")
-        print(f"   Projected annual: {monthly_rewards * 12} points")
+        print(f"   Rewards earned: {int(monthly_rewards)} points")
+        print(f"   Estimated value: Rs. {int(monthly_rewards):,.2f}")
+        if monthly_rewards > 0:
+            print(
+                f"   Projected annual: {int(monthly_rewards * 12)} points (Rs. {int(monthly_rewards * 12):,.2f})"
+            )
 
         if rewards_by_card:
             print("\n💳 REWARDS BY CARD")
-            for card_id, points in sorted(
-                rewards_by_card.items(), key=lambda x: x[1], reverse=True
+            for card_id, data in sorted(
+                rewards_by_card.items(), key=lambda x: x[1]["points"], reverse=True
             ):
                 card = account.get_card_by_id(card_id)
                 if card:
                     print(
-                        f"   {card.network} ****{card.card_number[-4:]}: {points} points"
+                        f"   {card.network} ****{card.card_number[-4:]}: {int(data['points'])} points ({int(data['count'])} purchases)"
                     )
 
-        # Savings comparison
+        # Value breakdown
         if total_lifetime_rewards > 0:
-            print("\n💰 SAVINGS VS DIRECT PAYMENT")
-            print("   If paid from bank account: Rs. 0")
-            print(f"   By using credit cards: Rs. {total_lifetime_rewards * 0.25:,.2f}")
-            print(f"   💎 You saved: Rs. {total_lifetime_rewards * 0.25:,.2f}!")
+            print("\n💰 REWARDS VALUE")
+            print(f"   Value @ Rs. 1.00/point: Rs. {int(total_lifetime_rewards):,.2f}")
+            print(f"   💎 Total benefit: Rs. {int(total_lifetime_rewards):,.2f}")
+        else:
+            print(
+                "\n ℹ️  No rewards earned yet. Make credit card purchases to earn points!"
+            )
 
         print("\n" + "=" * 80)
         input("\nPress Enter to continue...")
@@ -2193,7 +3024,29 @@ Salary Management
                     "Enter gross monthly salary: Rs. "
                 )
                 salary_day = int(input("Enter salary credit day (1-28): "))
-                account.set_salary(gross_salary, salary_day)
+
+                # Company Deductions
+                print("\n--- Company Deductions ---")
+                epf_contribution = self.read_positive_double(
+                    "Monthly EPF contribution (leave blank for 0): Rs. ",
+                    allow_zero=True,
+                )
+                professional_tax = self.read_positive_double(
+                    "Monthly professional tax (leave blank for 0): Rs. ",
+                    allow_zero=True,
+                )
+                other_deductions = self.read_positive_double(
+                    "Other monthly deductions (leave blank for 0): Rs. ",
+                    allow_zero=True,
+                )
+
+                account.set_salary(
+                    gross_salary,
+                    salary_day,
+                    employee_epf_contribution=epf_contribution,
+                    professional_tax=professional_tax,
+                    other_deductions=other_deductions,
+                )
                 self.bank.save()
             elif choice == "3":
                 account.remove_salary()
@@ -2203,6 +3056,16 @@ Salary Management
 
     def simulate_time(self, account: Account):
         """Simulate time passage with recurring bills and expenses"""
+        # Check if clock is in REAL mode
+        if BankClock._mode == "REAL":
+            print("\n⚠️  Time Simulation Not Possible")
+            print("Time simulation is only available in VIRTUAL mode.")
+            print("\nTo enable time simulation:")
+            print("1. Go to main menu (option 20 from account menu)")
+            print("2. Select 'Change Clock Mode' (option 20 from main menu)")
+            print("3. Switch to VIRTUAL mode")
+            return
+
         print("\nTime Simulation")
         print(f"Current Date/Time: {BankClock.get_formatted_datetime()}")
         print("1  Simulate 1 Day")
@@ -2255,6 +3118,9 @@ Salary Management
 
     def view_expense_analysis(self, account: Account):
         """View expense analysis for a period"""
+        # Load transactions if needed
+        account._load_transactions_if_needed()
+
         print("\nExpense Analysis Period:")
         print("1  Last 7 days")
         print("2  Last 30 days")
@@ -2711,7 +3577,7 @@ Choose an option:
                 f"loan_closure_{selected_loan.loan_id}_{customer.customer_id}.txt"
             )
             try:
-                with open(filename, "w") as f:
+                with open(filename, "w", encoding="utf-8") as f:
                     f.write("=" * 80 + "\n")
                     f.write(" " * 20 + "SCALA BANK - LOAN CLOSURE CERTIFICATE\n")
                     f.write("=" * 80 + "\n")
@@ -2869,6 +3735,656 @@ Choose an option:
         print(f"✓ Detected Network from Number: {detected_network}")
         print("=" * 60)
 
+    def _get_loan_by_id(self, loan_id: str):
+        """Helper method to find a loan by ID from the loans list"""
+        for loan in self.bank.loans:
+            if loan.loan_id == loan_id:
+                return loan
+        return None
+
+    def loan_nach_mandate_menu(self, customer: Customer, account: Account):
+        """NACH Mandate Management submenu for loan EMI automation"""
+        self.current_customer = customer  # Set for use in helper methods
+
+        while True:
+            print("\n" + "=" * 60)
+            print("🏦 NACH MANDATE MANAGEMENT (Automatic EMI Deduction)")
+            print("=" * 60)
+
+            # Check if customer has any active loans
+            active_loans = [
+                loan
+                for loan in self.bank.get_loans_for_customer(customer.customer_id)
+                if loan.status == "Active"
+            ]
+            if not active_loans:
+                print("\n⚠️  You don't have any active loans.")
+                print("NACH mandates can only be created for active loans.\n")
+                input("Press Enter to continue...")
+                break
+
+            print("\n1. Create NACH Mandate")
+            print("2. Verify NACH Mandate (OTP)")
+            print("3. View All NACH Mandates")
+            print("4. Revoke NACH Mandate")
+            print("5. Suspend NACH Mandate")
+            print("6. Resume NACH Mandate")
+            print("7. View Mandate Details & Deduction History")
+            print("8. Back to Loan Menu")
+
+            choice = input("\nSelect option (1-8): ").strip()
+
+            if choice == "1":
+                self.create_loan_nach_mandate()
+            elif choice == "2":
+                self.verify_loan_nach_mandate_otp()
+            elif choice == "3":
+                self.view_loan_mandates()
+            elif choice == "4":
+                self.revoke_loan_nach_mandate()
+            elif choice == "5":
+                self.suspend_loan_nach_mandate()
+            elif choice == "6":
+                self.resume_loan_nach_mandate()
+            elif choice == "7":
+                self.view_mandate_details()
+            elif choice == "8":
+                break
+            else:
+                print("❌ Invalid option. Please try again.")
+
+    def create_loan_nach_mandate(self):
+        """Create a new NACH mandate for automatic EMI deduction"""
+        from LoanNachMandate import LoanNachMandateManager
+
+        customer = self.current_customer
+
+        print("\n" + "=" * 60)
+        print("📋 CREATE NACH MANDATE FOR AUTOMATIC EMI DEDUCTION")
+        print("=" * 60)
+
+        # Display active loans
+        active_loans = [
+            loan
+            for loan in self.bank.get_loans_for_customer(customer.customer_id)
+            if loan.status == "Active"
+        ]
+
+        if not active_loans:
+            print("\n⚠️  No active loans available.")
+            input("Press Enter to continue...")
+            return
+
+        print("\n📌 Your Active Loans:")
+        for idx, loan in enumerate(active_loans, 1):
+            print(f"\n{idx}. Loan ID: {loan.loan_id}")
+            print(f"   Amount: ₹{loan.calculate_emi():,.2f} (Monthly EMI)")
+            print(f"   Tenure: {loan.tenure_months} months")
+            print(f"   Interest Rate: {loan.interest_rate}%")
+            if hasattr(loan, "nach_mandate_id") and loan.nach_mandate_id:
+                mandate = LoanNachMandateManager.get_loan_mandate(loan.loan_id)
+                if mandate:
+                    print(f"   Status: {mandate.status}")
+
+        loan_choice = input("\nSelect loan number: ").strip()
+
+        try:
+            loan_idx = int(loan_choice) - 1
+            if 0 <= loan_idx < len(active_loans):
+                selected_loan = active_loans[loan_idx]
+            else:
+                print("❌ Invalid loan selection.")
+                return
+        except ValueError:
+            print("❌ Please enter a valid number.")
+            return
+
+        # Check if mandate already exists
+        existing_mandate = LoanNachMandateManager.get_loan_mandate(
+            selected_loan.loan_id
+        )
+        if existing_mandate:
+            print("\n⚠️  A NACH mandate already exists for this loan.")
+            print(f"   Current Status: {existing_mandate.status}")
+            if existing_mandate.status in ["Pending", "OTP_Verified"]:
+                proceed = (
+                    input("\nDo you want to create a new mandate? (yes/no): ")
+                    .strip()
+                    .lower()
+                )
+                if proceed != "yes":
+                    return
+
+        # Get debit account
+        print("\n📌 Select Account for EMI Deduction:")
+        customer_accounts = self.bank.get_customer_accounts(customer)
+        for idx, acc in enumerate(customer_accounts, 1):
+            balance = acc.balance
+            print(
+                f"{idx}. {acc.account_number} ({acc.account_type}) - Balance: ₹{balance:,.2f}"
+            )
+
+        acc_choice = input("\nSelect account number: ").strip()
+
+        selected_account = None
+        for acc in customer_accounts:
+            if acc.account_number == acc_choice:
+                selected_account = acc
+                break
+
+        if not selected_account:
+            print("❌ Invalid account selection.")
+            return
+
+        # Confirm NACH mandate details
+        print("\n" + "=" * 60)
+        print("📋 NACH MANDATE DETAILS")
+        print("=" * 60)
+        print(f"\nLoan ID: {selected_loan.loan_id}")
+        print(f"Loan Amount: ₹{selected_loan.principal:,.2f}")
+        print(f"Monthly EMI: ₹{selected_loan.calculate_emi():,.2f}")
+        print(f"Tenure: {selected_loan.tenure_months} months")
+        print(
+            f"Max Debit Limit: ₹{selected_loan.calculate_emi() * 1.5:,.2f} (1.5x safety buffer)"
+        )
+        print(f"Debit Account: {selected_account.account_number}")
+
+        confirm = (
+            input("\n✓ Proceed with NACH mandate creation? (yes/no): ").strip().lower()
+        )
+        if confirm != "yes":
+            print("❌ Mandate creation cancelled.")
+            return
+
+        # Calculate mandate end date (when loan EMI payments end)
+        from datetime import datetime, timedelta
+
+        start_date = datetime.now().strftime("%d-%m-%Y")
+        loan_end_date = datetime.now() + timedelta(
+            days=30 * selected_loan.tenure_months
+        )
+        end_date = loan_end_date.strftime("%d-%m-%Y")
+
+        # Create mandate with all required parameters
+        success, message, mandate_id, otp = LoanNachMandateManager.create_mandate(
+            loan_id=selected_loan.loan_id,
+            customer_id=customer.customer_id,
+            account_number=selected_account.account_number,
+            debit_account=selected_account.account_number,
+            debit_ifsc="PYTHONIFIED001",  # Default bank IFSC code
+            emi_amount=selected_loan.calculate_emi(),
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        if success:
+            print("\n" + "=" * 60)
+            print("✅ NACH MANDATE CREATED SUCCESSFULLY")
+            print("=" * 60)
+            print(f"\nMandate ID: {mandate_id}")
+            print("Status: Pending (OTP Verification Required)")
+            print("\n📱 OTP sent to registered mobile number")
+            print(f"🔐 Verification Code: {otp} (for testing purposes)")
+            print("\nPlease verify your mandate with the OTP to activate it.")
+
+            # Update loan with mandate ID
+            selected_loan.nach_mandate_id = mandate_id
+            self.bank.save_data()
+        else:
+            print(f"\n❌ {message}")
+
+        input("\nPress Enter to continue...")
+
+    def verify_loan_nach_mandate_otp(self):
+        """Verify NACH mandate with OTP"""
+        from LoanNachMandate import LoanNachMandateManager
+
+        customer = self.current_customer
+
+        print("\n" + "=" * 60)
+        print("🔐 VERIFY NACH MANDATE (OTP)")
+        print("=" * 60)
+
+        # Display pending mandates
+        pending_mandates = []
+        all_mandates = LoanNachMandateManager.get_customer_mandates(
+            customer.customer_id
+        )
+        for mandate in all_mandates:
+            if mandate.status in ["Pending", "OTP_Verified"]:
+                # Find the corresponding loan
+                loan = self._get_loan_by_id(mandate.loan_id)
+                if loan:
+                    pending_mandates.append((loan, mandate))
+
+        if not pending_mandates:
+            print("\n⚠️  No pending NACH mandates to verify.")
+            input("Press Enter to continue...")
+            return
+
+        print("\n📌 Pending NACH Mandates:")
+        for idx, (loan, mandate) in enumerate(pending_mandates, 1):
+            print(f"\n{idx}. Mandate ID: {mandate.mandate_id}")
+            print(f"   Loan ID: {loan.loan_id}")
+            print(f"   Status: {mandate.status}")
+            print(f"   EMI Amount: ₹{mandate.emi_amount:,.2f}")
+
+        choice = input("\nSelect mandate (number): ").strip()
+
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(pending_mandates):
+                selected_loan, selected_mandate = pending_mandates[idx]
+            else:
+                print("❌ Invalid selection.")
+                return
+        except ValueError:
+            print("❌ Please enter a valid number.")
+            return
+
+        # Request OTP
+        print(f"\n📋 Mandate ID: {selected_mandate.mandate_id}")
+        print("🔐 Enter the OTP sent to your registered mobile number:")
+
+        otp_attempts = 0
+        max_attempts = 3
+
+        while otp_attempts < max_attempts:
+            otp = input("\nEnter OTP (6 digits): ").strip()
+
+            success, message = LoanNachMandateManager.verify_mandate_otp(
+                selected_mandate.mandate_id, otp
+            )
+
+            if success:
+                print("\n" + "=" * 60)
+                print("✅ OTP VERIFIED SUCCESSFULLY")
+                print("=" * 60)
+                print(f"\nMandate ID: {selected_mandate.mandate_id}")
+                print("Status: ACTIVE")
+                print(f"EMI Amount: ₹{selected_mandate.emi_amount:,.2f}")
+                print(f"Account: {selected_mandate.bank_account_number}")
+                print("\n✓ NACH mandate is now active.")
+                print("✓ EMI will be deducted automatically from your account.")
+                print("✓ Deduction History: Available in 'View Mandate Details' menu")
+
+                break
+            else:
+                otp_attempts += 1
+                remaining = max_attempts - otp_attempts
+                if remaining > 0:
+                    print(f"\n❌ {message}")
+                    print(f"⚠️  Remaining attempts: {remaining}")
+                else:
+                    print(f"\n❌ {message}")
+                    print(
+                        "❌ Maximum OTP attempts exceeded. Mandate creation cancelled."
+                    )
+                    # Reset mandate status
+                    selected_mandate.status = "Revoked"
+                    LoanNachMandateManager._save_mandates()
+
+        input("\nPress Enter to continue...")
+
+    def view_loan_mandates(self):
+        """View all NACH mandates for customer"""
+        from LoanNachMandate import LoanNachMandateManager, NachMandateStatus
+
+        customer = self.current_customer
+
+        print("\n" + "=" * 60)
+        print("📋 YOUR NACH MANDATES")
+        print("=" * 60)
+
+        # Get all mandates using the manager
+        all_mandates = LoanNachMandateManager.get_customer_mandates(
+            customer.customer_id
+        )
+
+        if not all_mandates:
+            print("\n⚠️  You don't have any NACH mandates.")
+            print("\n💡 Create a NACH mandate to set up automatic EMI deductions.")
+        else:
+            print("\n")
+            mandate_count = {}
+            for mandate in all_mandates:
+                status = mandate.status
+                mandate_count[status] = mandate_count.get(status, 0) + 1
+
+                # Status icon
+                status_icon = (
+                    "✅"
+                    if status == NachMandateStatus.ACTIVE
+                    else "⏳"
+                    if status == NachMandateStatus.PENDING
+                    else "❌"
+                    if status == NachMandateStatus.REVOKED
+                    else "⚠️"
+                )
+
+                # Get loan details
+                loan = self._get_loan_by_id(mandate.loan_id)
+                loan_id = loan.loan_id if loan else mandate.loan_id
+
+                print(f"{status_icon} Loan ID: {loan_id}")
+                print(f"   Mandate ID: {mandate.mandate_id}")
+                print(f"   Status: {status}")
+                print(f"   EMI Amount: ₹{mandate.emi_amount:,.2f}")
+                print(f"   Account: {mandate.bank_account_number}")
+                print(f"   Period: {mandate.start_date} to {mandate.end_date}")
+                print(f"   Deductions Processed: {len(mandate.deduction_history)}")
+                print()
+
+            print("=" * 60)
+            print("📊 MANDATE SUMMARY")
+            print("=" * 60)
+            for status, count in mandate_count.items():
+                if count > 0:
+                    print(f"{status}: {count}")
+
+        input("\nPress Enter to continue...")
+
+    def revoke_loan_nach_mandate(self):
+        """Revoke a NACH mandate"""
+        from LoanNachMandate import LoanNachMandateManager, NachMandateStatus
+
+        customer = self.current_customer
+
+        print("\n" + "=" * 60)
+        print("🛑 REVOKE NACH MANDATE")
+        print("=" * 60)
+
+        # Get all non-revoked mandates
+        all_mandates = LoanNachMandateManager.get_customer_mandates(
+            customer.customer_id
+        )
+        revokable_mandates = [
+            (m, self._get_loan_by_id(m.loan_id))
+            for m in all_mandates
+            if m.status != NachMandateStatus.REVOKED
+        ]
+
+        if not revokable_mandates:
+            print("\n⚠️  No active NACH mandates to revoke.")
+            input("Press Enter to continue...")
+            return
+
+        print("\n📌 NACH Mandates:")
+        for idx, (mandate, loan) in enumerate(revokable_mandates, 1):
+            loan_id = loan.loan_id if loan else mandate.loan_id
+            print(f"\n{idx}. Mandate ID: {mandate.mandate_id}")
+            print(f"   Loan ID: {loan_id}")
+            print(f"   Status: {mandate.status}")
+            print(f"   EMI: ₹{mandate.emi_amount:,.2f}")
+
+        choice = input("\nSelect mandate to revoke (number): ").strip()
+
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(revokable_mandates):
+                selected_mandate, selected_loan = revokable_mandates[idx]
+            else:
+                print("❌ Invalid selection.")
+                return
+        except ValueError:
+            print("❌ Please enter a valid number.")
+            return
+
+        # Confirm revocation
+        print(
+            "\n⚠️  IMPORTANT: Revoking this mandate will stop automatic EMI deductions."
+        )
+        print("   You will need to pay EMIs manually.")
+        confirm = input("\nProceed with mandate revocation? (yes/no): ").strip().lower()
+
+        if confirm != "yes":
+            print("❌ Revocation cancelled.")
+            return
+
+        # Revoke mandate
+        success, message = LoanNachMandateManager.revoke_mandate(
+            selected_mandate.mandate_id
+        )
+
+        if success:
+            print(f"\n✅ {message}")
+            print(f"   Mandate ID: {selected_mandate.mandate_id}")
+            print("   Status: REVOKED")
+        else:
+            print(f"\n❌ {message}")
+
+        input("\nPress Enter to continue...")
+
+    def suspend_loan_nach_mandate(self):
+        """Suspend a NACH mandate temporarily"""
+        from LoanNachMandate import LoanNachMandateManager, NachMandateStatus
+
+        customer = self.current_customer
+
+        print("\n" + "=" * 60)
+        print("⏸️  SUSPEND NACH MANDATE")
+        print("=" * 60)
+
+        # Get active mandates
+        all_mandates = LoanNachMandateManager.get_customer_mandates(
+            customer.customer_id
+        )
+        suspendable_mandates = [
+            (m, self._get_loan_by_id(m.loan_id))
+            for m in all_mandates
+            if m.status == NachMandateStatus.ACTIVE
+        ]
+
+        if not suspendable_mandates:
+            print("\n⚠️  No active NACH mandates to suspend.")
+            input("Press Enter to continue...")
+            return
+
+        print("\n📌 Active NACH Mandates:")
+        for idx, (mandate, loan) in enumerate(suspendable_mandates, 1):
+            loan_id = loan.loan_id if loan else mandate.loan_id
+            print(f"\n{idx}. Mandate ID: {mandate.mandate_id}")
+            print(f"   Loan ID: {loan_id}")
+            print(f"   EMI: ₹{mandate.emi_amount:,.2f}")
+
+        choice = input("\nSelect mandate to suspend (number): ").strip()
+
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(suspendable_mandates):
+                selected_mandate, selected_loan = suspendable_mandates[idx]
+            else:
+                print("❌ Invalid selection.")
+                return
+        except ValueError:
+            print("❌ Please enter a valid number.")
+            return
+
+        print("\n⚠️  Suspending this mandate will temporarily stop EMI deductions.")
+        confirm = input("Proceed? (yes/no): ").strip().lower()
+
+        if confirm != "yes":
+            print("❌ Suspension cancelled.")
+            return
+
+        # Suspend mandate
+        success, message = LoanNachMandateManager.suspend_mandate(
+            selected_mandate.mandate_id
+        )
+
+        if success:
+            print(f"\n✅ {message}")
+            print(f"   Mandate ID: {selected_mandate.mandate_id}")
+            print("   Status: SUSPENDED")
+            print("\n💡 Use 'Resume NACH Mandate' to reactivate it.")
+        else:
+            print(f"\n❌ {message}")
+
+        input("\nPress Enter to continue...")
+
+    def resume_loan_nach_mandate(self):
+        """Resume a suspended NACH mandate"""
+        from LoanNachMandate import LoanNachMandateManager, NachMandateStatus
+
+        customer = self.current_customer
+
+        print("\n" + "=" * 60)
+        print("▶️  RESUME NACH MANDATE")
+        print("=" * 60)
+
+        # Get suspended mandates
+        all_mandates = LoanNachMandateManager.get_customer_mandates(
+            customer.customer_id
+        )
+        suspended_mandates = [
+            (m, self._get_loan_by_id(m.loan_id))
+            for m in all_mandates
+            if m.status == NachMandateStatus.SUSPENDED
+        ]
+
+        if not suspended_mandates:
+            print("\n⚠️  No suspended NACH mandates to resume.")
+            input("Press Enter to continue...")
+            return
+
+        print("\n📌 Suspended NACH Mandates:")
+        for idx, (mandate, loan) in enumerate(suspended_mandates, 1):
+            loan_id = loan.loan_id if loan else mandate.loan_id
+            print(f"\n{idx}. Mandate ID: {mandate.mandate_id}")
+            print(f"   Loan ID: {loan_id}")
+            print(f"   EMI: ₹{mandate.emi_amount:,.2f}")
+
+        choice = input("\nSelect mandate to resume (number): ").strip()
+
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(suspended_mandates):
+                selected_mandate, selected_loan = suspended_mandates[idx]
+            else:
+                print("❌ Invalid selection.")
+                return
+        except ValueError:
+            print("❌ Please enter a valid number.")
+            return
+
+        confirm = (
+            input("\nProceed with resuming this mandate? (yes/no): ").strip().lower()
+        )
+
+        if confirm != "yes":
+            print("❌ Resume cancelled.")
+            return
+
+        # Resume mandate
+        success, message = LoanNachMandateManager.resume_mandate(
+            selected_mandate.mandate_id
+        )
+
+        if success:
+            print(f"\n✅ {message}")
+            print(f"   Mandate ID: {selected_mandate.mandate_id}")
+            print("   Status: ACTIVE")
+            print("\n✓ EMI deductions will resume automatically.")
+        else:
+            print(f"\n❌ {message}")
+
+        input("\nPress Enter to continue...")
+
+    def view_mandate_details(self):
+        """View detailed information about a NACH mandate including deduction history"""
+        from LoanNachMandate import LoanNachMandateManager
+
+        customer = self.current_customer
+
+        print("\n" + "=" * 60)
+        print("📊 NACH MANDATE DETAILS & DEDUCTION HISTORY")
+        print("=" * 60)
+
+        # Get all mandates
+        all_mandates = []
+        customer_mandates = LoanNachMandateManager.get_customer_mandates(
+            customer.customer_id
+        )
+        for mandate in customer_mandates:
+            loan = self._get_loan_by_id(mandate.loan_id)
+            if loan:
+                all_mandates.append((loan, mandate))
+
+        if not all_mandates:
+            print("\n⚠️  No NACH mandates found.")
+            input("Press Enter to continue...")
+            return
+
+        print("\n📌 Select a Mandate:")
+        for idx, (loan, mandate) in enumerate(all_mandates, 1):
+            print(f"{idx}. {mandate.mandate_id} ({mandate.status})")
+
+        choice = input("\nSelect mandate (number): ").strip()
+
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(all_mandates):
+                selected_loan, selected_mandate = all_mandates[idx]
+            else:
+                print("❌ Invalid selection.")
+                return
+        except ValueError:
+            print("❌ Please enter a valid number.")
+            return
+
+        # Display mandate details
+        print("\n" + "=" * 60)
+        print("📋 MANDATE INFORMATION")
+        print("=" * 60)
+        print(f"\nMandate ID: {selected_mandate.mandate_id}")
+        print(f"Loan ID: {selected_loan.loan_id}")
+        print(f"Status: {selected_mandate.status}")
+        print(f"Created: {selected_mandate.creation_timestamp}")
+        print("\n💰 AMOUNT DETAILS")
+        print(f"EMI Amount: ₹{selected_mandate.emi_amount:,.2f}")
+        print(f"Max Debit Limit: ₹{selected_mandate.max_debit_amount:,.2f}")
+        print("\n📅 PERIOD")
+        print(f"Start Date: {selected_mandate.start_date}")
+        print(f"End Date: {selected_mandate.end_date}")
+        print("\n🔐 ACCOUNT DETAILS")
+        print(f"Debit Account: {selected_mandate.bank_account_number}")
+
+        # Display deduction history
+        if selected_mandate.deduction_history:
+            print(
+                f"\n📊 DEDUCTION HISTORY ({len(selected_mandate.deduction_history)} deductions)"
+            )
+            print("=" * 60)
+
+            total_deducted = 0
+            for idx, deduction in enumerate(
+                selected_mandate.deduction_history[:20], 1
+            ):  # Show last 20
+                status_icon = (
+                    "✅"
+                    if deduction["status"] == "Success"
+                    else "❌"
+                    if deduction["status"] == "Failed"
+                    else "⏳"
+                )
+                print(f"\n{idx}. {status_icon} {deduction['date']}")
+                print(f"   Amount: ₹{deduction['amount']:,.2f}")
+                print(f"   Status: {deduction['status']}")
+                if deduction["status"] == "Success":
+                    total_deducted += deduction["amount"]
+
+            if len(selected_mandate.deduction_history) > 20:
+                print(
+                    f"\n...and {len(selected_mandate.deduction_history) - 20} more deductions"
+                )
+
+            print("\n" + "=" * 60)
+            print(f"Total Deducted: ₹{total_deducted:,.2f}")
+        else:
+            print("\n⏳ No deductions yet.")
+
+        input("\nPress Enter to continue...")
+
     def view_transaction_history_menu(self, account: Account):
         """Interactive menu for viewing transaction history"""
 
@@ -2887,17 +4403,22 @@ Choose an option:
 
             # Filter by Category
             print("\n🔍 FILTER BY CATEGORY:")
-            print("6. Debit Card Transactions")
-            print("7. Credit Card Transactions")
-            print("8. Legacy Banking (No card)")
-            print("9. Loan EMI Payments")
-            print("10. NEFT Transactions")
-            print("11. RTGS Transactions")
-            print("12. Inter-Account Transfers")
-            print("13. Salary & Tax")
-            print("14. Expenses")
+            print("6. Deposits")
+            print("7. Withdrawals")
+            print("8. NEFT Transactions")
+            print("9. RTGS Transactions")
+            print("10. Inter-Account Transfers")
+            print("11. SWIFT Transactions")
+            print("12. Cheque Transactions")
+            print("13. Expenses")
+            print("14. Salary & Tax")
+            print("15. Debit Card Transactions")
+            print("16. Credit Card Transactions")
+            print("17. Bill Payments")
+            print("18. Loan EMI Payments")
+            print("19. Fees & Charges")
 
-            print("\n15. Back to Account Menu")
+            print("\n20. Back to Account Menu")
             print("=" * 60)
 
             choice = input("Enter your choice: ").strip()
@@ -2913,24 +4434,51 @@ Choose an option:
             elif choice == "5":
                 account.show_transactions(limit=None)
             elif choice == "6":
-                self.view_debit_card_transactions(account)
+                limit = self._get_transaction_limit()
+                print("\n💰 Deposits:")
+                account.show_transactions(
+                    limit=limit, transaction_type_filter="DEPOSIT"
+                )
             elif choice == "7":
-                self.view_credit_card_transactions(account)
+                limit = self._get_transaction_limit()
+                print("\n💸 Withdrawals:")
+                account.show_transactions(
+                    limit=limit, transaction_type_filter="WITHDRAW"
+                )
             elif choice == "8":
-                self.view_legacy_transactions(account)
-            elif choice == "9":
-                self.view_loan_emi_transactions(account)
-            elif choice == "10":
                 self.view_neft_transactions(account)
-            elif choice == "11":
+            elif choice == "9":
                 self.view_rtgs_transactions(account)
-            elif choice == "12":
+            elif choice == "10":
                 self.view_inter_account_transactions(account)
+            elif choice == "11":
+                limit = self._get_transaction_limit()
+                print("\n🌍 SWIFT Transactions:")
+                account.show_transactions(limit=limit, transaction_type_filter="SWIFT")
+            elif choice == "12":
+                limit = self._get_transaction_limit()
+                print("\n📄 Cheque Transactions:")
+                account.show_transactions(limit=limit, transaction_type_filter="CHEQUE")
             elif choice == "13":
-                self.view_salary_tax_transactions(account)
-            elif choice == "14":
                 self.view_expense_transactions(account)
+            elif choice == "14":
+                self.view_salary_tax_transactions(account)
             elif choice == "15":
+                self.view_debit_card_transactions(account)
+            elif choice == "16":
+                self.view_credit_card_transactions(account)
+            elif choice == "17":
+                limit = self._get_transaction_limit()
+                print("\n📋 Bill Payments:")
+                account.show_transactions(
+                    limit=limit, transaction_type_filter="BILL_PAYMENT"
+                )
+            elif choice == "18":
+                self.view_loan_emi_transactions(account)
+            elif choice == "19":
+                print("\n💳 Fees & Charges:")
+                account.show_transactions(limit=limit, transaction_type_filter="FEES")
+            elif choice == "20":
                 break
             else:
                 print("Invalid choice")
@@ -2938,6 +4486,9 @@ Choose an option:
     def view_debit_card_transactions(self, account: Account):
         """View transactions by specific debit card"""
         from Card import DebitCard
+
+        # Load transactions if needed
+        account._load_transactions_if_needed()
 
         debit_cards = [c for c in account.cards if isinstance(c, DebitCard)]
 
@@ -2982,6 +4533,9 @@ Choose an option:
 
     def view_credit_card_transactions(self, account: Account):
         """View credit card payment transactions"""
+        # Load transactions if needed
+        account._load_transactions_if_needed()
+
         limit = self._get_transaction_limit()
         print("\n💳 Credit Card Payments:")
         account.show_transactions(
@@ -3067,10 +4621,17 @@ Choose an option:
     def view_swift_transactions(self, account: Account):
         """View all SWIFT/international transfers"""
 
-        swift_transfers = [t for t in account.transactions if t.type == "SWIFT_SENT"]
+        # Load transactions if needed
+        account._load_transactions_if_needed()
+
+        swift_transfers = [
+            t
+            for t in account.transactions
+            if t.type in ["SWIFT_SENT", "SWIFT_RECEIVED"]
+        ]
 
         if not swift_transfers:
-            print("\n📭 No international transfers found")
+            print("\n📭 No SWIFT transactions found")
             return
 
         print("\n" + "=" * 100)
@@ -3946,7 +5507,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 5  Update Authorization Limit
 6  View Authorization Details
 7  Verify Pending Authorizations
-7  Back to FD/RD Menu
+8  Back to FD/RD Menu
             """)
 
             choice = self.read_valid_choice(
@@ -4799,6 +6360,1086 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                 switch_to_virtual_mode(freeze_at_current=True)
                 print("✅ Switched to Virtual Mode")
                 print("✅ Time simulation is now ENABLED")
+
+        input("\nPress Enter to continue...")
+
+    def tax_planning_menu(self, customer: Customer, account: Account):
+        """Tax Planning & Exemptions Menu"""
+        managing = True
+        while managing:
+            print("\n" + "=" * 60)
+            print("TAX PLANNING & EXEMPTIONS 📊")
+            print("=" * 60)
+            print(f"Customer: {customer.first_name} {customer.last_name}")
+            print(
+                f"Monthly Gross Salary: ₹{account.salary_profile.gross_salary:,.2f}"
+                if account.salary_profile
+                else "Salary Profile: Not Set"
+            )
+            print(f"Current Tax Regime: {customer.tax_regime}")
+            pan_status = (
+                f"PAN: {customer.pan}"
+                if hasattr(customer, "pan") and customer.pan
+                else "PAN: ❌ Not Registered"
+            )
+            print(f"{pan_status}")
+            print("\n1. View Deduction Summary")
+            print("2. View Tax Summary (With vs Without Deductions)")
+            print("3. Upload Deduction Proof")
+            print("4. Declare Additional Deductions")
+            print("5. Register/Update PAN")
+            print("6. File Annual ITR & Get Refund")
+            print("7. View ITR Filing History & Process Refunds")
+            print("8. Compare Tax Regimes (Old vs New)")
+            print("9. Back to Main Menu")
+
+            choice = self.read_valid_choice(
+                "Enter choice: ", ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+            )
+
+            if choice == "1":
+                self.view_deductions_summary(customer, account)
+            elif choice == "2":
+                self.view_tax_summary(customer, account)
+            elif choice == "3":
+                self.upload_deduction_document(customer, account)
+            elif choice == "4":
+                self.declare_additional_deductions(customer, account)
+            elif choice == "5":
+                self.register_pan_menu(customer)
+            elif choice == "6":
+                self.file_itr_menu(customer, account)
+            elif choice == "7":
+                self.view_itr_filing_history_menu(customer, account)
+            elif choice == "8":
+                self.compare_tax_regimes(customer, account)
+            elif choice == "9":
+                managing = False
+
+    def view_deductions_summary(self, customer: Customer, account: Account):
+        """Display auto-detected and self-declared deductions with detailed breakdown"""
+        print("\n" + "=" * 70)
+        print("DEDUCTION SUMMARY - DETAILED BREAKDOWN")
+        print("=" * 70)
+
+        if not account.salary_profile:
+            print("❌ No salary profile found. Cannot calculate deductions.")
+            input("\nPress Enter to continue...")
+            return
+
+        # Determine if metro city
+        is_metro = getattr(account.salary_profile, "is_metro_city", True)
+        annual_salary = account.salary_profile.gross_salary * 12
+
+        # Get all deductions
+        deductions = TaxDeductionAnalyzer.get_all_deductions(
+            customer, account.salary_profile, is_metro, self.bank
+        )
+
+        if not deductions:
+            print("✅ No deductions detected.")
+        else:
+            print("\n" + "=" * 70)
+            print("AUTO-DETECTED DEDUCTIONS")
+            print("=" * 70)
+
+            # Section 16 - Standard Deduction
+            if "16" in deductions:
+                print("\n📌 SECTION 16 - STANDARD DEDUCTION")
+                print(f"   Amount: ₹{deductions['16']:>12,.2f}")
+                print("   Limit:  ₹50,000 (Fixed - Automatic)")
+                print("   Source: Standard deduction for salaried individuals")
+
+            # Section 10(13A) - HRA
+            if "10(13A)" in deductions:
+                print("\n📌 SECTION 10(13A) - HOUSE RENT ALLOWANCE (HRA)")
+                print(f"   Amount: ₹{deductions['10(13A)']:>12,.2f}")
+                print("   Limit:  50% of salary (Metro) / 40% (Non-metro)")
+                print(
+                    "   Sources: Rent transactions in bank account, credit cards, recurring bills"
+                )
+                # Show rent bills if available
+                if hasattr(account, "recurring_bills"):
+                    rent_bills = [
+                        b
+                        for b in account.recurring_bills
+                        if "rent" in str(b.name).lower()
+                    ]
+                    if rent_bills:
+                        for bill in rent_bills[:2]:
+                            bill_amount = (
+                                bill.amount
+                                if hasattr(bill, "amount")
+                                else bill.base_amount
+                                if hasattr(bill, "base_amount")
+                                else 0
+                            )
+                            print(
+                                f"             ├─ {bill.name}: ₹{bill_amount:,.2f}/month"
+                            )
+
+            # Section 80C - Savings/Investments
+            if "80C" in deductions:
+                print(
+                    "\n📌 SECTION 80C - SAVINGS & INVESTMENTS (EPF/Insurance/Home Loan Principal)"
+                )
+                print(f"   Amount: ₹{deductions['80C']:>12,.2f}")
+                print("   Limit:  ₹1,50,000")
+                # Show EPF if available
+                if hasattr(account.salary_profile, "epf_contribution"):
+                    epf_annual = account.salary_profile.epf_contribution * 12
+                    print(f"   Sources: EPF Contribution: ₹{epf_annual:,.2f}/year")
+                else:
+                    print(
+                        "   Sources: Employee Provident Fund (EPF), Life Insurance, Home Loan Principal"
+                    )
+
+            # Section 80D - Medical Insurance
+            if "80D" in deductions:
+                print("\n📌 SECTION 80D - MEDICAL INSURANCE")
+                print(f"   Amount: ₹{deductions['80D']:>12,.2f}")
+                print("   Limit:  ₹50,000")
+                print(
+                    "   Sources: Insurance premium payments from bank transactions, credit cards, or recurring bills"
+                )
+                # Show insurance bills if available
+                if hasattr(account, "recurring_bills"):
+                    insurance_bills = [
+                        b
+                        for b in account.recurring_bills
+                        if "insurance" in str(b.name).lower()
+                        or "premium" in str(b.name).lower()
+                    ]
+                    if insurance_bills:
+                        for bill in insurance_bills[:2]:
+                            bill_amount = (
+                                bill.amount
+                                if hasattr(bill, "amount")
+                                else bill.base_amount
+                                if hasattr(bill, "base_amount")
+                                else 0
+                            )
+                            print(
+                                f"             ├─ {bill.name}: ₹{bill_amount:,.2f}/month"
+                            )
+
+            # Section 24 - Home Loan Interest
+            if "24" in deductions:
+                print("\n📌 SECTION 24 - HOME LOAN INTEREST")
+                print(f"   Amount: ₹{deductions['24']:>12,.2f}")
+                print("   Limit:  ₹2,00,000")
+                print("   Sources: Interest on home loans")
+                # Show home loans if available
+                if hasattr(customer, "loans"):
+                    home_loans = [
+                        l
+                        for l in customer.loans
+                        if hasattr(l, "loan_type")
+                        and "HOME" in str(l.loan_type).upper()
+                    ]
+                    if home_loans:
+                        for loan in home_loans:
+                            loan_amount = (
+                                loan.principal if hasattr(loan, "principal") else 0
+                            )
+                            loan_rate = (
+                                loan.interest_rate
+                                if hasattr(loan, "interest_rate")
+                                else 0
+                            )
+                            interest_annual = (loan_amount * loan_rate) / 100
+                            print(
+                                f"             ├─ Home Loan: ₹{interest_annual:,.2f}/year @ {loan_rate}%"
+                            )
+
+            total_deductions = sum(deductions.values())
+            print("\n" + "=" * 70)
+            print(f"TOTAL ANNUAL DEDUCTIONS: ₹{total_deductions:,.2f}")
+            print("=" * 70)
+
+        # Show stored deductions with status
+        if customer.tax_deductions:
+            print("\n\n" + "=" * 70)
+            print("SELF-DECLARED DEDUCTIONS")
+            print("=" * 70)
+            for exemption in customer.tax_deductions:
+                status_emoji = (
+                    "✓"
+                    if exemption.status.value == "VERIFIED"
+                    else "?"
+                    if exemption.status.value == "AUTO_DETECTED"
+                    else "!"
+                )
+                print(f"\n{status_emoji} {exemption.deduction_type.value}")
+                print(f"   Amount: ₹{exemption.eligible_amount:>12,.2f}")
+                print(f"   Status: {exemption.status.value}")
+                if exemption.documents:
+                    print(f"   Documents: {len(exemption.documents)} attached")
+
+        input("\nPress Enter to continue...")
+
+    def view_tax_summary(self, customer: Customer, account: Account):
+        """Display tax calculation with and without deductions"""
+        print("\n" + "=" * 60)
+        print("TAX SUMMARY")
+        print("=" * 60)
+
+        if not account.salary_profile:
+            print("❌ No salary profile found. Cannot calculate tax.")
+            input("\nPress Enter to continue...")
+            return
+
+        # Get salary info
+        annual_salary = account.salary_profile.gross_salary * 12
+
+        # Get deductions
+        is_metro = getattr(account.salary_profile, "is_metro_city", True)
+        deductions = TaxDeductionAnalyzer.get_all_deductions(
+            customer, account.salary_profile, is_metro, self.bank
+        )
+
+        # Calculate tax with deductions
+        if deductions:
+            taxable_with_ded, tax_with_ded, rate_with_ded = (
+                TaxCalculator.calculate_tax_with_deductions(annual_salary, deductions)
+            )
+        else:
+            taxable_with_ded = tax_with_ded = rate_with_ded = 0
+
+        # Calculate tax without deductions
+        tax_without_ded, rate_without_ded = (
+            TaxCalculator.calculate_tax_without_deductions(annual_salary)
+        )
+
+        # Calculate monthly equivalents
+        monthly_salary = account.salary_profile.gross_salary
+        monthly_tax_with_ded = tax_with_ded / 12 if deductions else 0
+        monthly_tax_without_ded = tax_without_ded / 12
+
+        print(f"\nGross Annual Salary: ₹{annual_salary:,.2f}")
+        print(f"Gross Monthly Salary: ₹{monthly_salary:,.2f}")
+
+        print("\n" + "-" * 60)
+        print("WITH DEDUCTIONS (Old Regime)")
+        print("-" * 60)
+        if deductions:
+            total_deductions = sum(deductions.values())
+            print(f"Total Annual Deductions: ₹{total_deductions:,.2f}")
+            print(f"Taxable Income: ₹{taxable_with_ded:,.2f}")
+            print(f"Tax Rate: {rate_with_ded:.2f}%")
+            print(f"Annual Tax Liability: ₹{tax_with_ded:,.2f}")
+            print(f"Monthly Tax Deduction: ₹{monthly_tax_with_ded:,.2f}")
+        else:
+            print("No deductions available")
+
+        print("\n" + "-" * 60)
+        print("WITHOUT DEDUCTIONS (New Regime)")
+        print("-" * 60)
+        print(f"Taxable Income: ₹{annual_salary:,.2f}")
+        print(f"Tax Rate: {rate_without_ded:.2f}%")
+        print(f"Annual Tax Liability: ₹{tax_without_ded:,.2f}")
+        print(f"Monthly Tax Deduction: ₹{monthly_tax_without_ded:,.2f}")
+
+        # Calculate savings
+        if deductions:
+            tax_savings = tax_without_ded - tax_with_ded
+            monthly_savings = tax_savings / 12
+            savings_percent = (
+                (tax_savings / tax_without_ded * 100) if tax_without_ded > 0 else 0
+            )
+
+            print("\n" + "-" * 60)
+            print("TAX SAVINGS WITH DEDUCTIONS")
+            print("-" * 60)
+            print(f"Annual Savings: ₹{tax_savings:,.2f}")
+            print(f"Monthly Savings: ₹{monthly_savings:,.2f}")
+            print(f"Savings %: {savings_percent:.2f}%")
+
+        input("\nPress Enter to continue...")
+
+    def upload_deduction_document(self, customer: Customer, account: Account):
+        """Upload proof for deductions (for simulation)"""
+        print("\n" + "=" * 60)
+        print("UPLOAD DEDUCTION PROOF")
+        print("=" * 60)
+
+        if not customer.tax_deductions:
+            print("❌ No deductions found to upload proof for.")
+            print(
+                "💡 Tip: Declare some deductions first (Option 4 in Tax Planning Menu)"
+            )
+            input("\nPress Enter to continue...")
+            return
+
+        print("\nSelect deduction to upload proof for:")
+        for i, exemption in enumerate(customer.tax_deductions, 1):
+            status_emoji = "✓" if exemption.status == "VERIFIED" else "?"
+            print(
+                f"  {i}. {status_emoji} {exemption.deduction_type.value} - ₹{exemption.eligible_amount:,.2f}"
+            )
+
+        try:
+            choice = int(input(f"\nEnter number (1-{len(customer.tax_deductions)}): "))
+            if 1 <= choice <= len(customer.tax_deductions):
+                selected = customer.tax_deductions[choice - 1]
+
+                # Get document details
+                doc_type = input(
+                    "\nDocument Type (e.g., 'Form 12BA', 'Insurance Receipt', 'Bank Statement'): "
+                ).strip()
+                file_path = input(
+                    "Virtual File Path (for simulation, e.g., '/docs/rent_agreement.pdf'): "
+                ).strip()
+
+                if doc_type and file_path:
+                    # Add document to exemption
+                    selected.add_document(doc_type, file_path)
+
+                    # Mark as verified after upload
+                    selected.status = "VERIFIED"
+
+                    print("\n✅ Document uploaded successfully!")
+                    print(f"   Document: {doc_type}")
+                    print(f"   Path: {file_path}")
+                    print(f"   Status: {selected.status}")
+                    print("\n📋 Deduction marked as VERIFIED")
+                else:
+                    print("❌ Invalid input. Please try again.")
+            else:
+                print("❌ Invalid choice.")
+        except ValueError:
+            print("❌ Please enter a valid number.")
+
+        input("\nPress Enter to continue...")
+
+    def declare_additional_deductions(self, customer: Customer, account: Account):
+        """Allow user to manually declare deductions"""
+        print("\n" + "=" * 60)
+        print("DECLARE ADDITIONAL DEDUCTIONS")
+        print("=" * 60)
+
+        print("\nSelect deduction type:")
+        print("1. Section 80C (Investments) - Max ₹1,50,000")
+        print("2. Section 80D (Medical Insurance) - Max ₹50,000")
+        print("3. Section 24 (Home Loan Interest) - Max ₹2,00,000")
+        print("4. Cancel")
+
+        choice = input("\nEnter choice: ").strip()
+
+        if choice == "4":
+            return
+
+        try:
+            amount = float(input("\nEnter amount: ₹"))
+            doc_type = input(
+                "Document Type (e.g., 'Insurance Certificate', 'Bank Statement'): "
+            ).strip()
+
+            if choice == "1":
+                deduction = TaxExemption(
+                    deduction_type=DeductionType.SECTION_80C,
+                    amount=150000,
+                    section="80C",
+                    status=DeductionStatus.SELF_DECLARED,
+                    declared_date=date.today(),
+                    annual_limit=150000,
+                )
+                deduction.eligible_amount = min(amount, 150000)
+            elif choice == "2":
+                deduction = TaxExemption(
+                    deduction_type=DeductionType.SECTION_80D,
+                    amount=50000,
+                    section="80D",
+                    status=DeductionStatus.SELF_DECLARED,
+                    declared_date=date.today(),
+                    annual_limit=50000,
+                )
+                deduction.eligible_amount = min(amount, 50000)
+            elif choice == "3":
+                deduction = TaxExemption(
+                    deduction_type=DeductionType.SECTION_24_HOME_LOAN_INTEREST,
+                    amount=200000,
+                    section="24",
+                    status=DeductionStatus.SELF_DECLARED,
+                    declared_date=date.today(),
+                    annual_limit=200000,
+                )
+                deduction.eligible_amount = min(amount, 200000)
+            else:
+                print("❌ Invalid choice.")
+                return
+
+            # Add document if provided
+            if doc_type:
+                file_path = input("Virtual File Path (for simulation): ").strip()
+                if file_path:
+                    deduction.add_document(doc_type, file_path)
+
+            # Add to customer's tax deductions
+            customer.tax_deductions.append(deduction)
+            self.bank.save()
+
+            print("\n✅ Deduction declared successfully!")
+            print(f"   Amount: ₹{deduction.eligible_amount:,.2f}")
+            print(f"   Status: {deduction.status.value}")
+            print(f"   Documents: {len(deduction.documents)} attached")
+
+        except ValueError:
+            print("❌ Invalid input. Please enter a valid number.")
+
+        input("\nPress Enter to continue...")
+
+    def register_pan_menu(self, customer: Customer):
+        """Register or update PAN for tax filing"""
+        print("\n" + "=" * 70)
+        print("REGISTER/UPDATE PAN")
+        print("=" * 70)
+
+        current_pan = (
+            customer.pan if hasattr(customer, "pan") and customer.pan else None
+        )
+
+        if current_pan:
+            print(f"Current PAN: {current_pan}")
+        else:
+            print("No PAN registered yet.")
+
+        print("\n1. Register New PAN")
+        print("2. Update Existing PAN")
+        print("3. Back")
+
+        choice = self.read_valid_choice("Enter choice: ", ["1", "2", "3"])
+
+        if choice == "3":
+            return
+
+        pan = input("\nEnter 10-character PAN (e.g., ABCDE1234F): ").strip().upper()
+
+        # Validate PAN format (2 letters + 5 digits + 1 letter + 1 digit + 1 letter)
+        if not self.validate_pan(pan):
+            print(
+                "❌ Invalid PAN format. PAN should be 10 characters: 2 letters, 5 digits, 1 letter, 1 digit, 1 letter"
+            )
+            input("\nPress Enter to continue...")
+            return
+
+        # Check if PAN already exists in system (optional validation)
+        customer.pan = pan
+        self.bank.save()
+
+        print(f"\n✅ PAN {pan} registered successfully!")
+        print("You can now file your ITR.")
+
+        input("\nPress Enter to continue...")
+
+    def validate_pan(self, pan: str) -> bool:
+        """Validate PAN format"""
+        import re
+
+        pattern = (
+            r"^[A-Z]{2}[A-Z]{1}[P-Z]{1}[A-Z]{1}[0-9]{7}[A-Z]{1}[0-9]{1}[Z]{1}[0-9]{1}$"
+        )
+        if re.match(pattern, pan):
+            return True
+        # Also allow simple format: any 10 chars
+        return len(pan) == 10 and pan.isalnum()
+
+    def file_itr_menu(self, customer: Customer, account: Account):
+        """File ITR and process refunds"""
+        print("\n" + "=" * 70)
+        print("FILE ANNUAL INCOME TAX RETURN (ITR)")
+        print("=" * 70)
+
+        if not account.salary_profile:
+            print("❌ Salary profile not configured. Cannot file ITR.")
+            input("\nPress Enter to continue...")
+            return
+
+        if not hasattr(customer, "pan") or not customer.pan:
+            print("❌ PAN not registered. Cannot file ITR.")
+            input("\nPress Enter to continue...")
+            return
+
+        # Check for existing ITR filing
+        current_fy = ITRFiling.calculate_financial_year()
+        existing_filings = ITRFiling.get_filing_history(account)
+
+        # Check for any active (non-AMENDED) filing for current FY
+        active_fy_filing = [
+            f
+            for f in existing_filings
+            if f.financial_year == current_fy
+            and f.status.value
+            != "Amended"  # Allow re-filing only if previous was AMENDED
+        ]
+
+        if active_fy_filing:
+            existing = active_fy_filing[0]
+            print(f"\n⚠️  WARNING: You already have an ITR filing for FY {current_fy}")
+            print(f"   Filed Date: {existing.filed_date.strftime('%d-%b-%Y')}")
+            print(
+                f"   Status: {ITRFiling.get_status_icon(existing.status)} {existing.status.value}"
+            )
+            print(f"   Acknowledgment: {existing.ack_number}")
+
+            if existing.refund_amount > 0:
+                print(f"   Refund: ₹{existing.refund_amount:,.2f}")
+            else:
+                tax_due = existing.tax_liability - existing.tds_paid
+                print(f"   Tax Due: ₹{tax_due:,.2f}")
+
+            print(
+                "\n⚠️  You CANNOT file another ITR for the same financial year unless:"
+            )
+            print("   1. You formally AMEND the filing with corrected information")
+
+            amend_choice = (
+                input("\nDo you want to AMEND the existing filing? (yes/no): ")
+                .strip()
+                .lower()
+            )
+
+            if amend_choice in ["yes", "y"]:
+                print(f"\n✅ Preparing to amend ITR for FY {current_fy}...")
+                print("⚠️  The previous filing will be marked as AMENDED.")
+
+                if existing.status.value == "Refund Credited":
+                    print(
+                        "⚠️  Note: Refund has already been credited. Amendment will require new calculation."
+                    )
+
+                confirm = input("Proceed with amendment? (yes/no): ").strip().lower()
+
+                if confirm in ["yes", "y"]:
+                    ITRFiling.void_filing(account, current_fy)
+                    print("✅ Previous ITR filing marked as AMENDED.")
+                else:
+                    print("Amendment cancelled.")
+                    input("\nPress Enter to continue...")
+                    return
+            else:
+                print(
+                    "\n❌ Cannot file new ITR. Existing filing must be amended first."
+                )
+                input("\nPress Enter to continue...")
+                return
+
+        # File ITR
+        success, filing_record, message = ITRFiling.file_itr(
+            account,
+            f"{customer.first_name} {customer.last_name}",
+            customer.pan,
+            customer,
+            self.bank,
+        )
+
+        if not success:
+            print(f"❌ {message}")
+            input("\nPress Enter to continue...")
+            return
+
+        # Display summary
+        ITRFiling.display_filing_summary(filing_record)
+        print(f"\n{message}")
+
+        # Generate comprehensive report
+        self.generate_itr_report(customer, account, filing_record)
+
+        # Store filing record ONLY if not already amended and stored
+        # (If amended, it's already stored in generate_itr_report)
+        from ITRFiling import ITRStatus
+
+        if filing_record.status != ITRStatus.AMENDED:
+            ITRFiling.store_filing(account, filing_record)
+            self.bank.save()
+        else:
+            # Filing was amended and already stored - return to menu
+            print("\n" + "=" * 70)
+            input("\nPress Enter to continue...")
+            return
+
+        # Process refund if applicable (only if not amended)
+        if filing_record.refund_amount > 0:
+            print("\n" + "-" * 70)
+            process = input("\nProcess refund now? (yes/no): ").strip().lower()
+
+            if process in ["yes", "y"]:
+                success, refund_msg = ITRFiling.process_refund(
+                    account, filing_record, self.bank
+                )
+
+                if success:
+                    print(f"\n{refund_msg}")
+                else:
+                    print(f"\n❌ {refund_msg}")
+
+        # View filing history
+        print("\n" + "-" * 70)
+        view_history = input("\nView ITR filing history? (yes/no): ").strip().lower()
+
+        if view_history in ["yes", "y"]:
+            filings = ITRFiling.get_filing_history(account)
+            if not filings:
+                print("\n📋 No ITR filings yet")
+            else:
+                print("\n📋 ITR FILING HISTORY")
+                print("=" * 70)
+                for idx, filing in enumerate(filings, 1):
+                    # Use status field from ITRStatus enum
+                    status_icon = {
+                        "Filed - Pending": "⏳",
+                        "Refund Credited": "✅",
+                        "Tax Paid": "💳",
+                        "Amended": "📝",
+                    }.get(filing.status.value, "❓")
+
+                    print(
+                        f"{idx}. FY {filing.financial_year} - {status_icon} {filing.status.value}"
+                    )
+                    print(
+                        f"   Refund: ₹{filing.refund_amount:,.2f} | Filed: {filing.filed_date.strftime('%d-%b-%Y')}"
+                    )
+
+        input("\nPress Enter to continue...")
+
+        input("\nPress Enter to continue...")
+
+    def view_itr_filing_history_menu(self, customer: Customer, account: Account):
+        """View ITR filing history and process pending refunds"""
+        from ITRFiling import ITRStatus
+
+        print("\n" + "=" * 70)
+        print("📋 ITR FILING HISTORY & REFUND PROCESSING")
+        print("=" * 70)
+
+        filings = ITRFiling.get_filing_history(account)
+
+        if not filings:
+            print("\n❌ No ITR filings found.")
+            print("   File your first ITR using option 6 from the Tax Planning menu.")
+            input("\nPress Enter to continue...")
+            return
+
+        # Display all filings
+        print(f"\nTotal Filings: {len(filings)}")
+        print("=" * 70)
+
+        pending_refunds = []
+
+        for idx, filing in enumerate(filings, 1):
+            status_icon = ITRFiling.get_status_icon(filing.status)
+
+            print(f"\n{idx}. FINANCIAL YEAR {filing.financial_year}")
+            print(f"   Status: {status_icon} {filing.status.value}")
+            print(f"   Filed Date: {filing.filed_date.strftime('%d-%b-%Y')}")
+            print(f"   Acknowledgment: {filing.ack_number}")
+            print(f"   Gross Income: ₹{filing.gross_income:,.2f}")
+            print(f"   Tax Liability: ₹{filing.tax_liability:,.2f}")
+            print(f"   TDS Paid: ₹{filing.tds_paid:,.2f}")
+
+            if filing.refund_amount > 0:
+                print(f"   💰 Refund Amount: ₹{filing.refund_amount:,.2f}")
+
+                # Check if refund is pending
+                if (
+                    filing.status == ITRStatus.FILED_PENDING
+                    and not filing.refund_credited
+                ):
+                    pending_refunds.append((idx, filing))
+                    print("   🔔 ACTION REQUIRED: Refund is pending!")
+                elif filing.refund_credited and filing.refund_date:
+                    print(
+                        f"   ✅ Refund Credited on: {filing.refund_date.strftime('%d-%b-%Y')}"
+                    )
+            else:
+                tax_due = filing.tax_liability - filing.tds_paid
+                print(f"   ⚠️  Tax Due: ₹{tax_due:,.2f}")
+
+            print("-" * 70)
+
+        # Process pending refunds
+        if pending_refunds:
+            print(f"\n🔔 You have {len(pending_refunds)} pending refund(s) to process!")
+            print("=" * 70)
+
+            for idx, filing in pending_refunds:
+                print(f"• FY {filing.financial_year}: ₹{filing.refund_amount:,.2f}")
+
+            print("\n")
+            process_choice = (
+                input("Do you want to process pending refunds now? (yes/no): ")
+                .strip()
+                .lower()
+            )
+
+            if process_choice in ["yes", "y"]:
+                for idx, filing in pending_refunds:
+                    print(f"\n📝 Processing refund for FY {filing.financial_year}...")
+
+                    success, refund_msg = ITRFiling.process_refund(
+                        account, filing, self.bank
+                    )
+
+                    if success:
+                        print(f"✅ {refund_msg}")
+                    else:
+                        print(f"❌ {refund_msg}")
+
+                # Save updated data
+                self.bank.save()
+                print("\n✅ All pending refunds processed successfully!")
+            else:
+                print(
+                    "\n⚠️  Refunds not processed. You can process them later from this menu."
+                )
+        else:
+            print("\n✅ No pending refunds to process.")
+            print("   All filings are either processed or have no refunds due.")
+
+        input("\nPress Enter to continue...")
+
+    def generate_itr_report(self, customer: Customer, account: Account, filing_record):
+        """Generate and display comprehensive ITR report"""
+        print("\n" + "=" * 70)
+        print("📋 COMPREHENSIVE ITR FILING REPORT")
+        print("=" * 70)
+
+        # Get deductions breakdown
+        is_metro = getattr(account.salary_profile, "is_metro_city", True)
+        deductions = TaxDeductionAnalyzer.get_all_deductions(
+            customer, account.salary_profile, is_metro, self.bank
+        )
+
+        # Header Section
+        print(f"\n{'TAXPAYER INFORMATION':^70}")
+        print("-" * 70)
+        print(f"Name:                {customer.first_name} {customer.last_name}")
+        print(f"PAN:                 {customer.pan}")
+        print(f"Financial Year:      {filing_record.financial_year}")
+        print(f"Filing Date:         {filing_record.filed_date.strftime('%d-%b-%Y')}")
+        print(f"Acknowledgment #:    {filing_record.ack_number}")
+
+        # Income Section
+        print(f"\n{'INCOME BREAKDOWN':^70}")
+        print("-" * 70)
+        print(f"  Gross Salary:          ₹{filing_record.gross_income:>15,.2f}")
+
+        # Show gross components
+        if account.salary_profile:
+            monthly_salary = account.salary_profile.gross_salary
+            print(f"    └─ Annual (₹{monthly_salary:,.2f} × 12)")
+
+            # Show salary components if available
+            if hasattr(account.salary_profile, "basic_salary"):
+                print(
+                    f"       • Basic Salary:     ₹{account.salary_profile.basic_salary * 12:,.2f}"
+                )
+            if hasattr(account.salary_profile, "hra_received"):
+                print(
+                    f"       • HRA Received:     ₹{account.salary_profile.hra_received * 12:,.2f}"
+                )
+            if hasattr(account.salary_profile, "special_allowance"):
+                print(
+                    f"       • Allowances:       ₹{account.salary_profile.special_allowance * 12:,.2f}"
+                )
+
+        # Deductions Section
+        print(f"\n{'DEDUCTIONS SUMMARY':^70}")
+        print("-" * 70)
+
+        if deductions:
+            deduction_labels = {
+                "16": "Section 16 - Standard Deduction",
+                "10(13A)": "Section 10(13A) - HRA/Rent",
+                "80C": "Section 80C - Savings/EPF",
+                "80D": "Section 80D - Medical Insurance",
+                "24": "Section 24 - Home Loan Interest",
+            }
+
+            for section, amount in sorted(deductions.items()):
+                label = deduction_labels.get(section, f"Section {section}")
+                print(f"  {label:<45} ₹{amount:>15,.2f}")
+
+        print(f"  {'-' * 45} {'-' * 17}")
+        print(f"  {'Total Deductions':<45} ₹{filing_record.total_deductions:>15,.2f}")
+
+        # Tax Calculation Section
+        print(f"\n{'TAX CALCULATION':^70}")
+        print("-" * 70)
+        print(f"  Gross Income (A):      ₹{filing_record.gross_income:>15,.2f}")
+        print(f"  Less: Deductions (B):  ₹{filing_record.total_deductions:>15,.2f}")
+        print(f"  {'-' * 45} {'-' * 17}")
+        print(f"  Taxable Income (A-B):  ₹{filing_record.taxable_income:>15,.2f}")
+
+        # Calculate tax rate
+        if filing_record.taxable_income > 0:
+            effective_rate = (
+                filing_record.tax_liability / filing_record.taxable_income
+            ) * 100
+            print(f"\n  Applicable Tax Rate:   {effective_rate:.2f}%")
+
+        print(f"  Tax Liability:         ₹{filing_record.tax_liability:>15,.2f}")
+
+        # TDS and Refund Section
+        print(f"\n{'REFUND CALCULATION':^70}")
+        print("-" * 70)
+        print(f"  Tax Liability:         ₹{filing_record.tax_liability:>15,.2f}")
+        print(f"  TDS Paid During Year:  ₹{filing_record.tds_paid:>15,.2f}")
+        print(f"  {'-' * 45} {'-' * 17}")
+
+        if filing_record.refund_amount > 0:
+            print(f"  💰 REFUND DUE:         ₹{filing_record.refund_amount:>15,.2f}")
+            print("\n  Status: ⏳ Pending (Apply for refund if not auto-credited)")
+        else:
+            additional_tax = filing_record.tax_liability - filing_record.tds_paid
+            print(f"  Additional Tax Owing:  ₹{additional_tax:>15,.2f}")
+            print("\n  Status: ⚠️  No refund due")
+
+        # Summary Section
+        print(f"\n{'FILING SUMMARY':^70}")
+        print("-" * 70)
+        print("✅ ITR has been successfully filed with Income Tax Department")
+        print(f"✅ Acknowledgment receipt: {filing_record.ack_number}")
+
+        # Show next steps
+        print(f"\n{'NEXT STEPS':^70}")
+        print("-" * 70)
+        if filing_record.refund_amount > 0:
+            print("1. Track refund status using acknowledgment number")
+            print("2. Expected refund processing time: 30-45 days")
+            print("3. Refund will be credited to your registered bank account")
+        else:
+            print("1. Keep this report for your records")
+            print(
+                "2. If additional tax is due, arrange payment within statutory deadline"
+            )
+            print("3. Maintain all supporting documents for 5-6 years")
+
+        # AMEND OPTION - Right before file save
+        print("\n" + "-" * 70)
+        print("⭐ FILING ACTION")
+        print("-" * 70)
+        amend_now = (
+            input("\nDo you want to AMEND this filing? (yes/no): ").strip().lower()
+        )
+
+        if amend_now in ["yes", "y"]:
+            print(
+                f"\n✅ Preparing to amend ITR for FY {filing_record.financial_year}..."
+            )
+            print("⚠️  This filing will be marked as AMENDED.")
+            print("   You can then file a corrected ITR.")
+
+            from ITRFiling import ITRFiling
+
+            confirm = input("Proceed with amendment? (yes/no): ").strip().lower()
+
+            if confirm in ["yes", "y"]:
+                # Mark the filing record as AMENDED directly (it hasn't been stored yet)
+                from ITRFiling import ITRFiling, ITRStatus
+
+                filing_record.status = ITRStatus.AMENDED
+                # Store the AMENDED filing record
+                ITRFiling.store_filing(account, filing_record)
+                # SAVE to persist the AMENDED status
+                self.bank.save()
+                print("\n✅ ITR filing marked as AMENDED.")
+                print(
+                    "💡 You can now file a corrected ITR by selecting 'File ITR' again."
+                )
+                # Return to caller (file_itr_menu) which will handle exit
+                return
+            else:
+                print("Amendment cancelled. Continuing with current filing...")
+
+        # Save report option
+        print("\n" + "-" * 70)
+        save_option = input("\nGenerate report file? (yes/no): ").strip().lower()
+
+        if save_option in ["yes", "y"]:
+            self.save_itr_report_to_file(customer, filing_record, deductions)
+
+    def save_itr_report_to_file(
+        self, customer: Customer, filing_record, deductions: Dict
+    ):
+        """Save ITR report to a text file"""
+        import os
+        from datetime import datetime
+
+        try:
+            # Create reports directory if it doesn't exist
+            reports_dir = os.path.join(os.path.dirname(__file__), "..", "reports")
+            if not os.path.exists(reports_dir):
+                os.makedirs(reports_dir)
+
+            # Generate filename
+            filename = f"ITR_{customer.pan}_{filing_record.financial_year.replace('-', '_')}.txt"
+            filepath = os.path.join(reports_dir, filename)
+
+            # Generate report content
+            report_content = f"""
+{"=" * 70}
+                    INCOME TAX RETURN (ITR) FILING REPORT
+{"=" * 70}
+
+TAXPAYER INFORMATION
+{"-" * 70}
+Name:                {customer.first_name} {customer.last_name}
+PAN:                 {customer.pan}
+Financial Year:      {filing_record.financial_year}
+Filing Date:         {filing_record.filed_date.strftime("%d-%b-%Y")}
+Report Generated:    {datetime.now().strftime("%d-%b-%Y %H:%M:%S")}
+Acknowledgment #:    {filing_record.ack_number}
+
+INCOME BREAKDOWN
+{"-" * 70}
+Gross Annual Salary: ₹{filing_record.gross_income:>15,.2f}
+
+DEDUCTIONS CLAIMED
+{"-" * 70}
+"""
+            if deductions:
+                deduction_labels = {
+                    "16": "Section 16 - Standard Deduction",
+                    "10(13A)": "Section 10(13A) - HRA/Rent",
+                    "80C": "Section 80C - Savings/EPF",
+                    "80D": "Section 80D - Medical Insurance",
+                    "24": "Section 24 - Home Loan Interest",
+                }
+
+                for section, amount in sorted(deductions.items()):
+                    label = deduction_labels.get(section, f"Section {section}")
+                    report_content += f"{label:<45} ₹{amount:>15,.2f}\n"
+
+            report_content += f"""
+{"-" * 70}
+Total Deductions:                             ₹{filing_record.total_deductions:>15,.2f}
+
+TAX CALCULATION
+{"-" * 70}
+Gross Income:                                 ₹{filing_record.gross_income:>15,.2f}
+Less: Deductions:                            ₹{filing_record.total_deductions:>15,.2f}
+{"-" * 45} {"-" * 17}
+Taxable Income:                               ₹{filing_record.taxable_income:>15,.2f}
+
+Tax Liability:                                ₹{filing_record.tax_liability:>15,.2f}
+
+REFUND CALCULATION
+{"-" * 70}
+Tax Liability:                                ₹{filing_record.tax_liability:>15,.2f}
+TDS Paid During FY:                          ₹{filing_record.tds_paid:>15,.2f}
+{"-" * 45} {"-" * 17}
+"""
+
+            if filing_record.refund_amount > 0:
+                report_content += f"REFUND DUE:                                   ₹{filing_record.refund_amount:>15,.2f}"
+            else:
+                additional_tax = filing_record.tax_liability - filing_record.tds_paid
+                report_content += f"Additional Tax Owing:                         ₹{additional_tax:>15,.2f}"
+
+            report_content += f"""
+
+{"=" * 70}
+FILING STATUS: SUBMITTED SUCCESSFULLY
+{"=" * 70}
+✅ Your ITR has been filed with the Income Tax Department
+✅ Acknowledgment receipt has been issued
+{"✅ Refund of ₹" + f"{filing_record.refund_amount:,.2f}" + " is due" if filing_record.refund_amount > 0 else "⚠️  No refund due"}
+
+Keep this report for your records. You may need to provide it for
+reference or in case of any tax-related inquiries.
+
+Generated by: Pythonified Bank
+Report Version: 1.0
+{"-" * 70}
+"""
+
+            # Write to file
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(report_content)
+
+            print(f"\n✅ Report saved to: {filepath}")
+
+        except Exception as e:
+            print(f"\n❌ Error saving report: {str(e)}")
+
+    def compare_tax_regimes(self, customer: Customer, account: Account):
+        """Compare Old Regime (with deductions) vs New Regime (no deductions)"""
+        print("\n" + "=" * 60)
+        print("TAX REGIME COMPARISON")
+        print("=" * 60)
+
+        if not account.salary_profile:
+            print("❌ No salary profile found.")
+            input("\nPress Enter to continue...")
+            return
+
+        annual_salary = account.salary_profile.gross_salary * 12
+
+        # Get deductions
+        is_metro = getattr(account.salary_profile, "is_metro_city", True)
+        deductions = TaxDeductionAnalyzer.get_all_deductions(
+            customer, account.salary_profile, is_metro, self.bank
+        )
+
+        if not deductions:
+            print("⚠️  No deductions available. Both regimes would result in same tax.")
+            input("\nPress Enter to continue...")
+            return
+
+        # Get comparison
+        recommendation, details = TaxCalculator.compare_regimes(
+            annual_salary, deductions
+        )
+
+        # Display comparison
+        print("\nOLD REGIME (With Deductions)")
+        print("-" * 60)
+        print(f"Gross Income: ₹{details['old_regime']['gross']:,.2f}")
+        print(f"Total Deductions: ₹{details['old_regime']['total_deductions']:,.2f}")
+        print(f"Taxable Income: ₹{details['old_regime']['taxable']:,.2f}")
+        print(f"Annual Tax: ₹{details['old_regime']['tax']:,.2f}")
+        print(f"Tax Rate: {details['old_regime']['tax_rate'] * 100:.2f}%")
+        print(f"Monthly Tax: ₹{details['old_regime']['monthly_tax']:,.2f}")
+        print(f"Annual Net: ₹{details['old_regime']['net']:,.2f}")
+
+        print("\nNEW REGIME (No Deductions)")
+        print("-" * 60)
+        print(f"Gross Income: ₹{details['new_regime']['gross']:,.2f}")
+        print(f"Taxable Income: ₹{details['new_regime']['taxable']:,.2f}")
+        print(f"Annual Tax: ₹{details['new_regime']['tax']:,.2f}")
+        print(f"Tax Rate: {details['new_regime']['tax_rate'] * 100:.2f}%")
+        print(f"Monthly Tax: ₹{details['new_regime']['monthly_tax']:,.2f}")
+        print(f"Annual Net: ₹{details['new_regime']['net']:,.2f}")
+
+        tax_savings = details["tax_savings"]
+        print("\n" + "=" * 60)
+        print(f"RECOMMENDATION: 🎯 {recommendation}")
+        print("=" * 60)
+        print(f"Annual Savings with Old Regime: ₹{tax_savings:,.2f}")
+        print(f"Monthly Savings: ₹{tax_savings / 12:,.2f}")
+
+        # Ask if user wants to switch regime
+        if customer.tax_regime == "NEW_REGIME":
+            switch_choice = (
+                input("\nSwitch to Old Regime (with deductions)? (yes/no): ")
+                .strip()
+                .lower()
+            )
+            if switch_choice in ["yes", "y"]:
+                customer.tax_regime = "OLD_REGIME"
+                self.bank.save()
+                print("✅ Tax regime switched to OLD_REGIME")
+        elif customer.tax_regime == "OLD_REGIME":
+            switch_choice = (
+                input("\nSwitch to New Regime (no deductions)? (yes/no): ")
+                .strip()
+                .lower()
+            )
+            if switch_choice in ["yes", "y"]:
+                customer.tax_regime = "NEW_REGIME"
+                self.bank.save()
+                print("✅ Tax regime switched to NEW_REGIME")
 
         input("\nPress Enter to continue...")
 
