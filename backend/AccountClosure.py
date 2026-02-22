@@ -29,7 +29,7 @@ class AccountClosureService:
         """
         # Load transactions if needed
         account._load_transactions_if_needed()
-        
+
         # Validation checks
         validation_result = AccountClosureService._validate_account_closure(
             account, bank
@@ -79,9 +79,11 @@ class AccountClosureService:
             if not active_book:
                 # Allocate numbers from bank's global counter
                 starting_number = bank.allocate_cheque_numbers(50)
-                account.cheque_book_manager.create_and_issue_cheque_book(starting_number)
+                account.cheque_book_manager.create_and_issue_cheque_book(
+                    starting_number
+                )
                 active_book = account.cheque_book_manager.get_active_cheque_book()
-            
+
             unused_cheques = active_book.get_unused_cheques()
             if unused_cheques:
                 cheque_number = unused_cheques[0].cheque_number
@@ -89,7 +91,7 @@ class AccountClosureService:
                     cheque_number,
                     final_balance,
                     f"{account.first_name} {account.last_name}",
-                    BankClock.today().isoformat()
+                    BankClock.today().isoformat(),
                 )
                 disbursement_info = f"Cheque {cheque_number} (ID: {cheque_id})"
             else:
@@ -198,7 +200,7 @@ class AccountClosureService:
         """Generate account closure certificate"""
         # Load transactions if needed
         account._load_transactions_if_needed()
-        
+
         timestamp = BankClock.get_formatted_datetime()
         closure_date = BankClock.today().strftime("%d-%m-%Y")
 

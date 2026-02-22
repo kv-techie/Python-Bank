@@ -5,32 +5,31 @@ Handles cheque issuance, clearing, bouncing, and bounce fee collection
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
 from enum import Enum
+from typing import Dict, Optional
 from uuid import uuid4
-
-from BankClock import BankClock
 
 
 class ChequeStatus(Enum):
     """Cheque status enumeration"""
-    ISSUED = "ISSUED"                    # Cheque created and issued to customer
+
+    ISSUED = "ISSUED"  # Cheque created and issued to customer
     PENDING_CLEARING = "PENDING_CLEARING"  # Cheque presented, awaiting clearing
-    CLEARED = "CLEARED"                  # Successfully cleared/deposited
-    BOUNCED = "BOUNCED"                  # Insufficient funds or fraud
-    CANCELLED = "CANCELLED"              # Customer cancelled before use
-    STALE = "STALE"                      # > 6 months old (automatically marked)
+    CLEARED = "CLEARED"  # Successfully cleared/deposited
+    BOUNCED = "BOUNCED"  # Insufficient funds or fraud
+    CANCELLED = "CANCELLED"  # Customer cancelled before use
+    STALE = "STALE"  # > 6 months old (automatically marked)
 
 
 @dataclass
 class Cheque:
     """Represents a cheque in the banking system"""
 
-    cheque_number: str                   # Serial number on cheque
-    account_number: str                  # Issuing account
-    amount: float                        # Cheque amount
-    payee_name: str                      # Who receives the money
-    date_presentable: str                # Date cheque can be presented (YYYY-MM-DD)
+    cheque_number: str  # Serial number on cheque
+    account_number: str  # Issuing account
+    amount: float  # Cheque amount
+    payee_name: str  # Who receives the money
+    date_presentable: str  # Date cheque can be presented (YYYY-MM-DD)
     status: ChequeStatus = ChequeStatus.ISSUED
     cheque_id: str = field(default_factory=lambda: f"CHQ{str(uuid4())[:12].upper()}")
     issued_on: datetime = field(default_factory=datetime.now)
@@ -40,7 +39,7 @@ class Cheque:
     bounce_fee_deducted: float = 0.0
     cancelled_on: Optional[datetime] = None
     cancellation_reason: Optional[str] = None
-    metadata: Optional[str] = None       # Arbitrary metadata
+    metadata: Optional[str] = None  # Arbitrary metadata
 
     def to_dict(self) -> Dict:
         """Convert cheque to dictionary for storage"""
@@ -127,7 +126,10 @@ class Cheque:
 
     def mark_bounced(self, reason: str, fee: float = 500.0) -> bool:
         """Mark cheque as bounced and deduct fee"""
-        if self.status != ChequeStatus.ISSUED and self.status != ChequeStatus.PENDING_CLEARING:
+        if (
+            self.status != ChequeStatus.ISSUED
+            and self.status != ChequeStatus.PENDING_CLEARING
+        ):
             return False
         self.status = ChequeStatus.BOUNCED
         self.bounced_on = datetime.now()

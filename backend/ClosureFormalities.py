@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING, List
 
 from AccountClosure import AccountClosureService
-from BankClock import BankClock
 from Beneficiary import Beneficiary
 from Card import CreditCard
 

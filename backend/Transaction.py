@@ -267,7 +267,7 @@ class TransactionType:
             TransactionType.DEBIT_CARD_PURCHASE,
             TransactionType.CREDIT_CARD_PAYMENT,
             "CREDIT_CARD_BILL_PAYMENT",  # Credit card bill payments
-            "CREDIT_CARD_PURCHASE",  # Credit card purchases  
+            "CREDIT_CARD_PURCHASE",  # Credit card purchases
             "RECURRING_BILL",  # Recurring bill payments
             "RECURRING_BILL_CREDIT_CARD_PAYMENT",  # Recurring bill via credit card
             "RD_AUTH_PAYMENT",  # RD authorization payments

@@ -5,8 +5,8 @@ Handles cheque book issuance, tracking, and management
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
 from enum import Enum
+from typing import Dict, List, Optional
 from uuid import uuid4
 
 from Cheque import Cheque, ChequeStatus
@@ -14,10 +14,11 @@ from Cheque import Cheque, ChequeStatus
 
 class ChequeBookStatus(Enum):
     """Cheque book status enumeration"""
-    ACTIVE = "ACTIVE"                      # Currently in use
-    EXHAUSTED = "EXHAUSTED"                # All cheques used
-    REQUESTED = "REQUESTED"                # Pending approval (future feature)
-    CANCELLED = "CANCELLED"                # Cancelled by customer
+
+    ACTIVE = "ACTIVE"  # Currently in use
+    EXHAUSTED = "EXHAUSTED"  # All cheques used
+    REQUESTED = "REQUESTED"  # Pending approval (future feature)
+    CANCELLED = "CANCELLED"  # Cancelled by customer
 
 
 @dataclass
@@ -28,8 +29,8 @@ class ChequeBook:
         default_factory=lambda: f"CB{str(uuid4())[:10].upper()}"
     )
     account_number: str = ""
-    starting_cheque_number: int = 0       # e.g., 100001
-    total_cheques: int = 50                # Standard: 50 cheques per book
+    starting_cheque_number: int = 0  # e.g., 100001
+    total_cheques: int = 50  # Standard: 50 cheques per book
     issued_cheques: List[str] = field(default_factory=list)  # List of cheque IDs
     status: ChequeBookStatus = ChequeBookStatus.ACTIVE
     issued_on: datetime = field(default_factory=datetime.now)
@@ -122,7 +123,9 @@ class ChequeBook:
     @property
     def used_count(self) -> int:
         """Count of cheques used (cleared, bounced, cancelled, etc)"""
-        return len([c for c in self.cheques.values() if c.status != ChequeStatus.ISSUED])
+        return len(
+            [c for c in self.cheques.values() if c.status != ChequeStatus.ISSUED]
+        )
 
     @property
     def unused_count(self) -> int:
@@ -154,7 +157,7 @@ class ChequeBookManager:
 
     def __init__(self, account_number: str, starting_cheque_number: int = 100001):
         """Initialize cheque book manager for an account
-        
+
         Args:
             account_number: The account this manager belongs to
             starting_cheque_number: Starting cheque number (default 100001 for backward compatibility)
@@ -165,13 +168,15 @@ class ChequeBookManager:
 
     def create_and_issue_cheque_book(self, starting_number: int = None) -> ChequeBook:
         """Create and issue a new cheque book for the account
-        
+
         Args:
             starting_number: Starting cheque number for this book. If None, uses internal counter.
         """
         # Use provided starting number or fall back to internal counter
-        cheque_start = starting_number if starting_number is not None else self.next_cheque_number
-        
+        cheque_start = (
+            starting_number if starting_number is not None else self.next_cheque_number
+        )
+
         cheque_book = ChequeBook(
             account_number=self.account_number,
             starting_cheque_number=cheque_start,
@@ -193,7 +198,7 @@ class ChequeBookManager:
         # Update internal counter only if not using external starting number
         if starting_number is None:
             self.next_cheque_number += 50
-        
+
         return cheque_book
 
     def get_active_cheque_book(self) -> Optional[ChequeBook]:

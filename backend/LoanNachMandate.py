@@ -13,26 +13,26 @@ import json
 import os
 import random
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from BankClock import BankClock
 from DataStore import DataStore
-from NachIdGenerator import NachIdGenerator
 
 
 class NachMandateStatus:
     """Mandate status constants"""
-    PENDING = "Pending"           # Awaiting OTP verification
-    ACTIVE = "Active"             # Mandate is active and can be used
-    OTP_VERIFIED = "OTP_Verified" # OTP verified, awaiting bank confirmation
-    SUSPENDED = "Suspended"       # Mandate temporarily suspended
-    REVOKED = "Revoked"          # Mandate cancelled/revoked
-    EXPIRED = "Expired"          # Mandate validity period expired
+
+    PENDING = "Pending"  # Awaiting OTP verification
+    ACTIVE = "Active"  # Mandate is active and can be used
+    OTP_VERIFIED = "OTP_Verified"  # OTP verified, awaiting bank confirmation
+    SUSPENDED = "Suspended"  # Mandate temporarily suspended
+    REVOKED = "Revoked"  # Mandate cancelled/revoked
+    EXPIRED = "Expired"  # Mandate validity period expired
 
 
 class LoanNachMandate:
     """Represents a NACH mandate for automatic EMI deduction"""
-    
+
     def __init__(
         self,
         mandate_id: str,
@@ -63,7 +63,9 @@ class LoanNachMandate:
         self.start_date = start_date
         self.end_date = end_date
         self.status = status
-        self.creation_timestamp = creation_timestamp or BankClock.get_formatted_datetime()
+        self.creation_timestamp = (
+            creation_timestamp or BankClock.get_formatted_datetime()
+        )
         self.verification_timestamp = verification_timestamp
         self.otp = otp
         self.otp_expiry = otp_expiry
@@ -130,15 +132,15 @@ class LoanNachMandate:
         """Verify OTP for mandate activation"""
         if self.otp_attempts >= 3:
             return False, "Maximum OTP attempts exceeded. Mandate creation failed."
-        
+
         if not self.is_otp_valid():
             return False, "OTP has expired. Please create mandate again."
-        
+
         if entered_otp != self.otp:
             self.otp_attempts += 1
             remaining = 3 - self.otp_attempts
             return False, f"Invalid OTP. {remaining} attempts remaining."
-        
+
         # Correct OTP
         self.status = NachMandateStatus.ACTIVE
         self.verification_timestamp = BankClock.get_formatted_datetime()
@@ -150,18 +152,20 @@ class LoanNachMandate:
         """Record an EMI deduction"""
         if self.status != NachMandateStatus.ACTIVE:
             return False
-        
-        self.deduction_history.append({
-            "date": BankClock.get_formatted_datetime(),
-            "amount": amount,
-            "status": status,
-        })
+
+        self.deduction_history.append(
+            {
+                "date": BankClock.get_formatted_datetime(),
+                "amount": amount,
+                "status": status,
+            }
+        )
         return True
 
 
 class LoanNachMandateManager:
     """Manages NACH mandates for loans"""
-    
+
     MANDATES_FILE = "data/loan_nach_mandates.json"
 
     @staticmethod
@@ -181,7 +185,9 @@ class LoanNachMandateManager:
     @staticmethod
     def _save_mandates(mandates: Dict[str, LoanNachMandate]):
         """Save all NACH mandates to storage"""
-        os.makedirs(os.path.dirname(LoanNachMandateManager.MANDATES_FILE), exist_ok=True)
+        os.makedirs(
+            os.path.dirname(LoanNachMandateManager.MANDATES_FILE), exist_ok=True
+        )
         with open(LoanNachMandateManager.MANDATES_FILE, "w") as f:
             data = {mid: m.to_dict() for mid, m in mandates.items()}
             json.dump(data, f, indent=2)
@@ -199,16 +205,18 @@ class LoanNachMandateManager:
     ) -> Tuple[bool, str, Optional[str]]:
         """
         Create a new NACH mandate for automatic EMI deduction
-        
+
         Returns: (success, message, mandate_id)
         """
         # Generate mandate ID
         mandate_id = f"NACH{BankClock.today().strftime('%Y%m%d')}{random.randint(100000, 999999)}"
-        
+
         # Create new mandate (will be in Pending status with OTP)
         otp = f"{random.randint(100000, 999999)}"
-        otp_expiry = (datetime.now() + timedelta(minutes=30)).strftime("%d-%m-%Y %H:%M:%S")
-        
+        otp_expiry = (datetime.now() + timedelta(minutes=30)).strftime(
+            "%d-%m-%Y %H:%M:%S"
+        )
+
         mandate = LoanNachMandate(
             mandate_id=mandate_id,
             loan_id=loan_id,
@@ -224,12 +232,12 @@ class LoanNachMandateManager:
             otp=otp,
             otp_expiry=otp_expiry,
         )
-        
+
         # Save mandate
         mandates = LoanNachMandateManager._load_mandates()
         mandates[mandate_id] = mandate
         LoanNachMandateManager._save_mandates(mandates)
-        
+
         # Log activity
         DataStore.append_activity(
             timestamp=BankClock.get_formatted_datetime(),
@@ -240,12 +248,12 @@ class LoanNachMandateManager:
             resulting_balance=0,
             metadata=f"mandateId={mandate_id};loanId={loan_id};emiAmount={emi_amount}",
         )
-        
+
         return (
-            True, 
+            True,
             f"NACH mandate created. OTP sent to registered mobile. Mandate ID: {mandate_id}",
             mandate_id,
-            otp  # Return OTP for testing (in real system, would be sent via SMS)
+            otp,  # Return OTP for testing (in real system, would be sent via SMS)
         )
 
     @staticmethod
@@ -255,16 +263,16 @@ class LoanNachMandateManager:
     ) -> Tuple[bool, str]:
         """Verify OTP for mandate activation"""
         mandates = LoanNachMandateManager._load_mandates()
-        
+
         if mandate_id not in mandates:
             return False, "Mandate not found."
-        
+
         mandate = mandates[mandate_id]
         success, message = mandate.verify_otp(entered_otp)
-        
+
         if success:
             LoanNachMandateManager._save_mandates(mandates)
-            
+
             # Log successful verification
             DataStore.append_activity(
                 timestamp=BankClock.get_formatted_datetime(),
@@ -275,7 +283,7 @@ class LoanNachMandateManager:
                 resulting_balance=0,
                 metadata=f"mandateId={mandate_id};loanId={mandate.loan_id}",
             )
-        
+
         return success, message
 
     @staticmethod
@@ -289,7 +297,10 @@ class LoanNachMandateManager:
         """Get mandate for a specific loan"""
         mandates = LoanNachMandateManager._load_mandates()
         for mandate in mandates.values():
-            if mandate.loan_id == loan_id and mandate.status == NachMandateStatus.ACTIVE:
+            if (
+                mandate.loan_id == loan_id
+                and mandate.status == NachMandateStatus.ACTIVE
+            ):
                 return mandate
         return None
 
@@ -303,15 +314,15 @@ class LoanNachMandateManager:
     def revoke_mandate(mandate_id: str, reason: str = "") -> Tuple[bool, str]:
         """Revoke a NACH mandate"""
         mandates = LoanNachMandateManager._load_mandates()
-        
+
         if mandate_id not in mandates:
             return False, "Mandate not found."
-        
+
         mandate = mandates[mandate_id]
         mandate.status = NachMandateStatus.REVOKED
-        
+
         LoanNachMandateManager._save_mandates(mandates)
-        
+
         # Log revocation
         DataStore.append_activity(
             timestamp=BankClock.get_formatted_datetime(),
@@ -322,84 +333,89 @@ class LoanNachMandateManager:
             resulting_balance=0,
             metadata=f"mandateId={mandate_id};loanId={mandate.loan_id};reason={reason}",
         )
-        
+
         return True, f"Mandate {mandate_id} has been revoked."
 
     @staticmethod
     def suspend_mandate(mandate_id: str) -> Tuple[bool, str]:
         """Temporarily suspend a mandate"""
         mandates = LoanNachMandateManager._load_mandates()
-        
+
         if mandate_id not in mandates:
             return False, "Mandate not found."
-        
+
         mandate = mandates[mandate_id]
         previous_status = mandate.status
         mandate.status = NachMandateStatus.SUSPENDED
-        
+
         LoanNachMandateManager._save_mandates(mandates)
-        
+
         return True, f"Mandate {mandate_id} suspended (was {previous_status})."
 
     @staticmethod
     def resume_mandate(mandate_id: str) -> Tuple[bool, str]:
         """Resume a suspended mandate"""
         mandates = LoanNachMandateManager._load_mandates()
-        
+
         if mandate_id not in mandates:
             return False, "Mandate not found."
-        
+
         mandate = mandates[mandate_id]
         if mandate.status != NachMandateStatus.SUSPENDED:
             return False, f"Cannot resume. Current status: {mandate.status}"
-        
+
         mandate.status = NachMandateStatus.ACTIVE
-        
+
         LoanNachMandateManager._save_mandates(mandates)
-        
+
         return True, f"Mandate {mandate_id} resumed and is ACTIVE."
 
     @staticmethod
     def process_emi_deduction(
-        mandate: LoanNachMandate,
-        emi_amount: float
+        mandate: LoanNachMandate, emi_amount: float
     ) -> Tuple[bool, str]:
         """
         Process automatic EMI deduction using NACH mandate
-        
+
         This would be called during time simulation or automatic payment processing
         """
         if mandate.status != NachMandateStatus.ACTIVE:
             return False, f"Mandate is {mandate.status}. Cannot process deduction."
-        
+
         # Check if deduction amount is within limit
         if emi_amount > mandate.max_debit_amount:
-            return False, f"Deduction amount exceeds mandate limit of Rs. {mandate.max_debit_amount:.2f}"
-        
+            return (
+                False,
+                f"Deduction amount exceeds mandate limit of Rs. {mandate.max_debit_amount:.2f}",
+            )
+
         # Record deduction
         mandate.record_deduction(emi_amount, "Success")
-        
+
         # Save updated mandate
         mandates = LoanNachMandateManager._load_mandates()
         mandates[mandate.mandate_id] = mandate
         LoanNachMandateManager._save_mandates(mandates)
-        
-        return True, f"EMI of Rs. {emi_amount:.2f} deducted successfully via NACH mandate."
+
+        return (
+            True,
+            f"EMI of Rs. {emi_amount:.2f} deducted successfully via NACH mandate.",
+        )
 
     @staticmethod
     def get_mandate_summary(mandate: LoanNachMandate) -> str:
         """Get formatted mandate summary"""
         summary = f"""
 NACH MANDATE SUMMARY
-{'=' * 70}
+{"=" * 70}
 Mandate ID:           {mandate.mandate_id}
 Loan ID:              {mandate.loan_id}
 Status:               {mandate.status}
 Created:              {mandate.creation_timestamp}
-Verified:             {mandate.verification_timestamp or 'Pending'}
+Verified:             {mandate.verification_timestamp or "Pending"}
 
 MANDATE DETAILS
-{'=' * 70}
+{"=" * 70}
 Debit Account:        {mandate.bank_account_number}
 Bank IFSC:            {mandate.bank_ifsc}
 EMI Amount:           Rs. {mandate.emi_amount:,.2f}
@@ -407,7 +423,7 @@ Max Debit Limit:      Rs. {mandate.max_debit_amount:,.2f}
 Validity Period:      {mandate.start_date} to {mandate.end_date}
 
 DEDUCTION HISTORY
-{'=' * 70}
+{"=" * 70}
 Total Deductions:     {len(mandate.deduction_history)}
 """
         if mandate.deduction_history:
@@ -415,6 +431,6 @@ Total Deductions:     {len(mandate.deduction_history)}
             summary += "-" * 70 + "\n"
             for deduction in mandate.deduction_history[-5:]:  # Show last 5
                 summary += f"{deduction['date']:<20} Rs. {deduction['amount']:>12,.2f} {deduction['status']:<15}\n"
-        
+
         summary += "=" * 70
         return summary
