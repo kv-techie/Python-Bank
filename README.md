@@ -111,74 +111,19 @@ python migrate_timestamps.py
 
 ## Project Structure
 
-```
-Python-Bank/
-├── README.md
-├── .gitignore
-└── backend/
-    ├── MainInterface.py             # 🚀 Entry point
-    ├── BankingApp.py                # 🖥️  Main application loop & UI menus
-    ├── Bank.py                      # 🏦 Core bank engine
-    ├── DataStore.py                 # 💾 JSON-based persistence layer
-    ├── BankClock.py                 # ⏰ Real-time & virtual clock
-    ├── Serializers.py               # 🔄 Object serialization helpers
-    │
-    ├── # ─ CUSTOMER & ACCOUNT ───────────────────────
-    ├── Customer.py                  # 👤 Customer entity & profile
-    ├── Account.py                   # 🏦 Account entity & operations
-    ├── PasswordRecovery.py          # 🔑 Password reset flows
-    ├── AccountClosure.py            # ❌ Account closure request handler
-    ├── ClosureFormalities.py        # 📝 Closure verification & processing
-    │
-    ├── # ─ TRANSACTIONS ─────────────────────────────
-    ├── Transaction.py               # 💸 Transaction entity
-    ├── TransactionRegistry.py       # 📒 Transaction log & registry
-    ├── Beneficiary.py               # 👥 Saved beneficiary management
-    ├── verify_transfer.py           # ✅ Transfer verification utility
-    │
-    ├── # ─ CARDS ─────────────────────────────────────
-    ├── Card.py                      # 💳 Debit & Credit card entities
-    ├── CreditEvaluator.py           # 📊 Credit limit calculator
-    ├── CreditLimitEnhancement.py    # 📈 Credit limit upgrade workflows
-    ├── RewardPointsManager.py       # 🎁 Reward points tracking & redemption
-    │
-    ├── # ─ DEPOSITS ─────────────────────────────────
-    ├── FixedDeposit.py              # 📌 Fixed Deposit entity & rates
-    ├── RecurringDeposit.py          # 🔁 Recurring Deposit entity & autopay
-    ├── RDAuthorization.py           # 🔐 Cross-account RD payment authorization
-    ├── RDStatement.py               # 🗒️  RD statement generator
-    │
-    ├── # ─ LOANS ─────────────────────────────────────
-    ├── loan.py                      # 📋 Loan entity & EMI calculator
-    ├── LoanEvaluator.py             # 🧮 Loan eligibility engine
-    ├── LoanNachMandate.py           # 🏧 NACH mandate for EMI autopay
-    ├── NachIdGenerator.py           # 🆔 NACH ID generation utility
-    │
-    ├── # ─ CHEQUES ──────────────────────────────────
-    ├── Cheque.py                    # 🧾 Cheque entity
-    ├── ChequeBook.py                # 📓 Cheque book management
-    │
-    ├── # ─ INTERNATIONAL BANKING ─────────────────────
-    ├── InternationalBankRegistry.py # 🌐 SWIFT/IBAN bank registry
-    ├── InternationalTransfer.py     # ✈️  International wire transfer logic
-    ├── AddNewIntlAccounts.py        # ➕ Add new international bank accounts
-    │
-    ├── # ─ TAX & COMPLIANCE ─────────────────────────
-    ├── CIBIL.py                     # 📊 CIBIL credit score model
-    ├── TaxCalculator.py             # 🧮 Income tax calculator
-    ├── TaxDeductionAnalyzer.py      # 🔍 Tax deduction optimizer
-    ├── TaxExemption.py              # 🚫 Tax exemption handler
-    ├── SalaryProfile.py             # 💼 Salary & employer profile
-    ├── Form16.py                    # 📄 Form 16 generator
-    ├── Form26AS.py                  # 📄 Form 26AS generator
-    ├── ITRFiling.py                 # 📮 ITR filing assistant
-    │
-    ├── # ─ AUTOMATION & UTILITIES ───────────────────
-    ├── RecurringBill.py             # 🔄 Recurring bill scheduler
-    ├── ExpenseSimulator.py          # 💹 Expense simulation engine
-    ├── create_indexes.py            # 🗂️  Database index setup
-    └── migrate_timestamps.py        # 🕐 Timestamp migration utility
-```
+| Layer | Files | Responsibilities |
+|---|---|---|
+| 🏦 Core Banking | `Account`, `Bank`, `Customer`, `AccountClosure`, `ClosureFormalities` | Accounts, balance, KYC, closures |
+| 💸 Transactions | `Transaction`, `TransactionRegistry`, `Beneficiary`, `verify_transfer` | Transaction types, classification, beneficiary management |
+| 📊 Tax System | `ITRFiling`, `TaxCalculator`, `TaxDeductionAnalyzer`, `TaxExemption`, `Form16`, `Form26AS` | ITR filing, tax computation, deduction tracking |
+| 💳 Cards | `Card`, `CreditEvaluator`, `CreditLimitEnhancement`, `RewardPointsManager` | Debit/Credit card engine & rewards |
+| 🧾 Credit & Loans | `CIBIL`, `LoanEvaluator`, `loan`, `LoanNachMandate`, `NachIdGenerator` | Score, approval, EMI & NACH mandates |
+| 📈 Investments | `FixedDeposit`, `RecurringDeposit`, `RDAuthorization`, `RDStatement` | FD/RD management, auth & statements |
+| 📓 Cheques | `Cheque`, `ChequeBook` | Cheque issuance & book management |
+| 🌍 International | `InternationalTransfer`, `InternationalBankRegistry`, `AddNewIntlAccounts` | Cross-border transactions |
+| 🔄 Automation | `RecurringBill`, `SalaryProfile`, `ExpenseSimulator`, `NachIdGenerator` | Auto-pay, spending simulation & NACH |
+| 🛠️ Infrastructure | `BankClock`, `DataStore`, `Serializers`, `PasswordRecovery`, `create_indexes`, `migrate_timestamps` | Time, persistence, auditing & security |
+| 🖥️ UI | `BankingApp`, `MainInterface` | CLI menus & user interface |
 
 ---
 
