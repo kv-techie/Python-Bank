@@ -1,705 +1,468 @@
-# 🏦 Scala Bank – Python Banking System v7.0
+# 🏦 Scala Bank — Python Edition
 
-A comprehensive, feature-rich **banking simulation system** written in Python, mimicking real-world financial operations including credit scoring, loan processing, automated payments, card services, investments, international transfers, and **complete Income Tax Return (ITR) filing system**.
-
-[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)]()
-[![License](https://img.shields.io/badge/License-Private-red.svg)]()
-[![Status](https://img.shields.io/badge/Status-Active-success.svg)]()
-[![Features](https://img.shields.io/badge/Features-100+-green.svg)]()
+> A feature-rich, fully object-oriented banking simulation system built in Python, complete with account management, loans, deposits, international transfers, tax modules, and much more.
 
 ---
 
 ## 📌 Table of Contents
 
-- [What's New in v7.0](#-whats-new-in-v70)
-- [Overview](#-overview)
-- [Key Features](#-key-features)
-- [System Architecture](#-system-architecture)
-- [Technical Highlights](#-technical-highlights)
-- [Installation](#-installation)
-- [Usage](#-usage)
-- [Project Structure](#-project-structure)
-- [Testing & Quality Assurance](#-testing--quality-assurance)
-- [Future Enhancements](#-future-enhancements)
-- [Quick Start Guide](#-quick-start-guide)
-- [Developer](#-developer)
-- [License](#-license)
+- [Overview](#overview)
+- [Features at a Glance](#features-at-a-glance)
+- [Getting Started](#getting-started)
+- [Project Structure](#project-structure)
+- [Module Reference](#module-reference)
+  - [Core Engine](#core-engine)
+  - [Account & Customer](#account--customer)
+  - [Transactions & Transfers](#transactions--transfers)
+  - [Cards & Credit](#cards--credit)
+  - [Deposits (FD & RD)](#deposits-fd--rd)
+  - [Loans](#loans)
+  - [Cheques](#cheques)
+  - [International Banking](#international-banking)
+  - [Tax & Compliance](#tax--compliance)
+  - [Utilities & Automation](#utilities--automation)
+- [Data Persistence](#data-persistence)
+- [Clock Modes](#clock-modes)
+- [Sample Output](#sample-output)
 
 ---
 
-## 🎉 What's New in v7.0
+## Overview
 
-### 🆕 Complete Income Tax Return (ITR) Filing System
+**Scala Bank - Python Edition** is a comprehensive, terminal-based banking application that simulates a real-world banking ecosystem. It is built using pure Python with an object-oriented architecture, supporting a wide range of banking operations such as account management, multi-type deposits, loans with EMI automation, debit/credit cards with reward points, cheque issuance, international wire transfers, NACH mandates, and Indian tax compliance tools (Form 16, Form 26AS, ITR Filing).
 
-The biggest update yet! A comprehensive tax management ecosystem that handles end-to-end ITR filing:
-
-- ✅ **Automatic Deduction Detection**: Scans salary, credit card bills, recurring bills, and loan data to detect tax deductions across 5 sections (80C, 80D, 24, 10(13A), 16)
-- ✅ **Form 16 Generation**: TDS certificates with employer details and quarterly breakdowns
-- ✅ **Form 26AS**: Complete tax credit statement with TDS tracking and refund history
-- ✅ **ITR Filing Workflow**: PAN registration → Deduction summary → Tax calculation → Filing → Status tracking
-- ✅ **Smart Refund Processing**: Automatic refund calculation with direct credit and transaction logging
-- ✅ **Filing History**: Multi-year filing support with void/amend functionality
-- ✅ **Status Tracking**: Visual indicators (⏳📝✅💳) for filing status
-- ✅ **UTF-8 Report Export**: Comprehensive ITR reports with rupee symbol support
-
-### 🔧 Transaction System Enhancements
-
-- ✅ **Card Network Detection**: Display VISA, MasterCard, RuPay in transaction history
-- ✅ **Metadata Parsing**: Parse CSV string metadata for card/merchant info
-- ✅ **Tax Refund Transactions**: New SALARY_TAX_REFUND transaction type
-- ✅ **Lazy Loading**: On-demand transaction loading for faster startup
-
-### 💼 Loan System Improvements
-
-- ✅ **Loan Type Classification**: HOME, PERSONAL, EDUCATION, VEHICLE, BUSINESS
-- ✅ **Tax Benefit Tracking**: Automatic Section 24 deduction for home loans
-- ✅ **Interest Tracking**: Track deductible interest for tax purposes
-
-### 🎯 Customer Management
-
-- ✅ **PAN Registration**: Store and validate PAN for tax purposes
-- ✅ **Password Recovery**: Secure OTP-based password reset
-- ✅ **Enhanced Serialization**: Complete data persistence for all customer attributes
+All data is persisted to **JSON files** through a centralized `DataStore` layer, making the system stateful across sessions.
 
 ---
 
-## 🎯 Overview
+## Features at a Glance
 
-**Scala Bank** simulates enterprise-level banking workflows with:
-
-✔ Multi-account & card support with transaction persistence
-
-✔ CIBIL-based loan & credit card approval with credit monitoring
-
-✔ Recurring bills, salary automation, & EMI logic
-
-✔ Investment products (Fixed Deposits & Recurring Deposits)
-
-✔ **Complete Income Tax Return (ITR) Filing System**
-
-✔ **Tax deduction tracking & Form 16/26AS generation**
-
-✔ **RD Authorization system with OTP verification**
-
-✔ **Comprehensive RD Statement generation and export**
-
-✔ International transfers with currency conversion
-
-✔ Account closure formalities & reward points system
-
-✔ Real-time transaction registry & analytics
-
-✔ **CSV-based transaction persistence with metadata parsing**
-
-✔ Fully integrated **time simulation** engine
-
-📍 **Branch Details**
-
-| Field       | Value       |
-| ----------- | ----------- |
-| IFSC Code   | SCBA0005621 |
-| Branch Name | Jakkasandra |
-| Branch Code | 5621        |
-
-## ✨ Key Features
-
-### � Income Tax Return (ITR) Filing System
-
-**Complete Tax Management Ecosystem**
-
-- **Automatic Tax Deduction Detection**:
-  - Section 80C: EPF, PPF, ELSS, Life Insurance premiums (up to ₹1.5L)
-  - Section 80D: Health insurance premiums (detected from bills & CC)
-  - Section 24: Home loan interest deduction (up to ₹2L)
-  - Section 10(13A): House Rent Allowance (HRA)
-  - Section 16: Standard deduction (₹50,000)
-
-- **ITR Filing Workflow**:
-  - PAN registration and validation
-  - Real-time gross income calculation (12-month projection)
-  - Automatic TDS calculation (30% tax rate)
-  - Comprehensive deduction summary from multiple sources
-  - Expected refund/tax liability computation
-  - Acknowledgment number generation
-  - ITR status tracking (Filed, Refund Credited, Tax Paid, Amended)
-
-- **Form Generation**:
-  - **Form 16**: TDS certificate with employer details
-  - **Form 26AS**: Tax credit statement with TDS tracking
-  - **ITR Report**: Comprehensive filing report with UTF-8 support
-
-- **Refund Processing**:
-  - Automatic refund calculation
-  - Direct credit to bank account
-  - Transaction history integration
-  - Form 26AS refund entry
-  - Status tracking with visual indicators (⏳📝✅💳)
-
-- **ITR Management**:
-  - Filing history with complete audit trail
-  - Void and amend functionality
-  - Duplicate filing prevention
-  - Multi-year filing support
-  - CSV persistence for refund transactions
-
-- **Tax Deduction Sources**:
-  - Salary profile analysis
-  - Credit card bill tracking (insurance premiums)
-  - Recurring bill analysis (health insurance)
-  - Home loan interest tracking
-  - HRA calculation from salary components
-
-### �📊 Transaction Management
-
-- **Comprehensive Transaction History** with 20+ filtering options:
-  - Quick views (Last 10, 20, 50, All)
-  - Deposits & Withdrawals
-  - NEFT, RTGS, Inter-Account, SWIFT transfers
-  - Cheque transactions (cleared, deposited, bounced)
-  - Salary & Tax transactions (including refunds)
-  - Debit & Credit card transactions
-  - Bill payments & Recurring bills
-  - Loan EMI payments
-  - Fees & charges
-
-- **Enhanced Transaction Display**:
-  - Automatic credit/debit categorization (30+ transaction types)
-  - Card network detection (VISA, MasterCard, RuPay)
-  - Metadata parsing for CSV-stored transactions
-  - Real-time transaction summary with totals
-  - Balance verification at each transaction
-
-- **CSV-based Transaction Ledger**:
-  - Complete audit trail in `account_activity.csv`
-  - On-demand lazy loading for performance
-  - Metadata string parsing (cardId, network, merchant, etc.)
-  - Persistent transaction records across restarts
-  - Support for legacy and modern transaction formats
-
-- **Transaction Types**:
-  - **Credits**: DEPOSIT, SALARY, SALARY_TAX_REFUND, NEFT_RECEIVED, RTGS_RECEIVED, LOAN_CREDIT, SWIFT_RECEIVED
-  - **Debits**: WITHDRAW, EXPENSE, NEFT_SENT, RTGS_SENT, LOAN_EMI, TAX_DEDUCTED, CREDIT_CARD_PAYMENT, BILL_PAYMENT
-  - **Special**: CREDIT_CARD_PURCHASE (tracked separately), RD_AUTH_PAYMENT (authorized deposits)
-
-- **Cheque Persistence**:
-  - Cheque books persisted to `data/cheques.json`
-  - Cleared cheques retained across sessions
-  - Full cheque lifecycle tracking
-
-### 📋 Account Services
-
-- Multi-account support with transaction history per account
-- Real-time balance verification
-- Transaction filtering by type, date range, or card
-- Expense breakdown and categorization
-- Account closure with comprehensive formalities
-
-### � Cheque Management
-
-- **Cheque issuance** with automatic cheque book management
-- **Post-dated cheque** support (presentable from specified date)
-- **Cheque clearing & settlement** with real-time balance verification
-- **Cheque bouncing** when insufficient funds
-  - Automatic bounce fee deduction (Rs. 500)
-  - Clear bounce notification with reason
-  - Integration with CIBIL scoring system
-- **Cheque book tracking** with status management (used, unused, cancelled)
-- **Bounce history** with detailed audit trail
-
-### �💳 Card Services
-
-**Debit Cards**
-
-- VISA/Mastercard/RuPay networks
-- Spending limits
-- Block/Unblock functionality
-
-**Credit Cards**
-
-- Automatic credit limit evaluation using:
-  - CIBIL score
-  - Salary profile
-  - Employer category
-  - Debt-to-Income ratio
-- Billing cycles, grace periods, rewards, and interest
-- **Luhn algorithm** validation
-- **Credit limit enhancement** based on usage patterns
-- **Reward points system** with redemption options
-- Bill payment with automatic reward points accumulation
-
-### 💰 Loan Management
-
-- EMI calculation (compound interest)
-- Automated approval rules (score, income, DTI)
-- Transaction-linked repayment history
-- **Loan type classification** (HOME, PERSONAL, EDUCATION, VEHICLE, BUSINESS)
-- **Tax benefit tracking** for home loans (Section 24 - up to ₹2L interest)
-- **Loan closure certificates** with complete audit trail
-- Multiple loan types support
-- Pre-closure with penalty calculation
-- EMI autopay with NACH integration
-
-### 📊 CIBIL Credit Scoring
-
-Weighted scoring model:
-
-- Repayment history (35%)
-- Utilization (30%)
-- Credit mix, inquiries, account age…
-- **Cheque bounce history** (new!)
-
-Score categorization:
-
-- **Excellent:** 750–900
-- **Good:** 650–749
-- **Average:** 550–649
-- **Poor:** 300–549
-
-**Cheque Bounce Impact (Progressive Penalty System)**
-
-- **1st bounce:** -50 points
-- **2nd bounce:** -75 additional points (-125 total)
-- **3rd+ bounce:** -100 additional points per bounce
-- **Credit Restriction:** Automatic at score ≤ 600
-  - Customers flagged as credit-restricted
-  - Cannot apply for new loans
-  - Cannot enhance credit card limits
-  - Monitored by admin reports
-- **Bounce Tracking:** Customer bounce history with timestamps
-- **Admin Reporting:**
-  - `get_credit_restricted_customers()` – List of restricted customers
-  - `get_customers_with_bounces()` – Top bouncy customers
-  - `get_cibil_impact_summary()` – System-wide bounce statistics
-
-### 💵 Salary & Bills Automation
-
-- Automated salary credit (tax applied if > ₹18L/yr)
-- Recurring bill engine with NACH mandate support
-- Expense categorization (Netflix, utilities, rent…)
-- **NACH ID generator** for automated payment authorizations
-- Credit card bill payment via recurring bills with reward points
-
-### 💎 Investment Products
-
-**Fixed Deposits (FD)**
-
-- Flexible tenure options (3–120 months)
-- Competitive interest rates with senior citizen bonus
-- Premature withdrawal with penalty
-- Maturity processing with automatic credit
-- Current value tracking
-
-**Recurring Deposits (RD)**
-
-- Monthly installment-based savings
-- **RD Authorization System** – Allow others to pay your RD installments
-  - OTP-based verification (6-digit code, 30-min expiry)
-  - Secure multi-party payment setup
-  - Real-time status tracking (Active, Pending, Revoked, Suspended)
-  - Payment history and audit trail
-  - Payer can pay for beneficiary's RD while beneficiary receives maturity amount
-- **RD Statement of Accounts**
-  - Comprehensive statement generation
-  - Payment history tracking
-  - Shows payee vs. beneficiary details
-  - Export to text file
-  - Displays autopay status and financial projections
-- NACH authorization for auto-debit
-- Interest calculation on maturity
-- Penalty handling for missed payments
-- Manual and automatic installment payment
-- Premature closure with penalty calculation
-
-### 🌍 International Banking
-
-- **Cross-border transfers** with SWIFT/IBAN support
-- Real-time currency conversion (10+ currencies)
-- Integration with **International Bank Registry**
-- Support for multiple foreign currencies
-- Compliance with international transfer regulations
-- Daily transfer limits with usage tracking
-- Purpose-based transfer categorization
-
-### ⏱️ Time Simulation System
-
-- Fast-forward days/weeks/months
-- Automatically processes:
-  - EMI
-  - Bills
-  - Salaries
-  - Random spending
-  - Interest calculations
-  - RD installments
-  - RD authorized payments
-  - FD maturities
-
-### 📈 Financial Analytics
-
-- Expense breakdown by category
-- 7/30/90-day trends
-- Full transaction history with metadata
-- Account closure reports
-- Investment portfolio tracking
-- Reward points dashboard
-- Credit card statement analysis
+| Category | Capabilities |
+|---|---|
+| 👤 Customers | Registration, authentication, profile management, account locking |
+| 🏦 Accounts | Savings, Current, Future (minor) accounts; multi-account support per customer |
+| 💸 Transactions | Deposits, withdrawals, NEFT, RTGS, inter-account transfers |
+| 💳 Cards | Debit & credit card issuance, credit limit evaluation, reward points |
+| 📈 Fixed Deposits | Create FDs, senior-citizen rates, auto-maturity crediting |
+| 🔁 Recurring Deposits | RD creation, autopay, cross-account authorization via OTP |
+| 🏠 Loans | Personal/home loans, CIBIL evaluation, EMI scheduler, NACH mandates |
+| 🧾 Cheques | Cheque issuance, cheque book management, cheque-based transfers |
+| 🌍 International | SWIFT/IBAN registry, international wire transfers |
+| 📋 Tax & Compliance | CIBIL score, Form 16, Form 26AS, ITR Filing, Tax Deduction Analyzer |
+| ⏰ Clock Modes | Real-time & virtual clock for testing time-based automation |
+| 🔒 Security | Password recovery, account locking, OTP-based authorization |
+| 🔄 Automation | Daily task processor: salary credit, RD autopay, FD maturity, credit card bills |
 
 ---
 
-## 🏗️ System Architecture
+## Getting Started
 
-```
-Python-Bank/
-├── backend/
-│   ├── Account.py
-│   ├── AccountClosure.py
-│   ├── AddNewIntlAccounts.py
-│   ├── Bank.py
-│   ├── BankingApp.py
-│   ├── BankClock.py
-│   ├── Card.py
-│   ├── CIBIL.py
-│   ├── ClosureFormalities.py
-│   ├── CreditEvaluator.py
-│   ├── CreditLimitEnhancement.py
-│   ├── Customer.py
-│   ├── DataStore.py
-│   ├── ExpenseSimulator.py
-│   ├── FixedDeposit.py
-│   ├── Form16.py                        # NEW: TDS certificate generation
-│   ├── Form26AS.py                      # NEW: Tax credit statement
-│   ├── InternationalBankRegistry.py
-│   ├── InternationalTransfer.py
-│   ├── ITRFiling.py                     # NEW: Complete ITR system
-│   ├── loan.py
-│   ├── LoanEvaluator.py
-│   ├── MainInterface.py
-│   ├── NachIdGenerator.py
-│   ├── PasswordRecovery.py
-│   ├── RDAuthorization.py
-│   ├── RDStatement.py
-│   ├── RecurringBill.py
-│   ├── RecurringDeposit.py
-│   ├── RewardPointsManager.py
-│   ├── SalaryProfile.py
-│   ├── Serializers.py
-│   ├── TaxCalculator.py                 # NEW: Tax computation engine
-│   ├── TaxDeductionAnalyzer.py          # NEW: Auto deduction detection
-│   ├── TaxExemption.py                  # NEW: Exemption calculations
-│   ├── Transaction.py
-│   ├── TransactionRegistry.py
-│   └── verify_transfer.py
-├── data/
-│   ├── account_activity.csv             # Primary transaction ledger
-│   ├── accounts.csv                     # Basic account data
-│   ├── customers.json                   # Customer profiles with PAN
-│   ├── loans.json                       # Loan records with type
-│   ├── fixed_deposits.json
-│   ├── recurring_deposits.json
-│   ├── cheques.json
-│   ├── rd_authorizations.json
-│   └── bank_data.json                   # Complex objects (ITR filings)
-└── tests/                                # Comprehensive test suite
-```
+### Prerequisites
 
-🗄️ **Data Persistence**
+- Python **3.8+**
+- No third-party libraries required — uses Python's standard library only
 
-- **CSV-based Activity Ledger** (`account_activity.csv`):
-  - Complete audit trail of all account transactions
-  - 30+ transaction types (DEPOSIT, SALARY, SALARY_TAX_REFUND, WITHDRAW, NEFT_SENT, etc.)
-  - On-demand lazy loading with metadata string parsing
-  - Timestamp, amount, and balance verification for each entry
-  - Card network and merchant information preservation
-  - Support for tax refund transactions with ITR metadata
-
-- **JSON Storage** for object persistence:
-  - `bank_data.json` – Complex objects (ITR filings with full history)
-  - `accounts.json` – Account objects, balances, and ITR filing records
-  - `customers.json` – Customer profiles, KYC, and PAN details
-  - `loans.json` – Loan records with type classification and EMI history
-  - `fixed_deposits.json` – FD contracts and maturity tracking
-  - `recurring_deposits.json` – RD agreements and payment records
-  - `cheques.json` – Cheque book and cleared cheque tracking
-  - `rd_authorizations.json` – RD authorization records with OTP
-  - `transaction_ids.json` – Unique transaction ID registry
-  - `activity.log` – Application event log with error traces
-
----
-
-## 🎯 Technical Highlights
-
-### Architecture Patterns
-
-- **Lazy Loading**: Transactions loaded on-demand for optimal memory usage
-- **Atomic Operations**: Temp files + atomic rename for crash-safe persistence
-- **Metadata Parsing**: Dual support for dict and CSV string metadata formats
-- **Event Sourcing**: Complete audit trail via CSV activity ledger
-- **Time Simulation**: Advance clock to trigger recurring events
-
-### Key Algorithms
-
-- **Luhn Algorithm**: Credit card number validation
-- **Compound Interest**: Accurate EMI and FD/RD interest calculations
-- **CIBIL Scoring**: Multi-factor weighted credit score (300-900)
-- **Tax Computation**: Section-wise deduction detection and ITR calculation
-- **Currency Conversion**: Real-time forex rates for international transfers
-
-### Data Integrity
-
-- **Transaction Verification**: Balance reconciliation at every step
-- **Duplicate Prevention**: Unique transaction IDs with blacklist filtering
-- **Cheque Lifecycle**: Full state tracking (issued → cleared/bounced)
-- **ITR Filing Control**: Prevent duplicate filings per financial year
-- **Error Handling**: Comprehensive exception management with traceback logging
-
-### Performance Optimizations
-
-- **CSV-based Persistence**: Fast read/write without database overhead
-- **Lazy Account Loading**: Load accounts without transaction history
-- **On-demand Trans Loading**: Fetch transactions only when needed
-- **Parallel Operations**: Independent data saves in sequence
-- **Memory Efficiency**: Avoid loading entire dataset into memory
-
----
-
-## 🚀 Installation
-
-### Requirements
-
-- **Python 3.13** or above (tested on 3.13)
-- No external dependencies (uses standard library only)
-
-### Setup Steps
+### Installation
 
 ```bash
+# Clone the repository
 git clone https://github.com/kv-techie/Python-Bank.git
-cd Python-Bank/backend
+cd Python-Bank
 ```
 
-Create a virtual environment (optional):
+### Running the Application
 
 ```bash
-python -m venv venv
-venv\Scripts\activate    # Windows
-source venv/bin/activate # macOS/Linux
-```
-
-Run the app:
-
-```bash
+cd backend
 python MainInterface.py
 ```
 
----
+On startup, you will be prompted to select a **Clock Mode**:
 
-## 💻 Usage (Quick Guide)
+```
+============================================================
+           SCALA BANK - CLOCK MODE SELECTION
+============================================================
 
-| Action                       | Path                                                  |
-| ---------------------------- | ----------------------------------------------------- |
-| Create Account               | Main Menu → Open New Account                          |
-| **View Transaction History** | **Account Menu → View Transaction History**           |
-| **Filter by Type**           | **History Menu → Deposits/Withdrawals/SWIFT**         |
-| Set Salary                   | Manage Salary → Configure Salary                      |
-| **Register PAN**             | **Tax Planning → Register/Update PAN**                |
-| **View Tax Deductions**      | **Tax Planning → View Deduction Summary**             |
-| **Generate Form 16**         | **Tax Planning → Generate Form 16 (TDS Certificate)** |
-| **View Form 26AS**           | **Tax Planning → View Form 26AS (Tax Credit)**        |
-| **File ITR**                 | **Tax Planning → File Income Tax Return**             |
-| **View ITR History**         | **Tax Planning → View ITR Filing History**            |
-| **Process Tax Refund**       | **Tax Planning → View ITR History → Process Refund**  |
-| Apply Credit Card            | Card Management → Apply                               |
-| Make Purchases               | Card Management → Spend                               |
-| Open Fixed Deposit           | Investment → Fixed Deposit                            |
-| Start Recurring Deposit      | Investment → Recurring Deposit                        |
-| **Create RD Authorization**  | **Investment → RD Authorization → Create**            |
-| **Verify RD Authorization**  | **Investment → RD Authorization → Verify**            |
-| **View RD Statement**        | **Investment → View RD Statement**                    |
-| **Export RD Statement**      | **Investment → View RD Statement → Export**           |
-| International Transfer       | Transfers → International                             |
-| Close Account                | Account Services → Close Account                      |
-| Enhance Credit Limit         | Card Management → Request Enhancement                 |
-| Redeem Reward Points         | Card Management → Rewards                             |
-| Simulate Time                | Fast Forward → Select Days                            |
+Select Clock Mode:
+1. 🕐 Real-Time Mode (Syncs with your device clock)
+2. ⏸️  Virtual Mode (Manual time control for testing)
+```
 
-Each operation prints the results + audit logs.
+> **Tip:** Use **Virtual Mode** to test time-sensitive features like FD/RD maturity, loan EMI schedules, and salary crediting without waiting for real time to pass.
 
----
+### Optional: Set Up Database Indexes
 
-## 📁 Project Structure
-
-| Layer          | Files                                                                              | Responsibilities                                    |
-| -------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Core Banking   | Account, Bank, Customer, AccountClosure                                            | Accounts, balance, KYC, closures                    |
-| Transactions   | Transaction, TransactionRegistry, DataStore                                        | Transaction types, classification, persistence      |
-| **Tax System** | **ITRFiling, TaxCalculator, TaxDeductionAnalyzer, TaxExemption, Form16, Form26AS** | **ITR filing, tax computation, deduction tracking** |
-| Cards          | Card, CreditEvaluator, CreditLimitEnhancement, RewardPointsManager                 | Debit/Credit card engine & rewards                  |
-| Credit/Loans   | CIBIL, LoanEvaluator, loan, ClosureFormalities                                     | Score, approval & closures                          |
-| Investments    | FixedDeposit, RecurringDeposit, RDAuthorization, RDStatement                       | FD/RD management, auth & statements                 |
-| International  | InternationalTransfer, InternationalBankRegistry, AddNewIntlAccounts               | Cross-border transactions                           |
-| Automation     | RecurringBill, SalaryProfile, ExpenseSimulator, NachIdGenerator                    | Auto-pay, spending & NACH                           |
-| Infrastructure | BankClock, DataStore, Serializers, PasswordRecovery                                | Time, persistence, auditing & security              |
-| UI             | BankingApp, MainInterface                                                          | CLI menus & user interface                          |
-
-> **~10,000+ lines of Python** across modular components with comprehensive tax integration.
-
----
-
-## 🧪 Testing & Quality Assurance
-
-### Test Suite Coverage
-
-The system includes **50+ comprehensive test cases** covering:
-
-- **Integration Tests**:
-  - `test_datastore_integration.py` – Data persistence and loading
-  - `test_fd_rd_integration.py` – Fixed and Recurring Deposit workflows
-  - `test_rd_integration.py` – RD lifecycle and maturity
-  - `test_beneficiary_system.py` – Beneficiary management
-  - `test_account_closure_integration.py` – Account closure workflows
-
-- **Feature Tests**:
-  - `test_autopay.py` – Automatic payment processing
-  - `test_credit_limit_enhancement.py` – Credit limit increases
-  - `test_fixed_deposit.py` – FD creation and maturity
-  - `test_recurring_deposit.py` – RD installments and tracking
-  - `test_international_transfer.py` – Cross-border payments
-  - `test_password_recovery.py` – Account security
-  - `test_reward_points_manager.py` – Reward point accumulation
-
-- **Tax System Tests**:
-  - `test_salary_profile.py` – Salary configuration and TDS
-  - Tax deduction detection validation
-  - ITR filing workflow verification
-  - Form generation accuracy
-
-- **Authorization Tests**:
-  - `test_rd_authorization.py` – Authorization creation and verification
-  - `test_rd_authorization_otp.py` – OTP validation
-  - `test_rd_statement_compatibility.py` – Statement generation
-
-- **Simulation Tests**:
-  - `test_rd_autopay_simulation.py` – Autopay scenarios
-  - `test_backward_compatibility.py` – Data migration
-
-### Running Tests
+For optimized data lookup on large datasets, run the index creation script:
 
 ```bash
-cd tests
-python run_all_tests.py          # Run complete test suite
-python test_specific_feature.py  # Run individual test
+python create_indexes.py
 ```
 
-### Quality Metrics
+### Optional: Migrate Timestamps
 
-- ✅ **100% Critical Path Coverage**: All core banking operations tested
-- ✅ **Data Integrity Validation**: Balance reconciliation checks
-- ✅ **Transaction Persistence**: CSV/JSON data consistency verified
-- ✅ **Error Handling**: Exception cases with proper recovery
-- ✅ **Performance Testing**: Startup timing and transaction load tests
+If migrating data from an older version of the app:
 
----
-
-## 🔮 Future Enhancements
-
-- ✅ ~~Tax document generation (Form 16 & Form 26AS)~~ **IMPLEMENTED**
-- ✅ ~~Complete ITR filing system~~ **IMPLEMENTED**
-- Web interface (React/Flask)
-- MongoDB/PostgreSQL migration for scalability
-- REST API with authentication (JWT)
-- ATM simulation with card-based operations
-- Mutual Funds & SIP with NAV tracking
-- Advanced multi-currency wallet system
-- PDF export for all statements and reports
-- CI/CD pipeline & Docker containerization
-- AI-powered fraud detection & anomaly alerts
-- Mobile app integration (React Native)
-- Biometric authentication (fingerprint/face ID)
-- Real-time push notifications
-- Blockchain-based transaction verification
-- Advanced analytics dashboard with charts
-- Customer support chatbot
-- Multi-language support (i18n)
-
----
-
-## � Quick Start Guide
-
-### First Time Setup
-
-1. **Clone and Run**
-
-   ```bash
-   git clone https://github.com/kv-techie/Python-Bank.git
-   cd Python-Bank/backend
-   python MainInterface.py
-   ```
-
-2. **Create Your Account**
-   - Select "Open New Account"
-   - Complete KYC details
-   - Set username and password
-   - Note your account number
-
-3. **Configure Salary**
-   - Go to "Manage Salary" → "Configure Salary"
-   - Enter monthly salary (₹350,000 recommended)
-   - Choose employer category (FORTUNE_500 for best benefits)
-
-4. **Register PAN for Tax**
-   - Go to "Tax Planning" → "Register/Update PAN"
-   - Enter your 10-character PAN (e.g., ABCDE1234F)
-
-### Essential First Steps
-
-1. **Get a Credit Card**
-   - "Card Management" → "Apply for Credit Card"
-   - Approval based on CIBIL score & salary
-
-2. **Setup Recurring Bills**
-   - "Recurring Bills" → "Add New Bill"
-   - Add insurance, utilities, etc. for auto-deduction tracking
-
-3. **Make Some Transactions**
-   - Deposit money using cards
-   - Make credit card purchases
-   - Pay bills
-
-4. **Fast Forward Time**
-   - "Fast Forward" → Choose duration
-   - System processes salary, EMIs, bills automatically
-
-5. **File Your ITR**
-   - "Tax Planning" → "View Deduction Summary" (see all deductions)
-   - "Tax Planning" → "File Income Tax Return"
-   - Review and confirm filing
-   - "Tax Planning" → "View ITR Filing History" → Process refund
-
-### Sample Workflow
-
-**Goal: File ITR and get ₹120,000 refund**
-
-```
-1. Create account → Set salary ₹350,000/month
-2. Register PAN → File ITR
-3. Fast forward 10 months to accumulate TDS
-4. Add home loan (₹62L) for Section 24 deduction
-5. Setup health insurance bill for Section 80D
-6. File ITR → Expected refund: ₹120,000
-7. Process refund → Check transaction history
+```bash
+python migrate_timestamps.py
 ```
 
 ---
 
-## �👨‍💻 Developer
+## Project Structure
 
-**Kedhar Vinod**
-🧑‍🎓 Jain (Deemed-to-be) University, Bengaluru
-🔗 GitHub: [@kv-techie](https://github.com/kv-techie)
+```
+Python-Bank/
+├── README.md
+├── .gitignore
+└── backend/
+    ├── MainInterface.py             # 🚀 Entry point
+    ├── BankingApp.py                # 🖥️  Main application loop & UI menus
+    ├── Bank.py                      # 🏦 Core bank engine
+    ├── DataStore.py                 # 💾 JSON-based persistence layer
+    ├── BankClock.py                 # ⏰ Real-time & virtual clock
+    ├── Serializers.py               # 🔄 Object serialization helpers
+    │
+    ├── # ─ CUSTOMER & ACCOUNT ───────────────────────
+    ├── Customer.py                  # 👤 Customer entity & profile
+    ├── Account.py                   # 🏦 Account entity & operations
+    ├── PasswordRecovery.py          # 🔑 Password reset flows
+    ├── AccountClosure.py            # ❌ Account closure request handler
+    ├── ClosureFormalities.py        # 📝 Closure verification & processing
+    │
+    ├── # ─ TRANSACTIONS ─────────────────────────────
+    ├── Transaction.py               # 💸 Transaction entity
+    ├── TransactionRegistry.py       # 📒 Transaction log & registry
+    ├── Beneficiary.py               # 👥 Saved beneficiary management
+    ├── verify_transfer.py           # ✅ Transfer verification utility
+    │
+    ├── # ─ CARDS ─────────────────────────────────────
+    ├── Card.py                      # 💳 Debit & Credit card entities
+    ├── CreditEvaluator.py           # 📊 Credit limit calculator
+    ├── CreditLimitEnhancement.py    # 📈 Credit limit upgrade workflows
+    ├── RewardPointsManager.py       # 🎁 Reward points tracking & redemption
+    │
+    ├── # ─ DEPOSITS ─────────────────────────────────
+    ├── FixedDeposit.py              # 📌 Fixed Deposit entity & rates
+    ├── RecurringDeposit.py          # 🔁 Recurring Deposit entity & autopay
+    ├── RDAuthorization.py           # 🔐 Cross-account RD payment authorization
+    ├── RDStatement.py               # 🗒️  RD statement generator
+    │
+    ├── # ─ LOANS ─────────────────────────────────────
+    ├── loan.py                      # 📋 Loan entity & EMI calculator
+    ├── LoanEvaluator.py             # 🧮 Loan eligibility engine
+    ├── LoanNachMandate.py           # 🏧 NACH mandate for EMI autopay
+    ├── NachIdGenerator.py           # 🆔 NACH ID generation utility
+    │
+    ├── # ─ CHEQUES ──────────────────────────────────
+    ├── Cheque.py                    # 🧾 Cheque entity
+    ├── ChequeBook.py                # 📓 Cheque book management
+    │
+    ├── # ─ INTERNATIONAL BANKING ─────────────────────
+    ├── InternationalBankRegistry.py # 🌐 SWIFT/IBAN bank registry
+    ├── InternationalTransfer.py     # ✈️  International wire transfer logic
+    ├── AddNewIntlAccounts.py        # ➕ Add new international bank accounts
+    │
+    ├── # ─ TAX & COMPLIANCE ─────────────────────────
+    ├── CIBIL.py                     # 📊 CIBIL credit score model
+    ├── TaxCalculator.py             # 🧮 Income tax calculator
+    ├── TaxDeductionAnalyzer.py      # 🔍 Tax deduction optimizer
+    ├── TaxExemption.py              # 🚫 Tax exemption handler
+    ├── SalaryProfile.py             # 💼 Salary & employer profile
+    ├── Form16.py                    # 📄 Form 16 generator
+    ├── Form26AS.py                  # 📄 Form 26AS generator
+    ├── ITRFiling.py                 # 📮 ITR filing assistant
+    │
+    ├── # ─ AUTOMATION & UTILITIES ───────────────────
+    ├── RecurringBill.py             # 🔄 Recurring bill scheduler
+    ├── ExpenseSimulator.py          # 💹 Expense simulation engine
+    ├── create_indexes.py            # 🗂️  Database index setup
+    └── migrate_timestamps.py        # 🕐 Timestamp migration utility
+```
 
 ---
 
-## 📄 License
+## Module Reference
 
-**Private & Proprietary**
-_For educational use only. Not connected to real banks._
+### Core Engine
+
+#### `MainInterface.py`
+The application entry point. Prompts the user to select a **Clock Mode** (Real-Time or Virtual), then launches `BankingApp`.
+
+#### `BankingApp.py`
+The main application loop — contains all user-facing menus and orchestrates interactions between the UI and the `Bank` core. This is the largest module (~280 KB) and coordinates every feature of the system.
+
+#### `Bank.py`
+The central **Bank class** that manages all entities:
+- Customer & account registration and authentication
+- Loan lifecycle: evaluate → approve → disburse → EMI payments
+- FD & RD creation, autopay processing, and maturity handling
+- Credit card issuance with dynamic limit calculation
+- **Daily automated task processor**: salary crediting, recurring bill deductions, RD autopay, FD/RD maturity events
+
+#### `DataStore.py`
+A static utility class acting as the **persistence layer**. All objects are serialized to/from JSON files. Key methods:
+- `load_accounts()` / `save_accounts()`
+- `load_customers()` / `save_customers()`
+- `load_loans()` / `save_loans()`
+- `load_fixed_deposits()` / `save_fixed_deposits()`
+- `load_recurring_deposits()` / `save_recurring_deposits()`
+- `load_international_accounts()` / `save_international_accounts()`
+- `append_activity()` — writes a transaction audit log entry
+
+#### `BankClock.py`
+A global clock abstraction supporting two modes (see [Clock Modes](#clock-modes)). All timestamps across the entire system use `BankClock.today()` and `BankClock.get_formatted_datetime()` to ensure consistent time management.
+
+#### `Serializers.py`
+Helpers for converting complex Python objects to/from JSON-serializable dictionaries, used internally by `DataStore`.
 
 ---
+
+### Account & Customer
+
+#### `Customer.py`
+Represents a bank customer with fields: `customer_id`, `username`, `password`, `first_name`, `last_name`, `dob`, `gender`, `phone_number`, `email`, `cibil_score`, `salary`, `credit_cards`, and account linkage. Supports customer locking for security.
+
+#### `Account.py`
+Represents a bank account. Supports three account types:
+- **Savings** — standard individual savings account
+- **Current** — business/high-volume transactional account
+- **Future** — minor/child savings account
+
+Key features: balance management, full transaction history, salary profile linking, card attachment, recurring bill management, credit card bill processing, and minimum balance enforcement.
+
+#### `PasswordRecovery.py`
+Handles password reset flows including identity verification steps and secure password update.
+
+#### `AccountClosure.py` & `ClosureFormalities.py`
+Manages the full account closure workflow — from initiating a closure request and verifying pre-conditions (zero balance, no active loans/FDs), to completing the closure with a formal audit trail.
+
+---
+
+### Transactions & Transfers
+
+#### `Transaction.py`
+The `Transaction` entity records every financial event. Key fields:
+- `id` — unique transaction ID
+- `type` — e.g., `DEPOSIT`, `WITHDRAWAL`, `NEFT_SENT`, `RTGS_RECEIVED`, `LOAN_EMI`, `FD_OPENED`, `RD_OPENED`, `LOAN_CREDIT`
+- `amount`, `resulting_balance`, `timestamp`
+- `cheque_id` — set when the transaction is cheque-based
+- `metadata` — free-form string for contextual data (loan ID, FD number, etc.)
+
+#### `TransactionRegistry.py`
+Maintains a global log and registry of all transactions across all accounts for audit and search purposes.
+
+#### `Beneficiary.py`
+Allows customers to save and manage **beneficiary accounts** for quick fund transfers, supporting both domestic and international beneficiaries.
+
+#### `verify_transfer.py`
+A utility script for manually verifying the integrity of a specific transfer — useful during debugging or post-transaction audits.
+
+---
+
+### Cards & Credit
+
+#### `Card.py`
+Defines two card types:
+- **`DebitCard`** — linked directly to an account; used for withdrawals and purchases
+- **`CreditCard`** — carries a credit limit, billing cycle, due dates, and outstanding balance tracking
+
+#### `CreditEvaluator.py`
+Calculates the credit limit for a new credit card based on: CIBIL score, annual income, age, existing debt, employer category, and whether the customer holds a salary account with the bank.
+
+#### `CreditLimitEnhancement.py`
+Handles the full workflow for requesting and processing a credit limit increase on an existing credit card.
+
+#### `RewardPointsManager.py`
+Tracks reward points earned from credit card transactions. Supports point redemption against outstanding bills or for cashback.
+
+---
+
+### Deposits (FD & RD)
+
+#### `FixedDeposit.py`
+Models a Fixed Deposit with:
+- Principal amount, tenure (in months), and interest rate
+- **Senior citizen rates** — additional interest for customers aged 60+
+- Maturity amount calculation and maturity date tracking
+- `MIN_AMOUNT` / `MAX_AMOUNT` validation
+- Auto-maturity: principal + interest is automatically credited on the maturity date
+
+#### `RecurringDeposit.py`
+Models a Recurring Deposit with:
+- Monthly installment, tenure, and interest rate
+- **Autopay** — automatic debit on a configurable day each month
+- Installment tracking (`installments_paid`, `total_deposited`, `payment_history`)
+- Maturity amount calculated using compound interest formula
+
+#### `RDAuthorization.py`
+Enables **cross-account RD payments** — a third party (e.g., a parent) can authorize monthly payments for an RD held by another customer (e.g., their child). Uses an **OTP verification** flow to confirm and activate the authorization.
+
+#### `RDStatement.py`
+Generates a detailed statement for a Recurring Deposit, showing installment history, upcoming due dates, and the expected maturity value.
+
+---
+
+### Loans
+
+#### `loan.py`
+The `Loan` entity with fields: `loan_id`, `customer_id`, `principal`, `interest_rate`, `tenure_months`, `emis_paid`, `status`, `start_date`, `closure_date`, and `loan_type` (e.g., `PERSONAL`, `HOME`). Includes `calculate_emi()` using the standard reducing-balance EMI formula.
+
+#### `LoanEvaluator.py`
+Evaluates loan eligibility based on: customer CIBIL score, existing loan burden, income, requested amount, and tenure. Returns `(approved: bool, reason: str)`.
+
+#### `LoanNachMandate.py`
+Sets up **NACH (National Automated Clearing House) mandates** to auto-debit EMI amounts from a designated account on the EMI due date every month.
+
+#### `NachIdGenerator.py`
+Generates unique NACH mandate IDs for all loan autopay registrations.
+
+---
+
+### Cheques
+
+#### `Cheque.py`
+Represents a single cheque with fields for payee, amount, issue date, and status (Active / Cleared / Bounced / Cancelled).
+
+#### `ChequeBook.py`
+Manages a cheque book assigned to an account — tracks issued cheques, cheque book requests, and the number of available leaves remaining.
+
+---
+
+### International Banking
+
+#### `InternationalBankRegistry.py`
+A registry of international correspondent banks identified by **SWIFT codes** and supporting **IBAN** formats for multiple countries. Used to validate international transfer destinations.
+
+#### `InternationalTransfer.py`
+Processes international wire transfers — handles currency conversion, SWIFT routing, transfer limits, and fee deduction from the sender's account.
+
+#### `AddNewIntlAccounts.py`
+An administrative utility to onboard new international bank accounts or correspondents into the registry.
+
+---
+
+### Tax & Compliance
+
+#### `CIBIL.py`
+Models a customer's **CIBIL credit score**, which directly influences loan approvals, interest rates offered, and credit card limit calculations.
+
+#### `TaxCalculator.py`
+Calculates Indian **income tax** liability based on the customer's salary, investment declarations, and applicable tax slabs under both the Old and New Tax Regimes.
+
+#### `TaxDeductionAnalyzer.py`
+Analyzes available tax deductions under sections like **80C, 80D, HRA, LTA**, etc., and recommends strategies to optimize the customer's tax liability.
+
+#### `TaxExemption.py`
+Handles tax exemption declarations and calculates their impact on TDS computation for the financial year.
+
+#### `SalaryProfile.py`
+Linked to an account — stores employer name, monthly salary, and credit date configuration. Enables automatic salary crediting on a monthly schedule via the daily task processor.
+
+#### `Form16.py`
+Generates a **Form 16** (TDS certificate issued by employer) for a customer for a given financial year, based on salary and TDS data.
+
+#### `Form26AS.py`
+Generates a **Form 26AS** (consolidated annual tax statement) showing all tax credits, TDS deductions, and advance tax payments for a financial year.
+
+#### `ITRFiling.py`
+An **ITR (Income Tax Return) filing assistant** that compiles income from all sources, applicable deductions, tax payable/refundable, and guides the customer through the end-to-end filing process.
+
+---
+
+### Utilities & Automation
+
+#### `RecurringBill.py`
+Schedules and automatically processes recurring bill payments (e.g., utility bills, subscriptions, insurance premiums) linked to an account. Bills are deducted on their configured due date during the daily task run.
+
+#### `ExpenseSimulator.py`
+Simulates realistic expense patterns for development and testing purposes — generates synthetic transactions (purchases, ATM withdrawals, utility payments) across a configurable time range.
+
+#### `create_indexes.py`
+Sets up lookup indexes for accounts, customers, and transactions to significantly improve search and retrieval performance on large datasets.
+
+#### `migrate_timestamps.py`
+A one-time migration utility to convert legacy timestamp formats in stored JSON data to the current ISO 8601 standard used across the system.
+
+---
+
+## Data Persistence
+
+All data is stored as **JSON files** in the local filesystem via `DataStore.py`. There is no external database dependency — making the project fully self-contained.
+
+| Data Entity | Storage File |
+|---|---|
+| Customers | `customers.json` |
+| Accounts | `accounts.json` |
+| Transactions | Per-account transaction files |
+| Loans | `loans.json` |
+| Fixed Deposits | `fixed_deposits.json` |
+| Recurring Deposits | `recurring_deposits.json` |
+| RD Authorizations | `rd_authorizations.json` |
+| International Accounts | `international_accounts.json` |
+| Activity Audit Log | `activity_log.csv` |
+
+All saves are triggered automatically after any state-changing operation. `Bank.save()` persists the full bank state and prints per-entity timing diagnostics, for example:
+
+```
+⏱️  Accounts saved in 0.03s
+⏱️  Customers saved in 0.01s
+⏱️  Loans saved in 0.01s
+✅ Total save time: 0.07s
+```
+
+---
+
+## Clock Modes
+
+Scala Bank features a dual-clock system managed by `BankClock.py`:
+
+| Mode | Description | Best For |
+|---|---|---|
+| 🕐 **Real-Time Mode** | Syncs with your device's system clock | Production / live demo usage |
+| ⏸️ **Virtual Mode** | Manual time control — fast-forward days, weeks, or months | Testing time-sensitive automation |
+
+Virtual Mode is especially useful for testing:
+- RD/FD maturity and auto-crediting
+- Loan EMI due dates and NACH deductions
+- Monthly salary crediting
+- Recurring bill and subscription deductions
+- Credit card billing cycle generation
+
+---
+
+## Sample Output
+
+```
+============================================================
+           SCALA BANK - CLOCK MODE SELECTION
+============================================================
+
+✅ Virtual Mode activated (Time simulation enabled)
+
+Press Enter to continue...
+
+==============================
+       SCALA BANK MENU
+==============================
+[1] Login
+[2] Register New Customer
+[3] Admin Panel
+[0] Exit
+
+> Logged in as: Kedhar Vinod
+> Account: ACC1001  | Type: Savings  | Balance: ₹1,25,000.00
+> Loan ID: LOAN000001 | EMI: ₹4,523.00  | Paid: 3/36 | Status: Active
+> FD Number: FD-00042  | Maturity Amount: ₹52,430.00 on 15-03-2026
+> RD Number: RD-00011  | Monthly: ₹2,000.00 | Autopay: ON (Day 5)
+```
+
+---
+
+## Author
+
+**Kedhar Vinod** — [@kv-techie](https://github.com/kv-techie)
+
+---
+
+*Built with ❤️ using pure Python.*
