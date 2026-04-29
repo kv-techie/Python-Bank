@@ -30,7 +30,8 @@ class Cheque:
     amount: float  # Cheque amount
     payee_name: str  # Who receives the money
     date_presentable: str  # Date cheque can be presented (YYYY-MM-DD)
-    micr_code: str = "560005562"  # 9-digit MICR code (City + Bank + Branch)
+    micr_code: str = "560005562"  # 9-digit MICR code (matches Account.BRANCH_MICR)
+
     status: ChequeStatus = ChequeStatus.ISSUED
     cheque_id: str = field(default_factory=lambda: f"CHQ{str(uuid4())[:12].upper()}")
     issued_on: datetime = field(default_factory=datetime.now)

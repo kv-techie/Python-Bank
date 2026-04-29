@@ -85,7 +85,7 @@ class Customer(CustomerPasswordRecovery):
         self.tax_regime = "OLD_REGIME"  # OLD_REGIME or NEW_REGIME
 
         # Beneficiary management
-        self.beneficiary_manager = BeneficiaryManager()
+        self.beneficiary_manager = BeneficiaryManager(self.customer_id)
 
     def get_account_numbers(self) -> List[str]:
         return self._account_numbers.copy()
@@ -430,7 +430,7 @@ class Customer(CustomerPasswordRecovery):
         # Load beneficiary data
         if data.get("beneficiaries"):
             customer.beneficiary_manager = BeneficiaryManager.from_dict(
-                data["beneficiaries"]
+                data["beneficiaries"], customer_id=customer.customer_id
             )
 
         # Load bounce tracking data

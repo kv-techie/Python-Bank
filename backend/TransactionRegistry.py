@@ -112,7 +112,7 @@ class TransactionRegistry:
             if os.path.exists(temp_file):
                 try:
                     os.remove(temp_file)
-                except:
+                except (OSError, PermissionError):
                     pass
     
     @classmethod

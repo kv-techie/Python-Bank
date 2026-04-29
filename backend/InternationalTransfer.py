@@ -139,9 +139,12 @@ class InternationalTransfer:
         if not InternationalTransfer.validate_swift_code(swift_code):
             return False, "Invalid SWIFT/BIC code format", None
 
-        # Check if currency is supported
-        if currency not in InternationalTransfer.EXCHANGE_RATES:
-            return False, f"Currency {currency} not supported", None
+        # Check if currency is supported — use live rate lookup so any currency
+        # the ExchangeRate-API supports is accepted, not just the hardcoded 9.
+        from .CurrencyConverter import CurrencyConverter
+        live_rate = CurrencyConverter.get_exchange_rate(currency.upper())
+        if live_rate == 0.0:
+            return False, f"Currency {currency} not supported or rate unavailable", None
 
         # Validate with registry if provided
         foreign_account = None
@@ -279,7 +282,7 @@ Transaction ID: {txn.id}
     @staticmethod
     def track_swift_transfer(swift_reference: str, bank: "Bank") -> Optional[dict]:
         """Track a SWIFT transfer by reference number"""
-        for account in bank.accounts.values():
+        for account in bank.accounts:
             for txn in account.transactions:
                 if txn.type == "SWIFT_SENT" and hasattr(txn, "metadata"):
                     if (
@@ -338,7 +341,7 @@ Transaction ID: {txn.id}
                     ).date()
                     if txn_date == today:
                         total += abs(txn.amount)
-                except:
+                except (ValueError, TypeError):
                     pass
 
         return total

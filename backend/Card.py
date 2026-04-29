@@ -6,10 +6,10 @@ if __name__ == "__main__" and __package__ is None:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(current_dir)
     sys.path.append(parent_dir)
-    from backend.BankClock import BankClock
-    from backend.DataStore import DataStore
-    from backend.RewardPointsManager import RewardPointsManager
-    from backend.Transaction import Transaction
+    from .BankClock import BankClock
+    from .DataStore import DataStore
+    from .RewardPointsManager import RewardPointsManager
+    from .Transaction import Transaction
 else:
     from .BankClock import BankClock
     from .DataStore import DataStore

@@ -1,15 +1,12 @@
+import os
 import csv
 import json
-import os
 import shutil
 from threading import Lock
 from datetime import date, datetime
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
+from .Logger import logger
 
-
-import os
-import csv
-import json
 
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder to handle date and datetime objects"""
@@ -52,13 +49,13 @@ class DataStore:
             # Try atomic move first
             shutil.move(tmp_file, dest_file)
         except Exception as e:
-            print(f"[DataStore] Failed to move temporary {label} file: {e}")
+            logger.error(f"Failed to move temporary {label} file: {e}")
             try:
                 # Fallback: copy and delete
                 shutil.copy2(tmp_file, dest_file)
                 os.remove(tmp_file)
             except Exception as ex:
-                print(f"[DataStore] Copy fallback also failed for {label}: {ex}")
+                logger.error(f"Copy fallback also failed for {label}: {ex}")
 
     @staticmethod
     def _ensure_activity_header():
@@ -112,6 +109,9 @@ class DataStore:
         """
         with DataStore._lock:
             DataStore._ensure_activity_header()
+
+            logger.info(f"Checking system integrity for {username}...")
+            logger.debug(f"Action: {action} | Balance: {resulting_balance}")
 
             with open(DataStore.ACTIVITY_PATH, "a", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)

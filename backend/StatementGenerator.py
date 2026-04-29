@@ -58,7 +58,7 @@ class StatementPDF(FPDF):
 class StatementGenerator:
     """Generates professional PDF Statements of Account (SoA)"""
     
-    _RECEIPT_DIR = os.path.join(os.getcwd(), "receipts")
+    _RECEIPT_DIR = __import__("backend.config", fromlist=["RECEIPT_DIR"]).RECEIPT_DIR
     
     @staticmethod
     def _ensure_dir():

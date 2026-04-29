@@ -1,4 +1,8 @@
 from typing import List, Optional, Tuple
+from werkzeug.security import generate_password_hash, check_password_hash
+from .Logger import logger
+
+
 
 from .Account import Account
 from .BankClock import BankClock
@@ -115,11 +119,12 @@ class Bank:
         for customer in self.customers:
             if (
                 customer.username == username
-                and customer.password == password
+                and check_password_hash(customer.password, password)
                 and not customer.locked
             ):
                 return customer
         return None
+
 
     def username_exists(self, username: str) -> bool:
         return any(cust.username == username for cust in self.customers)
@@ -136,12 +141,16 @@ class Bank:
         email: str,
         account_type: str,
     ) -> Tuple[Customer, Account]:
+        # Hash password once at registration
+        hashed_password = generate_password_hash(password)
+        
         account_number = Account.generate_account_number()
         customer = Customer.create_customer(
             username=username,
-            password=password,
+            password=hashed_password,
             first_name=first_name,
             last_name=last_name,
+
             dob=dob,
             gender=gender,
             phone_number=phone_number,
@@ -151,8 +160,9 @@ class Bank:
         account = Account.create_account(
             customer_id=customer.customer_id,
             username=username,
-            password=password,
+            password=hashed_password,
             first_name=first_name,
+
             last_name=last_name,
             dob=dob,
             gender=gender,

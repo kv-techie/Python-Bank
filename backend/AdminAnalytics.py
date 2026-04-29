@@ -279,7 +279,7 @@ class AdminAnalytics:
                         try:
                             from datetime import date
                             mat_date = date.fromisoformat(mat_date[:10])
-                        except:
+                        except Exception as e:
                             continue
                     if not isinstance(mat_date, str):
                         days_to_maturity = (mat_date - today).days
@@ -314,7 +314,7 @@ class AdminAnalytics:
                         try:
                             from datetime import date
                             mat_date = date.fromisoformat(mat_date[:10])
-                        except:
+                        except Exception as e:
                             continue
                     if not isinstance(mat_date, str):
                         days_to_maturity = (mat_date - today).days

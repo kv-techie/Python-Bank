@@ -17,7 +17,9 @@ class Account:
 
     BRANCH_IFSC = "SCBA0005621"
     BRANCH_NAME = "Jakkasandra"
+    BRANCH_MICR = "560005562"
     ACCOUNT_NUMBER_PREFIX = "5621"
+
     _used_account_numbers = set()
     _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     _used_numbers_file = os.path.join(_BASE_DIR, "data", "account_numbers.txt")
@@ -108,7 +110,7 @@ class Account:
 
     def get_today_withdrawals(self) -> float:
         """Get total withdrawals made today"""
-        self._load_transactions_if_needed()  # ADD THIS LINE
+        self._load_transactions_if_needed()
         today = BankClock.today()
         total = 0.0
 
@@ -120,14 +122,14 @@ class Account:
                     ).date()
                     if txn_date == today:
                         total += txn.amount
-                except:
+                except Exception as e:
                     pass
 
         return total
 
     def get_today_transactions(self) -> float:
         """Get total transaction amount for today (withdrawals + transfers sent)"""
-        self._load_transactions_if_needed()  # ADD THIS LINE
+        self._load_transactions_if_needed()
         today = BankClock.today()
         total = 0.0
 
@@ -139,7 +141,7 @@ class Account:
                     ).date()
                     if txn_date == today:
                         total += txn.amount
-                except:
+                except Exception as e:
                     pass
 
         return total
@@ -804,7 +806,7 @@ class Account:
             transaction_type_filter: Filter by transaction type
             card_filter: Filter by specific card (last 4 digits)
         """
-        self._load_transactions_if_needed()  # ADD THIS LINE
+        self._load_transactions_if_needed()
         if not self.transactions:
             print("No transactions found.")
             return
@@ -1375,7 +1377,7 @@ class Account:
                     ).date()
                     if txn_date >= cutoff_date:
                         recent_expenses.append(txn)
-                except:
+                except Exception as e:
                     pass
 
         if not recent_expenses:

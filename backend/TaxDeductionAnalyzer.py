@@ -37,7 +37,7 @@ class TaxDeductionAnalyzer:
         # Load transactions if needed
         try:
             account._load_transactions_if_needed()
-        except:
+        except (AttributeError, ValueError):
             pass
 
         # Look for rent transactions in bank account
@@ -155,7 +155,7 @@ class TaxDeductionAnalyzer:
         # Load transactions if needed
         try:
             account._load_transactions_if_needed()
-        except:
+        except (AttributeError, ValueError):
             pass
 
         # Look for insurance transactions in bank account

@@ -8,7 +8,7 @@ if __name__ == "__main__" and __package__ is None:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(current_dir)
     sys.path.append(parent_dir)
-    from backend.DataStore import DataStore
+    from .DataStore import DataStore
 else:
     from .DataStore import DataStore
 

@@ -125,7 +125,7 @@ class LoanNachMandate:
         try:
             expiry = datetime.strptime(self.otp_expiry, "%d-%m-%Y %H:%M:%S")
             return datetime.now() < expiry
-        except:
+        except (ValueError, TypeError):
             return False
 
     def verify_otp(self, entered_otp: str) -> Tuple[bool, str]:
@@ -179,7 +179,7 @@ class LoanNachMandateManager:
                     data = json.load(f)
                     for mandate_id, mandate_data in data.items():
                         mandates[mandate_id] = LoanNachMandate.from_dict(mandate_data)
-            except:
+            except (FileNotFoundError, json.JSONDecodeError):
                 pass
         return mandates
 

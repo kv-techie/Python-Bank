@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import json
 import os
 import csv
+import secrets
 
 from backend.Bank import Bank
 from backend.BankingApp import BankingApp
@@ -31,7 +32,7 @@ from backend.FeeManager import fee_manager
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000", "supports_credentials": True}})
-app.secret_key = 'scala_bank_secure_key_2025'
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 
 # Global bank instance
@@ -1972,7 +1973,7 @@ def manage_loan_nach(loan_id):
 # ================= ADMINISTRATIVE APIs =================
 
 @app.route('/api/admin/stats')
-# @admin_required # Temporarily disabled for easier testing
+@admin_required
 def admin_stats():
     """Get overall bank stats for admin dashboard"""
     analytics = AdminAnalytics(bank)
@@ -2063,4 +2064,4 @@ def admin_audit_log():
         return jsonify({"error": str(e), "logs": [], "total": 0}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true', host='127.0.0.1', port=5000)
