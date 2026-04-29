@@ -1,12 +1,12 @@
 import os
 from typing import TYPE_CHECKING, Optional, Tuple
 
-from BankClock import BankClock
-from Card import CreditCard, DebitCard
-from DataStore import DataStore
+from .BankClock import BankClock
+from .Card import CreditCard, DebitCard
+from .DataStore import DataStore
 
 if TYPE_CHECKING:
-    from Account import Account
+    from .Account import Account
 
 
 class AccountClosureService:
@@ -197,80 +197,11 @@ class AccountClosureService:
         cards_closed: list,
         disbursement_info: str = "Pending",
     ) -> str:
-        """Generate account closure certificate"""
-        # Load transactions if needed
-        account._load_transactions_if_needed()
-
-        timestamp = BankClock.get_formatted_datetime()
-        closure_date = BankClock.today().strftime("%d-%m-%Y")
-
-        certificate_content = f"""
-{"=" * 70}
-                    ACCOUNT CLOSURE CERTIFICATE
-{"=" * 70}
-
-Closure Date:           {closure_date}
-Closure Time:           {timestamp}
-
-ACCOUNT HOLDER DETAILS
-----------------------------------------------------------------------
-Customer ID:            {account.customer_id}
-Name:                   {account.first_name} {account.last_name}
-Account Number:         {account.account_number}
-Account Type:           {account.account_type}
-Date of Birth:          {account.dob}
-Gender:                 {account.gender}
-
-BRANCH DETAILS
-----------------------------------------------------------------------
-Branch Name:            {account.BRANCH_NAME}
-IFSC Code:              {account.BRANCH_IFSC}
-Branch Code:            {account.ACCOUNT_NUMBER_PREFIX}
-
-CLOSURE SUMMARY
-----------------------------------------------------------------------
-Final Account Balance:  Rs. {final_balance:.2f} INR
-Total Transactions:     {len(account.transactions)}
-Pending AMB Fees:       Rs. {account.pending_amb_fees:.2f} INR
-Active Recurring Bills: {len(account.recurring_bills)}
-
-CARDS TERMINATED
-----------------------------------------------------------------------
-"""
-        if cards_closed:
-            for card in cards_closed:
-                certificate_content += f"  - {card}\n"
-        else:
-            certificate_content += "  None\n"
-
-        certificate_content += f"""
-{"=" * 70}
-
-This certificate confirms that the above account has been closed
-and all linked cards have been terminated.
-
-FINAL DISBURSEMENT
-----------------------------------------------------------------------
-Final Balance:          Rs. {final_balance:.2f} INR
-Disbursement Method:    {disbursement_info}
-
-All recurring payments, loans, and outstanding dues have been cleared.
-
-This is a system-generated certificate and does not require a signature.
-
-{"=" * 70}
-Generated on: {timestamp}
-System: Python Bank Management System v1.0
-{"=" * 70}
-"""
-
-        # Save certificate
-        os.makedirs("data/closure_certificates", exist_ok=True)
-        file_path = f"data/closure_certificates/account_closure_{account.account_number}_{account.customer_id}.txt"
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(certificate_content)
-
+        """Generate account closure certificate as PDF"""
+        from .StatementGenerator import StatementGenerator
+        file_path = StatementGenerator.generate_account_closure_pdf(
+            account, final_balance, cards_closed, disbursement_info
+        )
         return file_path
 
     @staticmethod
@@ -372,71 +303,9 @@ System: Python Bank Management System v1.0
     def _generate_card_closure_certificate(
         card, account: "Account", card_type: str
     ) -> str:
-        """Generate card closure certificate"""
-        timestamp = BankClock.get_formatted_datetime()
-        closure_date = BankClock.today().strftime("%d-%m-%Y")
-
-        certificate_content = f"""
-{"=" * 70}
-                    {card_type} CARD CLOSURE CERTIFICATE
-{"=" * 70}
-
-Closure Date:           {closure_date}
-Closure Time:           {timestamp}
-
-CARDHOLDER DETAILS
-----------------------------------------------------------------------
-Customer ID:            {account.customer_id}
-Name:                   {account.first_name} {account.last_name}
-Account Number:         {account.account_number}
-
-CARD DETAILS
-----------------------------------------------------------------------
-Card Type:              {card_type}
-Card Network:           {card.network}
-Card Number:            **** **** **** {card.card_number[-4:]}
-Card ID:                {card.card_id}
-Issue Date:             {(card.expiry_date.replace(year=card.expiry_date.year - 4)).strftime("%d-%m-%Y")}
-Expiry Date:            {card.expiry_date.strftime("%d-%m-%Y")}
-"""
-
-        if card_type == "CREDIT":
-            certificate_content += f"""
-CREDIT CARD SUMMARY
-----------------------------------------------------------------------
-Credit Limit:           Rs. {card.credit_limit:,.2f} INR
-Credit Used:            Rs. {card.credit_used:.2f} INR
-Outstanding Balance:    Rs. {card.outstanding_balance:.2f} INR
-Reward Points:          {card.reward_points:.0f} (Forfeited)
-"""
-
-        certificate_content += f"""
-{"=" * 70}
-
-This certificate confirms that the above {card_type.lower()} card has been
-permanently closed and terminated. The card can no longer be used for
-any transactions.
-"""
-
-        if card_type == "CREDIT":
-            certificate_content += """
-All outstanding balances have been cleared and reward points forfeited.
-"""
-
-        certificate_content += f"""
-This is a system-generated certificate and does not require a signature.
-
-{"=" * 70}
-Generated on: {timestamp}
-System: Python Bank Management System v1.0
-{"=" * 70}
-"""
-
-        # Save certificate
-        os.makedirs("data/card_closures", exist_ok=True)
-        file_path = f"data/card_closures/{card_type.lower()}_card_closure_{card.card_number[-4:]}_{account.customer_id}.txt"
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(certificate_content)
-
+        """Generate card closure certificate as PDF"""
+        from .StatementGenerator import StatementGenerator
+        file_path = StatementGenerator.generate_card_closure_pdf(
+            card, account, card_type
+        )
         return file_path

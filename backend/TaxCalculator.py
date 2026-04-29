@@ -9,6 +9,39 @@ from typing import Dict, Tuple
 class TaxCalculator:
     """Calculates tax liability with deductions"""
 
+    def __init__(self, customer, bank):
+        self.customer = customer
+        self.bank = bank
+        self.salary = getattr(customer, "salary", 0)
+        self.annual_salary = self.salary * 12
+        
+        # Convert List[TaxExemption] or Dict to Dict[section, amount]
+        self.deductions = {}
+        # Try tax_deductions first (legacy), then tax_exemptions (new)
+        exemptions = getattr(customer, "tax_deductions", getattr(customer, "tax_exemptions", []))
+        
+        if isinstance(exemptions, list):
+            for ex in exemptions:
+                if hasattr(ex, "section") and hasattr(ex, "eligible_amount"):
+                    self.deductions[ex.section] = self.deductions.get(ex.section, 0) + ex.eligible_amount
+                elif isinstance(ex, dict) and "section" in ex:
+                    self.deductions[ex["section"]] = self.deductions.get(ex["section"], 0) + ex.get("eligibleAmount", 0)
+        elif isinstance(exemptions, dict):
+            self.deductions = exemptions
+
+    def get_tax_summary(self) -> dict:
+        """Get a summary of tax for the customer"""
+        taxable_income, tax_payable, tax_rate = self.calculate_tax_with_deductions(
+            self.annual_salary, self.deductions
+        )
+        return {
+            "gross_annual": self.annual_salary,
+            "taxable_income": taxable_income,
+            "tax_payable": tax_payable,
+            "tax_rate": tax_rate,
+            "deductions": self.deductions
+        }
+
     # Your existing tax brackets (as per your system)
     TAX_SLABS = [
         (1800000, 0.0),  # Up to ₹18,00,000: 0%
@@ -180,7 +213,7 @@ DEDUCTIONS:
         for section, amount in deductions.items():
             if amount > 0:
                 name = section_names.get(section, section)
-                report += f"   ✓ {name}: ₹{amount:,.2f}\n"
+                report += f"   [OK] {name}: ₹{amount:,.2f}\n"
                 total_deductions += amount
 
         report += f"""
@@ -207,8 +240,8 @@ TAX BENEFIT SUMMARY:
    Annual Tax Without Deductions: ₹{tax_without_deductions:,.2f}
    Annual Tax With Deductions:    ₹{tax_with_deductions:,.2f}
    ─────────────────────────────
-   💰 TAX SAVED ANNUALLY: ₹{annual_tax_saved:,.2f} ({savings_percentage:.1f}%)
-   💰 TAX SAVED MONTHLY:  ₹{monthly_tax_saved:,.2f}
+   [MONEY] TAX SAVED ANNUALLY: ₹{annual_tax_saved:,.2f} ({savings_percentage:.1f}%)
+   [MONEY] TAX SAVED MONTHLY:  ₹{monthly_tax_saved:,.2f}
 
 ═════════════════════════════════════════════════════════════
 

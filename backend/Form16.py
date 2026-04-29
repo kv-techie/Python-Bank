@@ -556,17 +556,16 @@ class Form16:
     def export_to_file(
         self, filename: Optional[str] = None, hra_exemption: float = 0.0
     ):
-        """Export Form 16 to text file"""
-        if filename is None:
-            filename = f"Form16_{self.employee_pan}_{self.financial_year.replace('-', '_')}.txt"
+        """Export Form 16 as professional PDF"""
+        try:
+            from .StatementGenerator import StatementGenerator
+            filepath = StatementGenerator.generate_form16_pdf(self, hra_exemption)
+            print(f"[OK] Official Form 16 (PDF) generated: {filepath}")
+            return filepath
+        except Exception as e:
+            print(f"[FAIL] Error generating Form 16 PDF: {e}")
+            return None
 
-        form16_content = self.generate_form16(hra_exemption)
-
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(form16_content)
-
-        print(f"✓ Form 16 exported to: {filename}")
-        return filename
 
     def to_dict(self) -> dict:
         """Serialize to dictionary"""

@@ -3,20 +3,36 @@ import json
 import os
 import shutil
 from threading import Lock
+from datetime import date, datetime
 from typing import List, Optional
+
+
+import os
+import csv
+import json
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle date and datetime objects"""
+    def default(self, obj):
+        if isinstance(obj, (date, datetime)):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 class DataStore:
     """Data persistence layer for bank accounts and customers"""
+    # Use absolute paths based on the location of this file
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    _DATA_DIR = os.path.join(_BASE_DIR, "data")
 
-    JSON_PATH = "data/bank_data.json"
-    CSV_PATH = "data/accounts.csv"
-    ACTIVITY_PATH = "data/account_activity.csv"
-    CUSTOMER_JSON_PATH = "data/customers.json"
-    LOANS_JSON_PATH = "data/loans.json"
-    RD_AUTHORIZATIONS_JSON_PATH = (
-        "data/rd_authorizations.json"  # New: RD authorizations
-    )
+    JSON_PATH = os.path.join(_DATA_DIR, "bank_data.json")
+    CSV_PATH = os.path.join(_DATA_DIR, "accounts.csv")
+    ACTIVITY_PATH = os.path.join(_DATA_DIR, "account_activity.csv")
+    CUSTOMER_JSON_PATH = os.path.join(_DATA_DIR, "customers.json")
+    LOANS_JSON_PATH = os.path.join(_DATA_DIR, "loans.json")
+    RD_AUTHORIZATIONS_JSON_PATH = os.path.join(_DATA_DIR, "rd_authorizations.json")
+    ADMIN_PIN_PATH = os.path.join(_DATA_DIR, "admin_pin.txt")
+
 
     _lock = Lock()
 
@@ -123,7 +139,7 @@ class DataStore:
         Returns:
             List of Account objects (without transaction history loaded)
         """
-        from Account import Account
+        from .Account import Account
 
         with DataStore._lock:
             accounts = []
@@ -133,19 +149,21 @@ class DataStore:
                 try:
                     with open(DataStore.JSON_PATH, "r", encoding="utf-8") as f:
                         data = json.load(f)
-
-                        for acc_data in data:
-                            # Skip loading transactions for fast startup
-                            acc_data["transactions"] = []  # Empty array
-                            accounts.append(Account.from_dict(acc_data))
-                    return accounts
+                        
+                        # Check if data is not empty
+                        if data:
+                            for acc_data in data:
+                                # Skip loading transactions for fast startup
+                                acc_data["transactions"] = []  # Empty array
+                                accounts.append(Account.from_dict(acc_data))
+                            return accounts
 
                 except Exception as e:
                     print(f"[DataStore] Error loading JSON accounts: {e}")
                     accounts = []
 
-            # Fallback to CSV if JSON fails or doesn't exist
-            elif os.path.exists(DataStore.CSV_PATH):
+            # Fallback to CSV if JSON is empty or doesn't exist
+            if os.path.exists(DataStore.CSV_PATH):
                 try:
                     with open(DataStore.CSV_PATH, "r", encoding="utf-8") as f:
                         reader = csv.DictReader(f)
@@ -177,8 +195,8 @@ class DataStore:
 
                 # For CSV-loaded accounts, replay activity log
                 DataStore._load_and_replay_activity(accounts)
-
-            return accounts
+        
+        return accounts
 
     @staticmethod
     def load_account_transactions(account_number: str) -> List:
@@ -192,7 +210,7 @@ class DataStore:
         Returns:
             List of Transaction objects for this account
         """
-        from Transaction import Transaction
+        from .Transaction import Transaction
 
         if not os.path.exists(DataStore.ACTIVITY_PATH):
             return []
@@ -224,8 +242,10 @@ class DataStore:
                             "DEPOSIT",
                             "WITHDRAW",
                             "NEFT_SENT",
+                            "NEFT_SENT_EXTERNAL",
                             "NEFT_RECEIVED",
                             "RTGS_SENT",
+                            "RTGS_SENT_EXTERNAL",
                             "RTGS_RECEIVED",
                             "INTER_ACCOUNT_SENT",
                             "INTER_ACCOUNT_RECEIVED",
@@ -284,7 +304,7 @@ class DataStore:
         Args:
             accounts: List of Account objects to replay into
         """
-        from Transaction import Transaction
+        from .Transaction import Transaction
 
         if not os.path.exists(DataStore.ACTIVITY_PATH):
             return
@@ -376,9 +396,9 @@ class DataStore:
                     json.dump(account_dicts, f)
 
                 DataStore._atomic_replace(temp_json, DataStore.JSON_PATH, "JSON")
-                # print(f"✅ JSON saved successfully to {DataStore.JSON_PATH}")  # Debug
+                # print(f"[SUCCESS] JSON saved successfully to {DataStore.JSON_PATH}")  # Debug
             except Exception as e:
-                print(f"❌ [DataStore] Error saving accounts to JSON: {e}")
+                print(f"[FAIL] [DataStore] Error saving accounts to JSON: {e}")
                 import traceback
 
                 traceback.print_exc()  # Print full error trace
@@ -438,7 +458,7 @@ class DataStore:
         Returns:
             List of Customer objects
         """
-        from Customer import Customer
+        from .Customer import Customer
 
         with DataStore._lock:
             if os.path.exists(DataStore.CUSTOMER_JSON_PATH):
@@ -448,7 +468,7 @@ class DataStore:
                         customers = [
                             Customer.from_dict(cust_data) for cust_data in data
                         ]
-                        print(f"✓ Loaded {len(customers)} customers")
+                        print(f"[OK] Loaded {len(customers)} customers")
                         return customers
                 except Exception as e:
                     print(f"[DataStore] Error loading customers: {e}")
@@ -470,7 +490,7 @@ class DataStore:
                 with open(temp_json, "w", encoding="utf-8") as f:
                     customer_dicts = [cust.to_dict() for cust in customers]
                     # Remove indent=2 for 3-5x faster write speed
-                    json.dump(customer_dicts, f)
+                    json.dump(customer_dicts, f, cls=DateTimeEncoder)
 
                 DataStore._atomic_replace(
                     temp_json, DataStore.CUSTOMER_JSON_PATH, "CUSTOMER_JSON"
@@ -488,7 +508,7 @@ class DataStore:
         Returns:
             List of Account objects
         """
-        from Account import Account
+        from .Account import Account
 
         with DataStore._lock:
             if os.path.exists(DataStore.JSON_PATH):
@@ -522,7 +542,7 @@ class DataStore:
         Returns:
             List of Loan objects
         """
-        from loan import Loan
+        from .loan import Loan
 
         if not os.path.exists(DataStore.LOANS_JSON_PATH):
             return []
@@ -532,8 +552,7 @@ class DataStore:
     @staticmethod
     def save_international_accounts(registry, verbose=False):
         """Save international accounts registry to JSON file"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "data", "international_accounts.json")
+        file_path = os.path.join(DataStore._DATA_DIR, "international_accounts.json")
         try:
             DataStore._ensure_dir(file_path)
             data = registry.to_dict()
@@ -541,7 +560,7 @@ class DataStore:
                 json.dump(data, f, indent=2)
             if verbose:
                 print(
-                    f"✓ Saved {len(registry.accounts)} international accounts to {file_path}"
+                    f"[OK] Saved {len(registry.accounts)} international accounts to {file_path}"
                 )
         except Exception as e:
             print(f"Error saving international accounts: {e}")
@@ -549,10 +568,9 @@ class DataStore:
     @staticmethod
     def load_international_accounts():
         """Load international accounts registry from JSON file"""
-        from InternationalBankRegistry import InternationalBankRegistry
+        from .InternationalBankRegistry import InternationalBankRegistry
 
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "data", "international_accounts.json")
+        file_path = os.path.join(DataStore._DATA_DIR, "international_accounts.json")
 
         if not os.path.exists(file_path):
             print("No saved international accounts found. Creating new registry.")
@@ -594,8 +612,7 @@ class DataStore:
     @staticmethod
     def save_fixed_deposits(fixed_deposits: dict):
         """Save fixed deposits to JSON"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "data", "fixed_deposits.json")
+        file_path = os.path.join(DataStore._DATA_DIR, "fixed_deposits.json")
 
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
@@ -607,10 +624,9 @@ class DataStore:
     @staticmethod
     def load_fixed_deposits() -> dict:
         """Load fixed deposits from JSON"""
-        from FixedDeposit import FixedDeposit
+        from .FixedDeposit import FixedDeposit
 
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "data", "fixed_deposits.json")
+        file_path = os.path.join(DataStore._DATA_DIR, "fixed_deposits.json")
 
         if not os.path.exists(file_path):
             return {}
@@ -634,8 +650,7 @@ class DataStore:
     @staticmethod
     def save_recurring_deposits(recurring_deposits: dict):
         """Save recurring deposits to JSON"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "data", "recurring_deposits.json")
+        file_path = os.path.join(DataStore._DATA_DIR, "recurring_deposits.json")
 
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
@@ -647,10 +662,9 @@ class DataStore:
     @staticmethod
     def load_recurring_deposits() -> dict:
         """Load recurring deposits from JSON"""
-        from RecurringDeposit import RecurringDeposit
+        from .RecurringDeposit import RecurringDeposit
 
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "data", "recurring_deposits.json")
+        file_path = os.path.join(DataStore._DATA_DIR, "recurring_deposits.json")
 
         if not os.path.exists(file_path):
             return {}
@@ -674,8 +688,7 @@ class DataStore:
     @staticmethod
     def save_rd_authorizations(rd_auth_manager):
         """Save RD authorizations to JSON"""
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "data", "rd_authorizations.json")
+        file_path = os.path.join(DataStore._DATA_DIR, "rd_authorizations.json")
 
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
@@ -687,10 +700,9 @@ class DataStore:
     @staticmethod
     def load_rd_authorizations():
         """Load RD authorizations from JSON"""
-        from RDAuthorization import RDAuthorizationManager
+        from .RDAuthorization import RDAuthorizationManager
 
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "data", "rd_authorizations.json")
+        file_path = os.path.join(DataStore._DATA_DIR, "rd_authorizations.json")
 
         if not os.path.exists(file_path):
             return RDAuthorizationManager()
@@ -703,3 +715,25 @@ class DataStore:
         except Exception as e:
             print(f"Error loading RD authorizations: {e}")
             return RDAuthorizationManager()
+
+    @staticmethod
+    def load_admin_pin() -> str:
+        """Load Admin PIN from file, default to 1234"""
+        if not os.path.exists(DataStore.ADMIN_PIN_PATH):
+            return "1234"
+        try:
+            with open(DataStore.ADMIN_PIN_PATH, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except Exception:
+            return "1234"
+
+    @staticmethod
+    def save_admin_pin(pin: str):
+        """Save Admin PIN to file"""
+        DataStore._ensure_dir(DataStore.ADMIN_PIN_PATH)
+        try:
+            with open(DataStore.ADMIN_PIN_PATH, "w", encoding="utf-8") as f:
+                f.write(pin)
+        except Exception as e:
+            print(f"Error saving Admin PIN: {e}")
+

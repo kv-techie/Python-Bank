@@ -1,13 +1,13 @@
 from typing import TYPE_CHECKING, List
 
-from AccountClosure import AccountClosureService
-from Beneficiary import Beneficiary
-from Card import CreditCard
+from .AccountClosure import AccountClosureService
+from .Beneficiary import Beneficiary
+from .Card import CreditCard
 
 if TYPE_CHECKING:
-    from Account import Account
-    from Bank import Bank
-    from Customer import Customer
+    from .Account import Account
+    from .Bank import Bank
+    from .Customer import Customer
 
 
 class ClosureFormalities:
@@ -17,7 +17,7 @@ class ClosureFormalities:
     def close_card_menu(account: "Account", bank: "Bank"):
         """Handle card closure"""
         if not account.cards:
-            print("\n❌ No cards linked to this account.")
+            print("\n[FAIL] No cards linked to this account.")
             return
 
         print("\n" + "=" * 60)
@@ -39,7 +39,7 @@ class ClosureFormalities:
         card = account.get_card_by_id(card_id) or account.get_card_by_number(card_id)
 
         if not card:
-            print("❌ Card not found.")
+            print("[FAIL] Card not found.")
             return
 
         # Show card details
@@ -55,7 +55,7 @@ class ClosureFormalities:
             print(f"Reward Points: {reward_points:.0f} (will be forfeited)")
 
         # Confirmation
-        print("\n⚠️  WARNING: This action cannot be undone!")
+        print("\n[WARN]  WARNING: This action cannot be undone!")
         confirm = (
             input("\nAre you sure you want to close this card? (yes/no): ")
             .strip()
@@ -68,7 +68,7 @@ class ClosureFormalities:
 
         # Double confirmation for credit cards
         if isinstance(card, CreditCard):
-            print("\n⚠️  All reward points will be forfeited.")
+            print("\n[WARN]  All reward points will be forfeited.")
             confirm2 = input("Type 'CONFIRM' to proceed: ").strip()
             if confirm2 != "CONFIRM":
                 print("Card closure cancelled.")
@@ -85,11 +85,11 @@ class ClosureFormalities:
             )
 
         if success:
-            print(f"\n✅ {message}")
+            print(f"\n[SUCCESS] {message}")
             print(f"📄 Closure certificate saved: {cert_path}")
             bank.save()
         else:
-            print(f"\n❌ {message}")
+            print(f"\n[FAIL] {message}")
 
     @staticmethod
     def _add_new_beneficiary_for_closure(
@@ -101,22 +101,22 @@ class ClosureFormalities:
 
         beneficiary_name = input("Beneficiary Name: ").strip()
         if not beneficiary_name:
-            print("❌ Name cannot be empty.")
+            print("[FAIL] Name cannot be empty.")
             return disbursement_details
 
         account_number = input("Beneficiary Account Number: ").strip()
         if not account_number:
-            print("❌ Account number cannot be empty.")
+            print("[FAIL] Account number cannot be empty.")
             return disbursement_details
 
         ifsc_code = input("IFSC Code: ").strip()
         if not ifsc_code:
-            print("❌ IFSC code cannot be empty.")
+            print("[FAIL] IFSC code cannot be empty.")
             return disbursement_details
 
         bank_name = input("Bank Name: ").strip()
         if not bank_name:
-            print("❌ Bank name cannot be empty.")
+            print("[FAIL] Bank name cannot be empty.")
             return disbursement_details
 
         account_type = input(
@@ -140,7 +140,7 @@ class ClosureFormalities:
         disbursement_details["beneficiary"] = beneficiary
         disbursement_details["method"] = "bank_transfer"
 
-        print(f"✅ Beneficiary added: {beneficiary_name}")
+        print(f"[SUCCESS] Beneficiary added: {beneficiary_name}")
 
         return disbursement_details
 
@@ -178,7 +178,7 @@ class ClosureFormalities:
         ]
 
         if active_loans:
-            print(f"Active Loans: {len(active_loans)} ⚠️")
+            print(f"Active Loans: {len(active_loans)} [WARN]")
 
         print("\n" + "-" * 60)
         print("CLOSURE CHECKLIST:")
@@ -189,24 +189,24 @@ class ClosureFormalities:
 
         if account.pending_amb_fees > 0:
             issues.append(
-                f"❌ Pending AMB fees: Rs. {account.pending_amb_fees:.2f} INR"
+                f"[FAIL] Pending AMB fees: Rs. {account.pending_amb_fees:.2f} INR"
             )
         else:
-            print("✅ No pending AMB fees")
+            print("[SUCCESS] No pending AMB fees")
 
         if active_loans:
             issues.append(
-                f"❌ {len(active_loans)} active loan(s) - must be closed first"
+                f"[FAIL] {len(active_loans)} active loan(s) - must be closed first"
             )
         else:
-            print("✅ No active loans")
+            print("[SUCCESS] No active loans")
 
         if account.recurring_bills:
             issues.append(
-                f"❌ {len(account.recurring_bills)} recurring bill(s) - must be cancelled first"
+                f"[FAIL] {len(account.recurring_bills)} recurring bill(s) - must be cancelled first"
             )
         else:
-            print("✅ No recurring bills")
+            print("[SUCCESS] No recurring bills")
 
         # Check credit card balances
         credit_card_issues = []
@@ -214,25 +214,25 @@ class ClosureFormalities:
             if isinstance(card, CreditCard):
                 if card.credit_used > 0 or card.outstanding_balance > 0:
                     credit_card_issues.append(
-                        f"❌ Credit card {card.card_number[-4:]} has outstanding balance: Rs. {card.outstanding_balance:.2f} INR"
+                        f"[FAIL] Credit card {card.card_number[-4:]} has outstanding balance: Rs. {card.outstanding_balance:.2f} INR"
                     )
 
         if credit_card_issues:
             issues.extend(credit_card_issues)
         else:
-            print("✅ No credit card outstanding balances")
+            print("[SUCCESS] No credit card outstanding balances")
 
         if account.balance < account._min_operational_balance:
             issues.append(
-                f"❌ Account balance (Rs. {account.balance:.2f} INR) below minimum (Rs. {account._min_operational_balance:.2f} INR)"
+                f"[FAIL] Account balance (Rs. {account.balance:.2f} INR) below minimum (Rs. {account._min_operational_balance:.2f} INR)"
             )
         else:
-            print("✅ Sufficient balance for closure")
+            print("[SUCCESS] Sufficient balance for closure")
 
         if account.cards:
-            print(f"⚠️  {len(account.cards)} card(s) will be terminated")
+            print(f"[WARN]  {len(account.cards)} card(s) will be terminated")
         else:
-            print("✅ No cards to terminate")
+            print("[SUCCESS] No cards to terminate")
 
         # Show blocking issues
         if issues:
@@ -248,10 +248,10 @@ class ClosureFormalities:
 
         # All checks passed - proceed with closure
         print("\n" + "-" * 60)
-        print("✅ All requirements met for account closure")
+        print("[SUCCESS] All requirements met for account closure")
         print("-" * 60)
 
-        print("\n⚠️  WARNING: ACCOUNT CLOSURE IS PERMANENT!")
+        print("\n[WARN]  WARNING: ACCOUNT CLOSURE IS PERMANENT!")
         print("This action will:")
         print(
             f"  • Close your {account.account_type} account ({account.account_number})"
@@ -279,7 +279,7 @@ class ClosureFormalities:
         confirm2 = input("Account Number: ").strip()
 
         if confirm2 != account.account_number:
-            print("❌ Account number does not match. Closure cancelled.")
+            print("[FAIL] Account number does not match. Closure cancelled.")
             return False
 
         # Disbursement method selection
@@ -302,7 +302,7 @@ class ClosureFormalities:
         if disbursement_method == "1":
             disbursement_details["method"] = "cheque"
             # Cheque number will be auto-assigned from cheque book manager
-            print("\n✅ Cheque Method Selected")
+            print("\n[SUCCESS] Cheque Method Selected")
             print(f"Amount: Rs. {account.balance:,.2f} INR")
             print(f"Payable to: {account.first_name} {account.last_name}")
             print("Cheque will be issued from your cheque book immediately.")
@@ -337,10 +337,10 @@ class ClosureFormalities:
                             )
                         )
                     else:
-                        print("❌ Invalid selection.")
+                        print("[FAIL] Invalid selection.")
                         return False
                 except ValueError:
-                    print("❌ Invalid input.")
+                    print("[FAIL] Invalid input.")
                     return False
             else:
                 # No existing beneficiaries - add new one
@@ -351,12 +351,12 @@ class ClosureFormalities:
                 )
 
             if disbursement_details["beneficiary"] is None:
-                print("❌ No beneficiary selected. Closure cancelled.")
+                print("[FAIL] No beneficiary selected. Closure cancelled.")
                 return False
 
             # Validate account
             beneficiary = disbursement_details["beneficiary"]
-            print("\n✅ Bank Transfer Method Selected")
+            print("\n[SUCCESS] Bank Transfer Method Selected")
             print(f"Beneficiary: {beneficiary.beneficiary_name}")
             print(f"Account: {beneficiary.account_number}")
             print(f"IFSC: {beneficiary.ifsc_code}")
@@ -365,14 +365,14 @@ class ClosureFormalities:
 
             # Check if account starts with 5621 (internal account)
             if beneficiary.account_number.startswith("5621"):
-                print("\n🔍 Validating internal account...")
+                print("\n[SEARCH] Validating internal account...")
                 recipient_account = bank.find_account_by_number(
                     beneficiary.account_number
                 )
 
                 if recipient_account:
                     print(
-                        f"✅ Account found: {recipient_account.first_name} {recipient_account.last_name}"
+                        f"[SUCCESS] Account found: {recipient_account.first_name} {recipient_account.last_name}"
                     )
                     print(f"   Account Type: {recipient_account.account_type}")
                     print(
@@ -384,7 +384,7 @@ class ClosureFormalities:
                     disbursement_details["validated_internal"] = True
                 else:
                     print(
-                        f"⚠️  WARNING: Cannot find internal account {beneficiary.account_number}"
+                        f"[WARN]  WARNING: Cannot find internal account {beneficiary.account_number}"
                     )
                     confirm_transfer = (
                         input("Proceed anyway? (yes/no): ").strip().lower()
@@ -394,10 +394,10 @@ class ClosureFormalities:
                         return False
                     disbursement_details["validated_internal"] = False
             else:
-                print("\n✅ External bank account - will be transferred via NEFT")
+                print("\n[SUCCESS] External bank account - will be transferred via NEFT")
 
         else:
-            print("❌ Invalid selection.")
+            print("[FAIL] Invalid selection.")
             return False
 
         # Final confirmation
@@ -415,7 +415,7 @@ class ClosureFormalities:
 
         if success:
             print("\n" + "=" * 60)
-            print("✅ ACCOUNT CLOSED SUCCESSFULLY")
+            print("[SUCCESS] ACCOUNT CLOSED SUCCESSFULLY")
             print("=" * 60)
             print(f"\n{message}")
             print(f"\n📄 Closure certificate: {cert_path}")
@@ -431,5 +431,5 @@ class ClosureFormalities:
 
             return True
         else:
-            print(f"\n❌ Account closure failed: {message}")
+            print(f"\n[FAIL] Account closure failed: {message}")
             return False

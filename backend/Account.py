@@ -3,13 +3,13 @@ import random
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from BankClock import BankClock
-from Card import Card, CreditCard, DebitCard
-from ChequeBook import ChequeBookManager
-from DataStore import DataStore
-from RecurringBill import RecurringBill
-from SalaryProfile import SalaryProfile
-from Transaction import Transaction
+from .BankClock import BankClock
+from .Card import Card, CreditCard, DebitCard
+from .ChequeBook import ChequeBookManager
+from .DataStore import DataStore
+from .RecurringBill import RecurringBill
+from .SalaryProfile import SalaryProfile
+from .Transaction import Transaction
 
 
 class Account:
@@ -19,7 +19,8 @@ class Account:
     BRANCH_NAME = "Jakkasandra"
     ACCOUNT_NUMBER_PREFIX = "5621"
     _used_account_numbers = set()
-    _used_numbers_file = "data/account_numbers.txt"
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    _used_numbers_file = os.path.join(_BASE_DIR, "data", "account_numbers.txt")
 
     def __init__(
         self,
@@ -91,7 +92,7 @@ class Account:
     def _load_transactions_if_needed(self):
         """Load all transactions from storage when first accessed"""
         if not self._transactions_loaded:
-            from DataStore import DataStore
+            from .DataStore import DataStore
 
             self.transactions = DataStore.load_account_transactions(self.account_number)
             self._transactions_loaded = True
@@ -131,7 +132,7 @@ class Account:
         total = 0.0
 
         for txn in self.transactions:
-            if txn.type == "WITHDRAW" or txn.type.endswith("_SENT"):
+            if txn.type == "WITHDRAW" or "_SENT" in txn.type:
                 try:
                     txn_date = datetime.strptime(
                         txn.timestamp, "%d-%m-%Y %H:%M:%S"
@@ -203,29 +204,45 @@ class Account:
 
     # In Account.py, replace the deposit() and withdraw() methods:
 
-    def deposit(self, amount: float, card: DebitCard):
-        """Deposit money to account (requires debit card)"""
+    def deposit(
+        self,
+        amount: float,
+        card: Optional[DebitCard] = None,
+        pin: str = None,
+        mode: str = "CARD",
+        merchant: str = "SELF",
+    ):
+        """
+        Deposit money to account.
+        Supported modes: "CARD" (requires debit card/pin), "CASH", "TRANSFER", "LOAN_CREDIT"
+        """
         if amount <= 0:
             print("Amount must be positive.")
             return
 
-        # Validate debit card
-        if card is None:
-            print("Debit card required for deposit. Please provide a valid debit card.")
-            return
-
-        if not isinstance(card, DebitCard):
-            print("Only debit cards can be used for deposits.")
-            return
-
-        if card not in self.cards:
-            print("Card not linked to this account.")
-            return
-
-        # Card validations
-        is_valid, msg = card.validate_transaction(amount)
-        if not is_valid:
-            print(f"Transaction failed: {msg}")
+        # 1. Mode Validation
+        if mode == "CARD":
+            if card is None:
+                print("Debit card required for card deposit.")
+                return
+            if not isinstance(card, DebitCard):
+                print("Only debit cards can be used for deposits.")
+                return
+            if card not in self.cards:
+                print("Card not linked to this account.")
+                return
+            # PIN Verification
+            success, msg = card.verify_pin(pin)
+            if not success:
+                print(f"PIN Verification Failed: {msg}")
+                return
+            # Card validations
+            is_valid, msg = card.validate_transaction(amount)
+            if not is_valid:
+                print(f"Transaction failed: {msg}")
+                return
+        elif mode not in ["CASH", "TRANSFER", "LOAN_CREDIT", "RD_MATURITY", "FD_MATURITY"]:
+            print(f"Unsupported deposit mode: {mode}")
             return
 
         if self.is_minor_account:
@@ -247,22 +264,31 @@ class Account:
 
         # Prepare transaction metadata
         txn_metadata = {
-            "card_number": card.card_number,
-            "card_type": "DEBIT",
-            "card_id": card.card_id,
-            "network": card.network,
+            "mode": mode,
+            "merchant": merchant
         }
+        if card:
+            txn_metadata.update({
+                "card_number": card.card_number,
+                "card_type": "DEBIT",
+                "card_id": card.card_id,
+                "network": card.network
+            })
 
         # Create transaction with metadata
         txn = Transaction(
             type="DEPOSIT",
             amount=amount,
             resulting_balance=self.balance,
-            metadata=txn_metadata,  # ADD THIS LINE
+            metadata=txn_metadata,
         )
         self.transactions.append(txn)
 
-        metadata = f"cardId={card.card_id};cardNumber={card.card_number[-4:]};network={card.network}"
+        if card:
+            metadata = f"cardId={card.card_id};cardNumber={card.card_number[-4:]};network={card.network}"
+        else:
+            metadata = f"mode={mode};merchant={merchant}"
+            
         if self.is_minor_account:
             metadata += ";minorAccount=true"
 
@@ -276,8 +302,12 @@ class Account:
             txn_id=txn.id,
             metadata=metadata,
         )
-        print(f"Deposit successful! Transaction ID: {txn.id}")
-        print(f"Card used: {card.network} **** **** **** {card.card_number[-4:]}")
+        if card:
+            print(f"Deposit successful! Transaction ID: {txn.id}")
+            print(f"Card used: {card.network} **** **** **** {card.card_number[-4:]}")
+        else:
+            print(f"Deposit successful! Transaction ID: {txn.id}")
+            print(f"Mode: {mode} | Source: {merchant}")
 
         if self.is_minor_account:
             new_transactions = self.get_today_transactions()
@@ -287,31 +317,45 @@ class Account:
 
         self._check_and_apply_amb_fee()
 
-    def withdraw(self, amount: float, card: DebitCard):
-        """Withdraw money from account (requires debit card)"""
+    def withdraw(
+        self,
+        amount: float,
+        card: Optional[DebitCard] = None,
+        pin: str = None,
+        mode: str = "CARD",
+        location: str = "ATM",
+    ):
+        """
+        Withdraw money from account.
+        Supported modes: "CARD" (requires debit card/pin), "CASH", "TRANSFER", "LOAN_REPAYMENT"
+        """
         if amount <= 0:
             print("Amount must be positive.")
             return
 
-        # Validate debit card
-        if card is None:
-            print(
-                "Debit card required for withdrawal. Please provide a valid debit card."
-            )
-            return
-
-        if not isinstance(card, DebitCard):
-            print("Only debit cards can be used for withdrawals.")
-            return
-
-        if card not in self.cards:
-            print("Card not linked to this account.")
-            return
-
-        # Card validations
-        is_valid, msg = card.validate_transaction(amount)
-        if not is_valid:
-            print(f"Transaction failed: {msg}")
+        # 1. Mode Validation
+        if mode == "CARD":
+            if card is None:
+                print("Debit card required for card withdrawal.")
+                return
+            if not isinstance(card, DebitCard):
+                print("Only debit cards can be used for withdrawals.")
+                return
+            if card not in self.cards:
+                print("Card not linked to this account.")
+                return
+            # PIN Verification
+            success, msg = card.verify_pin(pin)
+            if not success:
+                print(f"PIN Verification Failed: {msg}")
+                return
+            # Card validations
+            is_valid, msg = card.validate_transaction(amount)
+            if not is_valid:
+                print(f"Transaction failed: {msg}")
+                return
+        elif mode not in ["CASH", "TRANSFER", "LOAN_REPAYMENT", "RD_INSTALLMENT"]:
+            print(f"Unsupported withdrawal mode: {mode}")
             return
 
         if self.is_minor_account:
@@ -358,22 +402,31 @@ class Account:
 
         # Prepare transaction metadata
         txn_metadata = {
-            "card_number": card.card_number,
-            "card_type": "DEBIT",
-            "card_id": card.card_id,
-            "network": card.network,
+            "mode": mode,
+            "location": location
         }
+        if card:
+            txn_metadata.update({
+                "card_number": card.card_number,
+                "card_type": "DEBIT",
+                "card_id": card.card_id,
+                "network": card.network
+            })
 
         # Create transaction with metadata
         txn = Transaction(
             type="WITHDRAW",
             amount=-amount,  # Negative for withdrawal
             resulting_balance=self.balance,
-            metadata=txn_metadata,  # ADD THIS LINE
+            metadata=txn_metadata,
         )
         self.transactions.append(txn)
 
-        metadata = f"cardId={card.card_id};cardNumber={card.card_number[-4:]};network={card.network}"
+        if card:
+            metadata = f"cardId={card.card_id};cardNumber={card.card_number[-4:]};network={card.network}"
+        else:
+            metadata = f"mode={mode};location={location}"
+            
         if self.is_minor_account:
             metadata += ";minorAccount=true"
 
@@ -387,8 +440,12 @@ class Account:
             txn_id=txn.id,
             metadata=metadata,
         )
-        print(f"Withdraw successful! Transaction ID: {txn.id}")
-        print(f"Card used: {card.network} **** **** **** {card.card_number[-4:]}")
+        if card:
+            print(f"Withdraw successful! Transaction ID: {txn.id}")
+            print(f"Card used: {card.network} **** **** **** {card.card_number[-4:]}")
+        else:
+            print(f"Withdraw successful! Transaction ID: {txn.id}")
+            print(f"Mode: {mode} | Location: {location}")
 
         if self.is_minor_account:
             new_withdrawals = self.get_today_withdrawals()
@@ -929,7 +986,9 @@ class Account:
             elif txn.type in [
                 "WITHDRAW",
                 "NEFT_SENT",
+                "NEFT_SENT_EXTERNAL",
                 "RTGS_SENT",
+                "RTGS_SENT_EXTERNAL",
                 "INTER_ACCOUNT_SENT",
                 "LOAN_EMI",
                 "TAX_DEDUCTED",
@@ -953,7 +1012,7 @@ class Account:
         print("=" * 130)
 
         # Show summary statistics - use transaction type to classify credits/debits
-        from Transaction import TransactionType
+        from .Transaction import TransactionType
 
         credit_types = TransactionType.get_all_credit_types()
         debit_types = TransactionType.get_all_debit_types()
@@ -962,7 +1021,7 @@ class Account:
         total_debit = sum(t.amount for t in transactions if t.type in debit_types)
 
         print(
-            f"\n📊 Summary: Total Credit: Rs. {total_credit:,.2f} | Total Debit: Rs. {total_debit:,.2f}"
+            f"\n[STATS] Summary: Total Credit: Rs. {total_credit:,.2f} | Total Debit: Rs. {total_debit:,.2f}"
         )
 
         # Show minor account limits if applicable
@@ -970,7 +1029,7 @@ class Account:
             today_withdrawals = self.get_today_withdrawals()
             today_transactions = self.get_today_transactions()
             print("\n" + "-" * 130)
-            print("⚠️  Minor Account Daily Limits Summary:")
+            print("[WARN]  Minor Account Daily Limits Summary:")
             print(
                 f"   Withdrawal Limit: Rs. {self._minor_daily_withdrawal_limit:.2f} INR "
                 f"(Used: Rs. {today_withdrawals:.2f}, Remaining: Rs. {self._minor_daily_withdrawal_limit - today_withdrawals:.2f} INR)"
@@ -1038,7 +1097,7 @@ class Account:
 
     def process_recurring_bills(self, today, bank) -> int:
         """Process recurring bills for today with credit card payment support"""
-        from RecurringBill import PaymentMethod
+        from .RecurringBill import PaymentMethod
 
         processed = 0
 
@@ -1061,7 +1120,7 @@ class Account:
                     if card and isinstance(card, CreditCard):
                         success, msg, txn_id = card.pay_bill(amount, self)
                         if success:
-                            print(f"✅ Auto-paid {bill.name}: Rs. {amount:,.2f}")
+                            print(f"[SUCCESS] Auto-paid {bill.name}: Rs. {amount:,.2f}")
                             print(f"   💳 {card.network} credit card paid")
                             DataStore.append_activity(
                                 timestamp=BankClock.get_formatted_datetime(),
@@ -1076,9 +1135,9 @@ class Account:
                             processed += 1
                             bill.last_processed = today
                         else:
-                            print(f"⚠️  Failed to auto-pay {bill.name}: {msg}")
+                            print(f"[WARN]  Failed to auto-pay {bill.name}: {msg}")
                     else:
-                        print(f"⚠️  Payment card not found for {bill.name}")
+                        print(f"[WARN]  Payment card not found for {bill.name}")
                 else:
                     # Pay directly from bank account
                     if self.balance - amount >= self._min_operational_balance:
@@ -1105,11 +1164,11 @@ class Account:
                             metadata=f"billId={bill.id};category={bill.category};nachId={bill.nach_id}",
                         )
 
-                        print(f"✅ Auto-paid {bill.name}: Rs. {amount:,.2f}")
+                        print(f"[SUCCESS] Auto-paid {bill.name}: Rs. {amount:,.2f}")
                         processed += 1
                         bill.last_processed = today
                     else:
-                        print(f"⚠️  Insufficient balance to pay {bill.name}")
+                        print(f"[WARN]  Insufficient balance to pay {bill.name}")
 
             # CASE 2: Pay via Credit Card
             elif bill.payment_method == PaymentMethod.CREDIT_CARD:
@@ -1167,16 +1226,16 @@ class Account:
                         )
 
                         print(
-                            f"✅ Auto-paid {bill.name}: Rs. {amount:,.2f} via {card.network}"
+                            f"[SUCCESS] Auto-paid {bill.name}: Rs. {amount:,.2f} via {card.network}"
                         )
                         print(f"   💎 Earned {reward_points} reward points!")
 
                         processed += 1
                         bill.last_processed = today
                     else:
-                        print(f"⚠️  Insufficient credit limit for {bill.name}")
+                        print(f"[WARN]  Insufficient credit limit for {bill.name}")
                 else:
-                    print(f"⚠️  Payment card not found for {bill.name}")
+                    print(f"[WARN]  Payment card not found for {bill.name}")
 
         # Do not overwrite self.recurring_bills here — keep configured bills intact
         return processed
@@ -1206,7 +1265,7 @@ class Account:
         tax = self.salary_profile.calculate_tax()
         tax_rate = (
             self.salary_profile.get_tax_rate()
-        )  # ✓ Fixed: use self.salary_profile
+        )  # [OK] Fixed: use self.salary_profile
         net_salary = self.salary_profile.get_net_salary()
         annual_income = gross_salary * 12
         total_deductions = (
@@ -1231,7 +1290,7 @@ class Account:
         if tax > 0:
             print(
                 f"   Monthly Income Tax ({tax_rate:.0f}%): Rs. {tax:,.2f} INR"
-            )  # ✓ Dynamic rate
+            )  # [OK] Dynamic rate
         else:
             print("   Monthly Income Tax: Rs. 0.00 INR")
 
@@ -1252,7 +1311,7 @@ class Account:
         if self.salary_profile:
             profile = self.salary_profile
             tax = profile.calculate_tax()
-            tax_rate = profile.get_tax_rate()  # ✓ ADD THIS LINE
+            tax_rate = profile.get_tax_rate()  # [OK] ADD THIS LINE
             net_salary = profile.get_net_salary()
             annual_income = profile.gross_salary * 12
             total_deductions = (
@@ -1282,7 +1341,7 @@ class Account:
             if tax > 0:
                 print(
                     f"Monthly Income Tax ({tax_rate:.0f}%): Rs. {tax:,.2f} INR"
-                )  # ✓ CHANGED
+                )  # [OK] CHANGED
                 print(f"Net Monthly Salary: Rs. {net_salary:,.2f} INR")
             else:
                 print(f"Net Monthly Salary: Rs. {net_salary:,.2f} INR")
@@ -1453,7 +1512,7 @@ class Account:
             return
 
         if success:
-            print(f"✓ {message}")
+            print(f"[OK] {message}")
             print(f"Transaction ID: {txn_id}")
             print(f"Amount: Rs. {amount:.2f} INR")
             if isinstance(card, CreditCard):
@@ -1475,7 +1534,7 @@ class Account:
         success, message, txn_id = card.pay_bill(amount, self)
 
         if success:
-            print(f"✓ {message}")
+            print(f"[OK] {message}")
             print(f"Transaction ID: {txn_id}")
         else:
             print(f"✗ Payment failed: {message}")
@@ -1509,9 +1568,9 @@ class Account:
                     f"Due Date: {card.due_date.strftime('%d-%m-%Y')} ({days_remaining} days)"
                 )
                 if days_remaining < 0:
-                    print("⚠ PAYMENT OVERDUE!")
+                    print("[WARN] PAYMENT OVERDUE!")
         else:
-            print("\n✓ No outstanding balance")
+            print("\n[OK] No outstanding balance")
 
         print("=" * 60)
 
@@ -1799,7 +1858,7 @@ Branch Code: {Account.ACCOUNT_NUMBER_PREFIX}"""
 
         # Load ITR filings
         if data.get("itrFilings"):
-            from ITRFiling import ITRFilingRecord
+            from .ITRFiling import ITRFilingRecord
 
             acc.itr_filings = [ITRFilingRecord.from_dict(f) for f in data["itrFilings"]]
 

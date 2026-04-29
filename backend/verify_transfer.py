@@ -1,6 +1,16 @@
 """Quick tool to verify international transfers"""
 
-from DataStore import DataStore
+import sys
+import os
+
+# Add parent directory to sys.path to support both direct execution and package imports
+if __name__ == "__main__" and __package__ is None:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    sys.path.append(parent_dir)
+    from backend.DataStore import DataStore
+else:
+    from .DataStore import DataStore
 
 
 def verify_transfer():
@@ -27,7 +37,7 @@ def verify_transfer():
         print("Goodbye!")
         return
     else:
-        print("❌ Invalid choice")
+        print("[FAIL] Invalid choice")
 
 
 def verify_by_account(registry):
@@ -36,7 +46,7 @@ def verify_by_account(registry):
     account = registry.find_account_by_number(account_number)
 
     if not account:
-        print("❌ Account not found")
+        print("[FAIL] Account not found")
         return
 
     print("\n" + "=" * 80)
@@ -88,10 +98,10 @@ def verify_by_swift(registry):
         for txn in account.transactions:
             if txn.get("swift_ref") == swift_ref:
                 print("\n" + "=" * 80)
-                print("✓ TRANSFER FOUND!")
+                print("[OK] TRANSFER FOUND!")
                 print("=" * 80)
                 print(f"\nSWIFT Reference:   {swift_ref}")
-                print("Status:            ✅ COMPLETED")
+                print("Status:            [SUCCESS] COMPLETED")
                 print("\nRecipient Details:")
                 print(f"  Name:            {account.account_holder}")
                 print(f"  Bank:            {account.bank_name}")
@@ -111,7 +121,7 @@ def verify_by_swift(registry):
 
     if not found:
         print("\n" + "=" * 80)
-        print("❌ SWIFT REFERENCE NOT FOUND")
+        print("[FAIL] SWIFT REFERENCE NOT FOUND")
         print("=" * 80)
         print("\nPossible reasons:")
         print("  • Transfer is still processing")
@@ -128,7 +138,7 @@ def main():
         print("\n")
         again = input("Check another transfer? (yes/no): ").strip().lower()
         if again not in ["yes", "y"]:
-            print("\n✓ Thank you for using International Transfer Verification!")
+            print("\n[OK] Thank you for using International Transfer Verification!")
             break
 
 

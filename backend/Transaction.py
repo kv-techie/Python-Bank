@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from BankClock import BankClock
-from TransactionRegistry import TransactionRegistry
+from .BankClock import BankClock
+from .TransactionRegistry import TransactionRegistry
 
 
 @dataclass
@@ -92,7 +92,9 @@ class Transaction:
         debit_types = [
             "WITHDRAW",
             "NEFT_SENT",
+            "NEFT_SENT_EXTERNAL",
             "RTGS_SENT",
+            "RTGS_SENT_EXTERNAL",
             "INTER_ACCOUNT_SENT",
             "AMB_FEE",
             "AMB_FEE_SETTLED",
@@ -140,6 +142,8 @@ class Transaction:
             "BILL_PAYMENT": "Bill Payment",
             "SALARY": "Salary Credit",
             "TAX_DEDUCTED": "Tax Deduction (TDS)",
+            "LOAN_PREPAYMENT": "Loan Prepayment (Early Closure)",
+            "LOAN_PREPAYMENT_PENALTY": "Loan Prepayment Penalty Fee",
         }
         return type_mappings.get(self.type, self.type.replace("_", " ").title())
 
@@ -206,7 +210,9 @@ class TransactionType:
     # Debit types (money out)
     WITHDRAW = "WITHDRAW"
     NEFT_SENT = "NEFT_SENT"
+    NEFT_SENT_EXTERNAL = "NEFT_SENT_EXTERNAL"
     RTGS_SENT = "RTGS_SENT"
+    RTGS_SENT_EXTERNAL = "RTGS_SENT_EXTERNAL"
     INTER_ACCOUNT_SENT = "INTER_ACCOUNT_SENT"
     SWIFT_SENT = "SWIFT_SENT"
     EXPENSE = "EXPENSE"
@@ -225,6 +231,11 @@ class TransactionType:
     DEBIT_CARD_PURCHASE = "DEBIT_CARD_PURCHASE"
     CREDIT_CARD_PURCHASE = "CREDIT_CARD_PURCHASE"
     CREDIT_CARD_PAYMENT = "CREDIT_CARD_PAYMENT"
+
+    # Loan types
+    LOAN_EMI = "LOAN_EMI"
+    LOAN_PREPAYMENT = "LOAN_PREPAYMENT"
+    LOAN_PREPAYMENT_PENALTY = "LOAN_PREPAYMENT_PENALTY"
 
     # Fee types
     AMB_FEE = "AMB_FEE"
@@ -254,7 +265,9 @@ class TransactionType:
         return [
             TransactionType.WITHDRAW,
             TransactionType.NEFT_SENT,
+            TransactionType.NEFT_SENT_EXTERNAL,
             TransactionType.RTGS_SENT,
+            TransactionType.RTGS_SENT_EXTERNAL,
             TransactionType.INTER_ACCOUNT_SENT,
             TransactionType.SWIFT_SENT,
             TransactionType.EXPENSE,
@@ -271,5 +284,7 @@ class TransactionType:
             "RECURRING_BILL",  # Recurring bill payments
             "RECURRING_BILL_CREDIT_CARD_PAYMENT",  # Recurring bill via credit card
             "RD_AUTH_PAYMENT",  # RD authorization payments
+            TransactionType.LOAN_PREPAYMENT,  # Loan prepayment
+            TransactionType.LOAN_PREPAYMENT_PENALTY,  # Prepayment penalty
             TransactionType.DEBIT,
         ]

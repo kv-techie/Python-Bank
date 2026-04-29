@@ -75,9 +75,9 @@ class TaxExemption:
                 document_type=doc_type, file_path=file_path, upload_date=datetime.now()
             )
             self.documents.append(doc)
-            return True, f"✅ Document uploaded: {doc_type}"
+            return True, f"[SUCCESS] Document uploaded: {doc_type}"
         except Exception as e:
-            return False, f"❌ Failed to upload document: {e}"
+            return False, f"[FAIL] Failed to upload document: {e}"
 
     def verify_document(self, doc_index: int) -> tuple[bool, str]:
         """Mark document as verified (simulation)"""
@@ -86,7 +86,7 @@ class TaxExemption:
                 self.documents[doc_index].verified = True
                 self.documents[doc_index].verification_date = datetime.now()
                 self.status = DeductionStatus.VERIFIED
-                return True, "✅ Document verified"
+                return True, "[SUCCESS] Document verified"
             else:
                 return False, "Document not found"
         except Exception as e:
@@ -95,10 +95,10 @@ class TaxExemption:
     def get_summary(self) -> str:
         """Get formatted summary of this deduction"""
         status_icon = {
-            DeductionStatus.AUTO_DETECTED: "🔍",
+            DeductionStatus.AUTO_DETECTED: "[SEARCH]",
             DeductionStatus.SELF_DECLARED: "✋",
-            DeductionStatus.VERIFIED: "✅",
-            DeductionStatus.REJECTED: "❌",
+            DeductionStatus.VERIFIED: "[SUCCESS]",
+            DeductionStatus.REJECTED: "[FAIL]",
         }.get(self.status, "❓")
 
         summary = f"{status_icon} {self.section}\n"

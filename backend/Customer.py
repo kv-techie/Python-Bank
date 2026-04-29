@@ -3,10 +3,10 @@ import random
 from datetime import date
 from typing import List, Optional
 
-from BankClock import BankClock
-from Beneficiary import BeneficiaryManager
-from DataStore import DataStore
-from PasswordRecovery import CustomerPasswordRecovery
+from .BankClock import BankClock
+from .Beneficiary import BeneficiaryManager
+from .DataStore import DataStore
+from .PasswordRecovery import CustomerPasswordRecovery
 
 
 class Customer(CustomerPasswordRecovery):
@@ -14,7 +14,8 @@ class Customer(CustomerPasswordRecovery):
 
     CUSTOMER_ID_PREFIX = "CUST"
     _used_customer_ids = set()
-    _used_ids_file = "data/customer_ids.txt"
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    _used_ids_file = os.path.join(_BASE_DIR, "data", "customer_ids.txt")
 
     def __init__(
         self,
@@ -157,7 +158,7 @@ class Customer(CustomerPasswordRecovery):
             cheque_number: The cheque number that bounced
             account_number: Account from which cheque was issued
         """
-        from BankClock import BankClock
+        from .BankClock import BankClock
 
         bounce_event = {
             "date": BankClock.get_formatted_datetime(),
@@ -390,7 +391,7 @@ class Customer(CustomerPasswordRecovery):
             "pan": self.pan,
         }
 
-        # ✅ CRITICAL: Add password recovery data to serialization
+        # [SUCCESS] CRITICAL: Add password recovery data to serialization
         data.update(self.get_password_recovery_dict())
 
         return data
@@ -423,7 +424,7 @@ class Customer(CustomerPasswordRecovery):
             pan=data.get("pan"),
         )
 
-        # ✅ CRITICAL: Load password recovery data from JSON
+        # [SUCCESS] CRITICAL: Load password recovery data from JSON
         customer.load_password_recovery_dict(data)
 
         # Load beneficiary data

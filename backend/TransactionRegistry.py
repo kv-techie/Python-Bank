@@ -12,7 +12,8 @@ class TransactionRegistry:
     Ensures no duplicate transaction IDs are generated
     """
     
-    _FILE_PATH = "data/transaction_ids.json"
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    _FILE_PATH = os.path.join(_BASE_DIR, "data", "transaction_ids.json")
     _MAX_ATTEMPTS = 1000
     _PREFIX = "FHIC"
     
@@ -43,7 +44,7 @@ class TransactionRegistry:
                         else:
                             cls._ids = set()
                 except Exception as e:
-                    print(f"⚠️ Warning: failed to load transaction ids: {e}")
+                    print(f"[WARN] Warning: failed to load transaction ids: {e}")
                     cls._ids = set()
             
             cls._initialized = True
@@ -103,10 +104,10 @@ class TransactionRegistry:
                     shutil.copy2(temp_file, cls._FILE_PATH)
                     os.remove(temp_file)
                 except Exception as ex:
-                    print(f"⚠️ Failed to persist transaction ids: {ex}")
+                    print(f"[WARN] Failed to persist transaction ids: {ex}")
         
         except Exception as e:
-            print(f"⚠️ Failed to write transaction ids to temp file: {e}")
+            print(f"[WARN] Failed to write transaction ids to temp file: {e}")
             # Clean up temp file if it exists
             if os.path.exists(temp_file):
                 try:
@@ -165,7 +166,7 @@ class TransactionRegistry:
         with cls._lock:
             cls._ids.clear()
             cls._save()
-            print("⚠️ Transaction registry cleared!")
+            print("[WARN] Transaction registry cleared!")
     
     @classmethod
     def get_statistics(cls) -> dict:

@@ -63,7 +63,7 @@ def migrate_timestamps():
                 print(f"Failed to convert: {old_timestamp} - {e}")
                 failed += 1
 
-    print("\n✓ Migration complete!")
+    print("\n[OK] Migration complete!")
     print(f"  Converted: {converted}")
     print(f"  Skipped (already formatted): {skipped}")
     print(f"  Failed: {failed}")

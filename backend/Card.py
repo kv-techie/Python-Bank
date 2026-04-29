@@ -1,12 +1,25 @@
+import sys
+import os
+
+# Add parent directory to sys.path to support both direct execution and package imports
+if __name__ == "__main__" and __package__ is None:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    sys.path.append(parent_dir)
+    from backend.BankClock import BankClock
+    from backend.DataStore import DataStore
+    from backend.RewardPointsManager import RewardPointsManager
+    from backend.Transaction import Transaction
+else:
+    from .BankClock import BankClock
+    from .DataStore import DataStore
+    from .RewardPointsManager import RewardPointsManager
+    from .Transaction import Transaction
 import random
 import string
 from datetime import date, timedelta
 from random import choice, randint
 from typing import TYPE_CHECKING, List, Optional
-
-if TYPE_CHECKING:
-    from Account import Account
-    from Transaction import Transaction
 
 
 class Card:
@@ -42,13 +55,15 @@ class Card:
         self.cvv = cvv
         self.network = network  # "VISA", "MASTERCARD", or "RUPAY"
         self.blocked = False
+        self.pin = None  # 4-digit PIN string
+        self.is_pin_set = False  # Mandatory PIN setup flag
+        self.failed_pin_attempts = 0
         self.daily_limit = 200000.0  # Default daily transaction limit
 
     def is_expired(self) -> bool:
         """Check if card has expired"""
         from datetime import date as dt
 
-        from BankClock import BankClock
 
         today = BankClock.today()
         # Handle Mock objects from tests by checking type
@@ -64,6 +79,40 @@ class Card:
     def unblock(self):
         """Unblock the card"""
         self.blocked = False
+        self.failed_pin_attempts = 0
+
+    def set_pin(self, new_pin: str) -> bool:
+        """Set initial PIN or change existing one"""
+        if not isinstance(new_pin, str) or len(new_pin) != 4 or not new_pin.isdigit():
+            return False
+            
+        self.pin = new_pin
+        self.is_pin_set = True
+        self.failed_pin_attempts = 0
+        return True
+
+    def verify_pin(self, entered_pin: str) -> tuple[bool, str]:
+        """
+        Verify PIN and handle failed attempts
+        
+        Returns:
+            (success, message)
+        """
+        if self.blocked:
+            return False, "Card is blocked"
+            
+        if not self.is_pin_set:
+            return False, "PIN setup required. Please set your card PIN first."
+            
+        if entered_pin == self.pin:
+            self.failed_pin_attempts = 0
+            return True, "PIN verified"
+        else:
+            self.failed_pin_attempts += 1
+            if self.failed_pin_attempts >= 3:
+                self.block()
+                return False, "Too many incorrect attempts. Card has been BLOCKED for security. Contact admin."
+            return False, f"Incorrect PIN. {3 - self.failed_pin_attempts} attempts remaining."
 
     def validate_transaction(self, amount: float) -> tuple[bool, str]:
         """
@@ -74,6 +123,10 @@ class Card:
         """
         if self.blocked:
             return False, "Card is blocked"
+            
+        if not self.is_pin_set:
+            return False, "PIN NOT SET. For security, you must set a 4-digit PIN before your next transaction."
+            
         if self.is_expired():
             return False, "Card has expired"
         if amount <= 0:
@@ -207,6 +260,9 @@ class Card:
             "expiryDate": self.expiry_date.isoformat(),
             "cvv": self.cvv,
             "blocked": self.blocked,
+            "pin": self.pin,
+            "isPinSet": self.is_pin_set,
+            "failedPinAttempts": self.failed_pin_attempts,
             "dailyLimit": self.daily_limit,
         }
 
@@ -231,6 +287,9 @@ class Card:
                 network,
             )
             card.credit_limit = data.get("creditLimit", 0.0)
+            card.pin = data.get("pin")
+            card.is_pin_set = data.get("isPinSet", False)
+            card.failed_pin_attempts = data.get("failedPinAttempts", 0)
             card.credit_used = data.get("creditUsed", 0.0)
             card.billing_day = data.get("billingDay", 1)
             card.last_bill_date = (
@@ -249,7 +308,6 @@ class Card:
             card.auto_pay_policy = data.get("autoPayPolicy", "NONE")
             # Load transactions if present
             try:
-                from Transaction import Transaction
 
                 card.transactions = [
                     Transaction.from_dict(t) for t in data.get("transactions", [])
@@ -267,10 +325,13 @@ class Card:
                 expiry_date,
                 data["cvv"],
                 data.get("cardId"),
-                network,
+                network=data.get("network", "VISA")
             )
+            card.pin = data.get("pin")
+            card.is_pin_set = data.get("isPinSet", False)
+            card.failed_pin_attempts = data.get("failedPinAttempts", 0)
+            card.blocked = data.get("blocked", False)
 
-        card.blocked = data.get("blocked", False)
         card.daily_limit = data.get("dailyLimit", 50000.0)
         return card
 
@@ -337,8 +398,6 @@ class DebitCard(Card):
                 )
 
         # Process transaction
-        from DataStore import DataStore
-        from Transaction import Transaction
 
         account.balance -= amount
         txn = Transaction(
@@ -404,8 +463,6 @@ class DebitCard(Card):
             )
 
         # Process withdrawal
-        from DataStore import DataStore
-        from Transaction import Transaction
 
         account.balance -= amount
         txn = Transaction(
@@ -520,8 +577,6 @@ class CreditCard(Card):
             )
 
         # Process transaction
-        from DataStore import DataStore
-        from Transaction import Transaction
 
         self.credit_used += amount
 
@@ -610,8 +665,6 @@ class CreditCard(Card):
             )
 
         # Process payment
-        from DataStore import DataStore
-        from Transaction import Transaction
 
         account.balance -= amount
         self.credit_used -= amount
@@ -707,9 +760,6 @@ class CreditCard(Card):
         Returns:
             (success, message, transaction_id)
         """
-        from DataStore import DataStore
-        from RewardPointsManager import RewardPointsManager
-        from Transaction import Transaction
 
         # Validate reward points redemption first
         if reward_points > 0:

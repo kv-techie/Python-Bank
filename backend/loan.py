@@ -3,6 +3,15 @@ from typing import Optional
 
 
 class Loan:
+    # Prepayment penalty rates by loan type (as percentage of outstanding balance)
+    PREPAYMENT_PENALTY_RATES = {
+        "HOME": 2.0,  # 2% for home loans
+        "VEHICLE": 1.5,  # 1.5% for car/auto loans
+        "PERSONAL": 0.5,  # 0.5% for personal loans
+        "EDUCATION": 0.0,  # No penalty for education loans
+        "BUSINESS": 2.0,  # 2% for business loans
+    }
+
     def __init__(
         self,
         loan_id: str,
@@ -30,6 +39,7 @@ class Loan:
         self.closure_date = closure_date
         self.nach_mandate_id = nach_mandate_id  # NACH mandate link
         self.loan_type = loan_type  # Loan type for tax deduction identification
+        self.prepayment_penalty_charged = 0.0  # Track penalty charged
 
     def calculate_emi(self) -> float:
         """Calculate monthly EMI using reducing balance method"""
@@ -58,6 +68,32 @@ class Loan:
         remaining = P * ((1 + r) ** n) - emi * (((1 + r) ** n - 1) / r)
         return max(0, round(remaining, 2))
 
+    def calculate_prepayment_penalty(self) -> float:
+        """Calculate prepayment penalty based on loan type and outstanding balance"""
+        remaining = self.get_remaining_balance()
+        
+        # Get penalty rate for loan type (default to 0.5% if type not found)
+        penalty_rate = self.PREPAYMENT_PENALTY_RATES.get(self.loan_type, 0.5)
+        
+        # Calculate penalty
+        penalty = (remaining * penalty_rate) / 100
+        return round(penalty, 2)
+
+    def get_closure_details(self) -> dict:
+        """Get complete closure details including penalty"""
+        remaining_balance = self.get_remaining_balance()
+        penalty = self.calculate_prepayment_penalty()
+        total_payment = remaining_balance + penalty
+        
+        return {
+            "remaining_balance": remaining_balance,
+            "penalty_amount": penalty,
+            "penalty_rate": self.PREPAYMENT_PENALTY_RATES.get(self.loan_type, 0.5),
+            "total_payment": total_payment,
+            "emis_paid": self.emis_paid,
+            "total_emis": self.tenure_months,
+        }
+
     def to_dict(self):
         return {
             "loan_id": self.loan_id,
@@ -74,11 +110,12 @@ class Loan:
             else None,
             "nach_mandate_id": self.nach_mandate_id,
             "loan_type": self.loan_type,
+            "prepayment_penalty_charged": self.prepayment_penalty_charged,
         }
 
     @staticmethod
     def from_dict(data):
-        return Loan(
+        loan = Loan(
             loan_id=data["loan_id"],
             customer_id=data["customer_id"],
             principal=data["principal"],  # Fixed
@@ -96,3 +133,5 @@ class Loan:
             nach_mandate_id=data.get("nach_mandate_id"),
             loan_type=data.get("loan_type", "PERSONAL"),
         )
+        loan.prepayment_penalty_charged = data.get("prepayment_penalty_charged", 0.0)
+        return loan

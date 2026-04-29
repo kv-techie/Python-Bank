@@ -48,7 +48,7 @@ class BankClock:
     def advance_days(cls, days: int):
         """Advance the clock by specified number of days (VIRTUAL mode only)"""
         if cls._mode == "REAL":
-            print("⚠️  Cannot advance time in REAL mode")
+            print("[WARN]  Cannot advance time in REAL mode")
             return
         cls._virtual_datetime += timedelta(days=days)
 
@@ -61,7 +61,7 @@ class BankClock:
     def advance_hours(cls, hours: int):
         """Advance the clock by specified number of hours (VIRTUAL mode only)"""
         if cls._mode == "REAL":
-            print("⚠️  Cannot advance time in REAL mode")
+            print("[WARN]  Cannot advance time in REAL mode")
             return
         cls._virtual_datetime += timedelta(hours=hours)
 
@@ -69,7 +69,7 @@ class BankClock:
     def advance_minutes(cls, minutes: int):
         """Advance the clock by specified number of minutes (VIRTUAL mode only)"""
         if cls._mode == "REAL":
-            print("⚠️  Cannot advance time in REAL mode")
+            print("[WARN]  Cannot advance time in REAL mode")
             return
         cls._virtual_datetime += timedelta(minutes=minutes)
 
@@ -77,7 +77,7 @@ class BankClock:
     def advance_seconds(cls, seconds: int):
         """Advance the clock by specified number of seconds (VIRTUAL mode only)"""
         if cls._mode == "REAL":
-            print("⚠️  Cannot advance time in REAL mode")
+            print("[WARN]  Cannot advance time in REAL mode")
             return
         cls._virtual_datetime += timedelta(seconds=seconds)
 
@@ -85,7 +85,7 @@ class BankClock:
     def set_datetime(cls, dt: datetime):
         """Set the clock to a specific datetime (VIRTUAL mode only)"""
         if cls._mode == "REAL":
-            print("⚠️  Cannot set time in REAL mode")
+            print("[WARN]  Cannot set time in REAL mode")
             return
         cls._virtual_datetime = dt
 
@@ -93,7 +93,7 @@ class BankClock:
     def switch_to_real_mode(cls):
         """Switch to REAL-TIME mode"""
         cls._mode = "REAL"
-        print(f"🕐 Switched to REAL-TIME mode: {cls.get_formatted_datetime()}")
+        print(f"[LIVE] Switched to REAL-TIME mode: {cls.get_formatted_datetime()}")
 
     @classmethod
     def switch_to_virtual_mode(cls, freeze_at_current: bool = True):
@@ -107,7 +107,7 @@ class BankClock:
         cls._mode = "VIRTUAL"
         if freeze_at_current:
             cls._virtual_datetime = datetime.now()
-        print(f"⏸️  Switched to VIRTUAL mode: {cls.get_formatted_datetime()}")
+        print(f"[VIRTUAL]  Switched to VIRTUAL mode: {cls.get_formatted_datetime()}")
 
     @classmethod
     def reset(cls):
@@ -126,7 +126,7 @@ class BankClock:
     @classmethod
     def get_login_banner(cls) -> str:
         """Get a display string for login banner"""
-        mode_indicator = "🕐 LIVE" if cls._mode == "REAL" else "⏸️  VIRTUAL"
+        mode_indicator = "[LIVE] LIVE" if cls._mode == "REAL" else "[VIRTUAL]  VIRTUAL"
         return f"""{mode_indicator}
 Current Date: {cls.get_formatted_date()}
 Current Time: {cls.get_formatted_time()}"""
@@ -134,7 +134,7 @@ Current Time: {cls.get_formatted_time()}"""
     @classmethod
     def get_compact_display(cls) -> str:
         """Get a compact display string for menu headers"""
-        mode_icon = "🕐" if cls._mode == "REAL" else "⏸️"
+        mode_icon = "[LIVE]" if cls._mode == "REAL" else "[VIRTUAL]"
         return f"{mode_icon} [{cls.get_formatted_date()} {cls.get_formatted_time()}]"
 
     @classmethod

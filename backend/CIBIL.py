@@ -92,6 +92,12 @@ def calculate_cibil_score(customer, bank):
         if years >= 3:
             score += 20
 
+    # --- Closed Loan Bonus ---
+    closed_loans = [l for l in loans if l.status == "Closed"]
+    if closed_loans:
+        # Give 20 points per closed loan, max 60
+        score += min(60, 20 * len(closed_loans))
+
     # Clamp between 300 and 900
     score = max(300, min(900, int(round(score))))
     return score

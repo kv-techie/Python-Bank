@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING, Tuple
 
-from CIBIL import calculate_cibil_score
+from .CIBIL import calculate_cibil_score
 
 if TYPE_CHECKING:
-    from Account import Account
-    from Bank import Bank
-    from Card import CreditCard
-    from Customer import Customer
+    from .Account import Account
+    from .Bank import Bank
+    from .Card import CreditCard
+    from .Customer import Customer
 
 
 class CreditLimitEnhancement:
@@ -30,7 +30,7 @@ class CreditLimitEnhancement:
         Returns:
             (eligible, reason, details_dict)
         """
-        from BankClock import BankClock
+        from .BankClock import BankClock
 
         today = BankClock.today()
         details = {}
@@ -204,7 +204,7 @@ class CreditLimitEnhancement:
         Returns:
             (approved, message, new_limit)
         """
-        from BankClock import BankClock
+        from .BankClock import BankClock
 
         # Check eligibility
         eligible, reason, details = CreditLimitEnhancement.check_eligibility(
@@ -252,7 +252,7 @@ class CreditLimitEnhancement:
         increase_percentage = (increase_amount / old_limit) * 100
 
         message = (
-            f"✅ Credit limit enhanced!\n"
+            f"[SUCCESS] Credit limit enhanced!\n"
             f"Previous Limit: Rs. {old_limit:,.2f}\n"
             f"New Limit: Rs. {new_limit:,.2f}\n"
             f"Increase: Rs. {increase_amount:,.2f} ({increase_percentage:.1f}%)"

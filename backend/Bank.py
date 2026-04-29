@@ -1,17 +1,18 @@
 from typing import List, Optional, Tuple
 
-from Account import Account
-from BankClock import BankClock
-from Card import CreditCard, DebitCard
-from CreditEvaluator import CreditEvaluator
-from Customer import Customer
-from DataStore import DataStore
-from FixedDeposit import FixedDeposit
-from loan import Loan
-from LoanEvaluator import LoanEvaluator
-from RDAuthorization import RDAuthorization  # NEW: Import authorization manager
-from RecurringDeposit import RecurringDeposit
-from Transaction import Transaction
+from .Account import Account
+from .BankClock import BankClock
+from .Card import CreditCard, DebitCard
+from .CreditEvaluator import CreditEvaluator
+from .Customer import Customer
+from .DataStore import DataStore
+from .FixedDeposit import FixedDeposit
+from .loan import Loan
+from .LoanEvaluator import LoanEvaluator
+from .RDAuthorization import RDAuthorization  # NEW: Import authorization manager
+from .RecurringDeposit import RecurringDeposit
+from .Cheque import ChequeStatus
+from .Transaction import Transaction
 
 
 class Bank:
@@ -43,6 +44,15 @@ class Bank:
         self.recurring_deposits = DataStore.load_recurring_deposits()
 
         self.rd_authorizations = DataStore.load_rd_authorizations()
+        
+        # Link accounts to customers based on account numbers
+        for customer in self.customers:
+            account_numbers = customer.get_account_numbers() if hasattr(customer, 'get_account_numbers') else getattr(customer, 'account_numbers', [])
+            for account_number in account_numbers:
+                for account in self.accounts:
+                    if account.account_number == account_number:
+                        account.customer_id = customer.customer_id
+                        break
 
     def reload_account_with_transactions(
         self, account_number: str
@@ -57,7 +67,7 @@ class Bank:
         Returns:
             Account object with full transaction history loaded
         """
-        from DataStore import DataStore
+        from .DataStore import DataStore
 
         # Find the account in memory
         account = self.get_account(account_number)
@@ -66,11 +76,11 @@ class Bank:
             account.transactions = DataStore.load_account_transactions(account_number)
             account._transactions_loaded = True
             print(
-                f"✓ Reloaded account {account_number} with {len(account.transactions)} transactions"
+                f"[OK] Reloaded account {account_number} with {len(account.transactions)} transactions"
             )
             return account
 
-        print(f"⚠ Account {account_number} not found")
+        print(f"[WARN] Account {account_number} not found")
         return None
 
     def save(self):
@@ -79,40 +89,21 @@ class Bank:
 
         start = time.time()
 
-        t = time.time()
         DataStore.save_accounts(self.accounts)
-        print(f"⏱️  Accounts saved in {time.time() - t:.2f}s")
-
-        t = time.time()
         DataStore.save_customers(self.customers)
-        print(f"⏱️  Customers saved in {time.time() - t:.2f}s")
-
-        t = time.time()
         DataStore.save_loans(self.loans)
-        print(f"⏱️  Loans saved in {time.time() - t:.2f}s")
 
         if hasattr(self, "international_registry") and self.international_registry:
-            t = time.time()
             DataStore.save_international_accounts(
                 self.international_registry, verbose=False
             )
-            print(f"⏱️  International accounts saved in {time.time() - t:.2f}s")
 
-        t = time.time()
         DataStore.save_fixed_deposits(self.fixed_deposits)
-        print(f"⏱️  Fixed deposits saved in {time.time() - t:.2f}s")
-
-        t = time.time()
         DataStore.save_recurring_deposits(self.recurring_deposits)
-        print(f"⏱️  Recurring deposits saved in {time.time() - t:.2f}s")
 
         # NEW: Save authorizations
         if hasattr(self, "rd_authorizations") and self.rd_authorizations:
-            t = time.time()
             DataStore.save_rd_authorizations(self.rd_authorizations)
-            print(f"⏱️  RD authorizations saved in {time.time() - t:.2f}s")
-
-        print(f"✅ Total save time: {time.time() - start:.2f}s")
 
     def save_data(self):
         """Alias for save() method for compatibility"""
@@ -275,7 +266,7 @@ class Bank:
             print(f"Timestamp: {txn.timestamp}")
             print(f"Transaction ID: {txn.id}")
         else:
-            print(f"❌ No transaction found for Cheque ID: {cheque_id}")
+            print(f"[FAIL] No transaction found for Cheque ID: {cheque_id}")
 
     # ========== STATISTICS ==========
 
@@ -331,6 +322,81 @@ class Bank:
             loan.status = "Closed"
             loan.closure_date = BankClock.today()
             print("Loan fully repaid and closed.")
+
+    def present_cheque_for_clearing(
+        self, account: Account, cheque_id: str
+    ) -> bool:
+        """
+        Present a cheque for clearing. This is called by the issuing account holder
+        or by the system to simulate a cheque presentation.
+        
+        Args:
+            account: The account issuing the cheque
+            cheque_id: ID of the cheque to clear
+            
+        Returns:
+            True if cleared successfully, False if bounced
+        """
+        # Get the cheque
+        cheque = account.cheque_book_manager.get_cheque(cheque_id)
+        if not cheque:
+            return False
+            
+        if cheque.status.value != "ISSUED":
+            return False
+            
+        # Verify balance
+        if account.balance < cheque.amount:
+            # Mark as bounced
+            cheque.status = ChequeStatus.BOUNCED
+            cheque.bounced_on = BankClock.now()
+            cheque.bounce_reason = "Insufficient funds"
+            cheque.bounce_fee_deducted = 500.0
+            
+            # Deduct bounce fee
+            account.balance -= 500.0
+            
+            # Create bounce fee transaction
+            ts = BankClock.get_formatted_datetime()
+            txn_id = f"CHQ_BOUNCE_{cheque.cheque_number}_{int(BankClock.now().timestamp())}"
+            txn = Transaction(
+                id=txn_id,
+                type="CHEQUE_BOUNCE_FEE",
+                amount=500.0,
+                resulting_balance=account.balance,
+                timestamp=ts,
+                cheque_id=cheque_id,
+                metadata=f"Bounce fee for Cheque {cheque.cheque_number}",
+            )
+            account.transactions.append(txn)
+            
+            # Impact CIBIL
+            # (In a real system we'd log this for CIBIL)
+            
+            self.save()
+            return False
+            
+        # Sufficient balance - Clear the cheque
+        account.balance -= cheque.amount
+        cheque.status = ChequeStatus.CLEARED
+        cheque.cleared_on = BankClock.now()
+        
+        # Create clearing transaction
+        ts = BankClock.get_formatted_datetime()
+        txn_id = f"CHQ_CLEAR_{cheque.cheque_number}_{int(BankClock.now().timestamp())}"
+        txn = Transaction(
+            id=txn_id,
+            type="CHEQUE_CLEARED",
+            amount=cheque.amount,
+            resulting_balance=account.balance,
+            timestamp=ts,
+            cheque_id=cheque_id,
+            metadata=f"Cheque {cheque.cheque_number} cleared to {cheque.payee_name}",
+        )
+        account.transactions.append(txn)
+        
+        self.save()
+        return True
 
         ts = BankClock.get_formatted_datetime()
         txn_id = f"EMI{loan.loan_id}{loan.emis_paid:02d}"
@@ -404,7 +470,7 @@ class Bank:
         """
         Evaluates, creates, and (if approved) adds/disburses the loan. Returns (approved, Loan/None, reason).
         """
-        approved, reason = LoanEvaluator.evaluate(
+        approved, reason, details = LoanEvaluator.evaluate(
             customer, principal, tenure_months, interest_rate, self
         )
         if not approved:
@@ -444,7 +510,7 @@ class Bank:
         account.transactions.append(loan_disbursement)
 
         # Log the transaction to activity file
-        from DataStore import DataStore
+        from .DataStore import DataStore
 
         DataStore.append_activity(
             timestamp=BankClock.get_formatted_datetime(),
@@ -464,7 +530,7 @@ class Bank:
         self.add_loan(loan)
         self.save()
 
-        print("\n✅ Loan Disbursed!")
+        print("\n[SUCCESS] Loan Disbursed!")
         print(f"Loan ID: {loan_id}")
         print(f"Amount Credited: ₹{principal:,.2f}")
         print(f"Previous Balance: ₹{old_balance:,.2f}")
@@ -543,7 +609,7 @@ class Bank:
 
     def process_daily_tasks(self):
         """Process all daily automated tasks"""
-        from BankClock import BankClock
+        from .BankClock import BankClock
 
         today = BankClock.today()
 
@@ -566,13 +632,13 @@ class Bank:
             if account.salary_profile and account.salary_profile.should_credit_today(
                 today
             ):
-                print(f"  💰 Crediting salary for {account.username}")
+                print(f"  [MONEY] Crediting salary for {account.username}")
                 success, msg = account.salary_profile.credit_salary(account)
                 print(f"  Result: {msg}")
             else:
                 if account.salary_profile:
                     print(
-                        f"  ⏭️  Skipping salary for {account.username} (not due today or already processed)"
+                        f"  [SKIP]  Skipping salary for {account.username} (not due today or already processed)"
                     )
 
             account.process_credit_card_bills(today)
@@ -604,7 +670,7 @@ class Bank:
         """Process RD autopay for all accounts with active RDs"""
         from datetime import datetime
 
-        from BankClock import BankClock
+        from .BankClock import BankClock
 
         current_date = BankClock.today()
         current_day = current_date.day
@@ -658,7 +724,7 @@ class Bank:
                     last_payment_date.year == current_date.year
                     and last_payment_date.month == current_date.month
                 ):
-                    print(f"   ⏭️  Skipping {rd.rd_number} (already paid this month)")
+                    print(f"   [SKIP]  Skipping {rd.rd_number} (already paid this month)")
                     continue
 
             # Find the account (we already know it exists from the check above)
@@ -709,14 +775,14 @@ class Bank:
                             rd.status = "Completed"
 
                         print(
-                            f"   ✓ Authorized payment for {rd.rd_number}: Rs. {rd.monthly_installment:,.2f}"
+                            f"   [OK] Authorized payment for {rd.rd_number}: Rs. {rd.monthly_installment:,.2f}"
                         )
                         payments_processed += 1
                     else:
                         print(f"   ✗ Failed: {message}")
                         payments_failed += 1
                 else:
-                    print("   ⚠️  Payer account not found")
+                    print("   [WARN]  Payer account not found")
                     payments_failed += 1
             else:
                 # Regular autopay
@@ -724,7 +790,7 @@ class Bank:
 
                 if success:
                     print(
-                        f"   ✓ Autopay for {rd.rd_number}: Rs. {rd.monthly_installment:,.2f}"
+                        f"   [OK] Autopay for {rd.rd_number}: Rs. {rd.monthly_installment:,.2f}"
                     )
                     payments_processed += 1
                 else:
@@ -734,7 +800,7 @@ class Bank:
 
         if payments_processed > 0 or payments_failed > 0:
             print(
-                f"\n   📊 Summary: Processed {payments_processed}, Failed {payments_failed}"
+                f"\n   [STATS] Summary: Processed {payments_processed}, Failed {payments_failed}"
             )
         else:
             print("   ℹ️  No RD autopay due today")
@@ -743,7 +809,7 @@ class Bank:
 
     def process_rd_maturity(self):
         """Process RD maturity for fully paid RDs"""
-        from BankClock import BankClock
+        from .BankClock import BankClock
 
         if not hasattr(self, "recurring_deposits"):
             return 0
@@ -770,12 +836,12 @@ class Bank:
                     )
                     if success:
                         print(
-                            f"   ✓ RD {rd.rd_number} matured: Rs. {maturity_amount:,.2f} credited"
+                            f"   [OK] RD {rd.rd_number} matured: Rs. {maturity_amount:,.2f} credited"
                         )
                         matured_count += 1
 
         if matured_count > 0:
-            print(f"\n   📊 RD Maturity Summary: {matured_count} RD(s) matured")
+            print(f"\n   [STATS] RD Maturity Summary: {matured_count} RD(s) matured")
 
         return matured_count
 
@@ -783,7 +849,7 @@ class Bank:
         """Process FD maturity for matured FDs"""
         from datetime import datetime
 
-        from BankClock import BankClock
+        from .BankClock import BankClock
 
         if not hasattr(self, "fixed_deposits"):
             return 0
@@ -817,12 +883,12 @@ class Bank:
                     )
                     if success:
                         print(
-                            f"   ✓ FD {fd.fd_number} matured: Rs. {maturity_amount:,.2f} credited"
+                            f"   [OK] FD {fd.fd_number} matured: Rs. {maturity_amount:,.2f} credited"
                         )
                         matured_count += 1
 
         if matured_count > 0:
-            print(f"\n   📊 FD Maturity Summary: {matured_count} FD(s) matured")
+            print(f"\n   [STATS] FD Maturity Summary: {matured_count} FD(s) matured")
 
         return matured_count
 
@@ -909,7 +975,7 @@ class Bank:
         account.transactions.append(txn)
 
         message = f"""
-✅  Fixed Deposit Created Successfully!
+[SUCCESS]  Fixed Deposit Created Successfully!
 
 FD Number: {fd_number}
 Principal: Rs. {principal_amount:,.2f}
@@ -1016,13 +1082,13 @@ New Balance: Rs. {account.balance:,.2f}
 
         autopay_info = ""
         if enable_autopay:
-            autopay_info = f"\n✓ Autopay enabled: Rs. {monthly_installment:,.2f} on day {autopay_day} of each month"
+            autopay_info = f"\n[OK] Autopay enabled: Rs. {monthly_installment:,.2f} on day {autopay_day} of each month"
             autopay_info += (
                 f"\nNext Autopay: {rd.next_autopay_date.strftime('%d-%m-%Y')}"
             )
 
         message = f"""
-✅ Recurring Deposit Created Successfully!
+[SUCCESS] Recurring Deposit Created Successfully!
 
 RD Number: {rd_number}
 Monthly Installment: Rs. {monthly_installment:,.2f}

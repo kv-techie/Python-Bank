@@ -332,17 +332,16 @@ class Form26AS:
             return f"{txn_date.year - 1}-{str(txn_date.year)[-2:]}"
 
     def export_to_file(self, financial_year: str, filename: Optional[str] = None):
-        """Export Form 26AS to text file"""
-        if filename is None:
-            filename = f"Form26AS_{self.pan}_{financial_year.replace('-', '_')}.txt"
+        """Export Form 26AS as professional PDF"""
+        try:
+            from .StatementGenerator import StatementGenerator
+            filepath = StatementGenerator.generate_form26as_pdf(self, financial_year)
+            print(f"[OK] Official Form 26AS (PDF) generated: {filepath}")
+            return filepath
+        except Exception as e:
+            print(f"[FAIL] Error generating Form 26AS PDF: {e}")
+            return None
 
-        statement = self.generate_statement(financial_year)
-
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(statement)
-
-        print(f"✓ Form 26AS exported to: {filename}")
-        return filename
 
     def to_dict(self) -> dict:
         """Serialize to dictionary"""

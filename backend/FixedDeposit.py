@@ -4,7 +4,7 @@ import random
 from datetime import datetime, timedelta
 from typing import Tuple
 
-from BankClock import BankClock
+from .BankClock import BankClock
 
 
 class FixedDeposit:
@@ -167,13 +167,13 @@ Maturity Amount: Rs. {self.maturity_amount:,.2f}
     def get_status_string(self) -> str:
         """Get formatted status string"""
         if self.status == "Matured":
-            return "✅ Matured"
+            return "[SUCCESS] Matured"
         elif self.status.startswith("Closed"):
-            return "❌ Closed (Premature)"
+            return "[FAIL] Closed (Premature)"
         else:
             days_left = self.get_days_to_maturity()
             if days_left <= 0:
-                return "✅ Ready for Maturity"
+                return "[SUCCESS] Ready for Maturity"
             return f"Active ({days_left} days to maturity)"
 
     def to_dict(self) -> dict:

@@ -20,7 +20,8 @@ class PaymentMethod(Enum):
 class NachIdGenerator:
     _used_nach_ids = set()
     _lock = threading.Lock()
-    _storage_file = "data/nach_ids.txt"
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    _storage_file = os.path.join(_BASE_DIR, "data", "nach_ids.txt")
 
     @classmethod
     def _load_used_ids(cls):
@@ -267,7 +268,7 @@ class RecurringBill:
             card = account.get_card_by_id(self.linked_card_id)
             if card:
                 try:
-                    from Card import CreditCard
+                    from .Card import CreditCard
 
                     if isinstance(card, CreditCard):
                         return card.current_balance
@@ -288,7 +289,7 @@ class RecurringBill:
             Formatted payment method description
         """
         if self.payment_method == PaymentMethod.BANK_ACCOUNT:
-            return "💰 Bank Account"
+            return "[MONEY] Bank Account"
         elif self.payment_method == PaymentMethod.CREDIT_CARD and self.payment_card_id:
             if account:
                 card = account.get_card_by_id(self.payment_card_id)
@@ -312,7 +313,7 @@ class RecurringBill:
             card = account.get_card_by_id(self.linked_card_id)
             if card:
                 try:
-                    from Card import CreditCard
+                    from .Card import CreditCard
 
                     if isinstance(card, CreditCard):
                         old_amount = self.base_amount
@@ -404,7 +405,7 @@ class RecurringBill:
             "YEARLY": "Yearly",
         }
         payment_emoji = (
-            "💳" if self.payment_method == PaymentMethod.CREDIT_CARD else "💰"
+            "💳" if self.payment_method == PaymentMethod.CREDIT_CARD else "[MONEY]"
         )
         return f"{payment_emoji} {self.name} - Rs. {self.base_amount:.2f} ({freq_display.get(self.frequency, self.frequency)})"
 

@@ -85,7 +85,7 @@ class InternationalBankRegistry:
         self._generate_sample_accounts()
         if not silent:
             print(
-                f"✓ Loaded {len(self.accounts)} international accounts across {len(self._get_unique_countries())} countries"
+                f"[OK] Loaded {len(self.accounts)} international accounts across {len(self._get_unique_countries())} countries"
             )
 
     def _get_unique_countries(self) -> set:
@@ -611,6 +611,6 @@ class InternationalBankRegistry:
 
         if not silent:
             print(
-                f"✓ Loaded {len(registry.accounts)} international accounts across {len(registry._get_unique_countries())} countries"
+                f"[OK] Loaded {len(registry.accounts)} international accounts across {len(registry._get_unique_countries())} countries"
             )
         return registry

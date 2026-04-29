@@ -3,10 +3,89 @@ Beneficiary Management System for Scala Bank v5.0
 Handles management of beneficiaries for bill payments and transfers
 """
 
+import json
+import re
+import urllib.request
+import urllib.error
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import uuid4
+
+class IFSCValidator:
+    """Validates IFSC codes using the Razorpay IFSC API with local caching"""
+    
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    _CACHE_FILE = os.path.join(_BASE_DIR, "data", "ifsc_cache.json")
+    _cache = {}
+
+    @staticmethod
+    def _load_cache():
+        """Load the local IFSC cache from disk"""
+        if not IFSCValidator._cache:
+            if os.path.exists(IFSCValidator._CACHE_FILE):
+                try:
+                    with open(IFSCValidator._CACHE_FILE, "r", encoding="utf-8") as f:
+                        IFSCValidator._cache = json.load(f)
+                except Exception:
+                    IFSCValidator._cache = {}
+            else:
+                IFSCValidator._cache = {}
+
+    @staticmethod
+    def _save_cache():
+        """Save the current IFSC cache to disk"""
+        try:
+            os.makedirs(os.path.dirname(IFSCValidator._CACHE_FILE), exist_ok=True)
+            with open(IFSCValidator._CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(IFSCValidator._cache, f, indent=4)
+        except Exception:
+            pass
+
+    @staticmethod
+    def validate_format(ifsc_code: str) -> bool:
+        """Check if IFSC format is valid (4 letters, 0, 6 alphanumeric)"""
+        pattern = r'^[A-Z]{4}0[A-Z0-9]{6}$'
+        return bool(re.match(pattern, ifsc_code.upper()))
+        
+    @staticmethod
+    def get_bank_details(ifsc_code: str) -> Optional[Dict]:
+        """Fetch bank details from local cache or Razorpay IFSC API"""
+        ifsc_code = ifsc_code.upper().strip()
+        if not IFSCValidator.validate_format(ifsc_code):
+            return None
+            
+        # 1. Check local cache first (Offline mode support)
+        IFSCValidator._load_cache()
+        if ifsc_code in IFSCValidator._cache:
+            return IFSCValidator._cache[ifsc_code]
+            
+        # 2. Fetch from API if not cached
+        url = f"https://ifsc.razorpay.com/{ifsc_code}"
+        try:
+            # Set a tight timeout (3s) to prevent CLI hangs in poor network
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=3) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode('utf-8'))
+                    details = {
+                        "bank_name": data.get("BANK", ""),
+                        "branch": data.get("BRANCH", ""),
+                        "city": data.get("CITY", ""),
+                        "state": data.get("STATE", ""),
+                        "swift": data.get("SWIFT", "")
+                    }
+                    # 3. Update cache for future use
+                    IFSCValidator._cache[ifsc_code] = details
+                    IFSCValidator._save_cache()
+                    return details
+
+        except (urllib.error.URLError, json.JSONDecodeError, Exception):
+            # Gracefully handle network issues or non-existent codes
+            pass
+            
+        return None
 
 
 @dataclass
@@ -17,7 +96,9 @@ class Beneficiary:
     account_number: str
     ifsc_code: str
     bank_name: str
+    swift_code: str = ""
     account_type: str = "Savings"
+
     beneficiary_id: str = field(
         default_factory=lambda: f"BEN{str(uuid4())[:8].upper()}"
     )
@@ -39,7 +120,9 @@ class Beneficiary:
             "account_number": self.account_number,
             "ifsc_code": self.ifsc_code,
             "bank_name": self.bank_name,
+            "swift_code": self.swift_code,
             "account_type": self.account_type,
+
             "status": self.status,
             "added_on": self.added_on.isoformat() if self.added_on else None,
             "last_used": self.last_used.isoformat() if self.last_used else None,
@@ -54,7 +137,9 @@ class Beneficiary:
             account_number=data["account_number"],
             ifsc_code=data["ifsc_code"],
             bank_name=data["bank_name"],
+            swift_code=data.get("swift_code", ""),
             account_type=data.get("account_type", "Savings"),
+
             beneficiary_id=data.get("beneficiary_id", f"BEN{str(uuid4())[:8].upper()}"),
             status=data.get("status", "Active"),
             transaction_count=data.get("transaction_count", 0),

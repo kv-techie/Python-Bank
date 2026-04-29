@@ -7,7 +7,8 @@ from datetime import datetime
 class NachIdGenerator:
     _used_nach_ids = set()
     _lock = threading.Lock()
-    _storage_file = "data/nach_ids.txt"
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    _storage_file = os.path.join(_BASE_DIR, "data", "nach_ids.txt")
 
     @classmethod
     def _load_used_ids(cls):

@@ -2,8 +2,8 @@
 
 import random
 
-from DataStore import DataStore
-from InternationalBankRegistry import InternationalAccount, InternationalBankRegistry
+from .DataStore import DataStore
+from .InternationalBankRegistry import InternationalAccount, InternationalBankRegistry
 
 
 def extract_banks_by_country(registry):
@@ -32,17 +32,17 @@ print("Loading existing accounts...")
 registry = DataStore.load_international_accounts()
 initial_count = len(registry.accounts)
 
-print(f"✓ Loaded {initial_count} existing accounts")
+print(f"[OK] Loaded {initial_count} existing accounts")
 
 # Extract existing banks
 existing_banks_by_country = extract_banks_by_country(registry)
 
 # Create a NEW temporary registry to get the FULL bank list
-print("\n🔍 Scanning InternationalBankRegistry for bank definitions...")
+print("\n[SEARCH] Scanning InternationalBankRegistry for bank definitions...")
 temp_registry = InternationalBankRegistry()  # This generates with ALL banks
 all_banks_by_country = extract_banks_by_country(temp_registry)
 
-print("✓ Found banks in registry code")
+print("[OK] Found banks in registry code")
 
 # Find NEW banks (present in code but not in saved data)
 new_banks_to_add = {}
@@ -74,14 +74,14 @@ for country in sorted(
     if new_count > 0:
         status = f"🆕 +{new_count} new"
     elif existing_count == total_count:
-        status = "✅ Up to date"
+        status = "[SUCCESS] Up to date"
 
     print(f"{country:<15} {existing_count:>2}/{total_count:<2} banks  {status}")
 
 print("=" * 80)
 
 if not new_banks_to_add or all(len(banks) == 0 for banks in new_banks_to_add.values()):
-    print("\n✅ All banks from InternationalBankRegistry are already in the dataset!")
+    print("\n[SUCCESS] All banks from InternationalBankRegistry are already in the dataset!")
     print(f"   Current total: {initial_count} accounts")
     exit(0)
 
@@ -111,7 +111,7 @@ confirm = (
     .lower()
 )
 if confirm not in ["yes", "y"]:
-    print("❌ Cancelled. No changes made.")
+    print("[FAIL] Cancelled. No changes made.")
     exit(0)
 
 # Sample names by region
@@ -331,9 +331,9 @@ for country, banks in new_banks_to_add.items():
             accounts_added += 1
             bank_accounts += 1
 
-        print(f"   ✓ {bank_info['name']:<45} Added {bank_accounts} accounts")
+        print(f"   [OK] {bank_info['name']:<45} Added {bank_accounts} accounts")
 
-print(f"\n✅ Successfully added {accounts_added} new accounts!")
+print(f"\n[SUCCESS] Successfully added {accounts_added} new accounts!")
 
 # Save updated registry
 print("\nSaving to file...")
@@ -349,6 +349,6 @@ print(f"New accounts:      +{accounts_added}")
 print(f"Final total:       {final_count}")
 print("=" * 80)
 
-print("\n✅ Dataset synchronized with InternationalBankRegistry!")
-print("✓ All existing transfers and history preserved!")
-print("✓ Run this script anytime you add banks to InternationalBankRegistry.py")
+print("\n[SUCCESS] Dataset synchronized with InternationalBankRegistry!")
+print("[OK] All existing transfers and history preserved!")
+print("[OK] Run this script anytime you add banks to InternationalBankRegistry.py")

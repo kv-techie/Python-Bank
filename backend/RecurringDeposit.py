@@ -4,8 +4,8 @@ import random
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
-from Account import Account
-from BankClock import BankClock
+from .Account import Account
+from .BankClock import BankClock
 
 
 class RecurringDeposit:
@@ -141,7 +141,7 @@ class RecurringDeposit:
         if self.status != "Active":
             return False, "RD is not active"
 
-        today = BankClock.today()  # ✅ Get date object like RecurringBill does
+        today = BankClock.today()  # [SUCCESS] Get date object like RecurringBill does
 
         # Check if it's time for autopay
         if self.next_autopay_date:
@@ -161,7 +161,7 @@ class RecurringDeposit:
                     self.missed_payments += 1
 
                     message = f"""
-❌ Autopay Failed - Insufficient Balance
+[FAIL] Autopay Failed - Insufficient Balance
 RD: {self.rd_number}
 Required: Rs. {self.monthly_installment:,.2f}
 Available: Rs. {account.balance:,.2f}
@@ -189,7 +189,7 @@ Penalty: Rs. {self.LATE_PAYMENT_PENALTY} will be charged at maturity
                 self.total_deposited += self.monthly_installment
 
                 # Create transaction in account
-                from Transaction import Transaction
+                from .Transaction import Transaction
 
                 txn = Transaction(
                     type="RD_AUTOPAY",
@@ -208,7 +208,7 @@ Penalty: Rs. {self.LATE_PAYMENT_PENALTY} will be charged at maturity
                     self.status = "Completed"
                     maturity_amount = self.calculate_maturity_amount()
                     message = f"""
-✅ RD Autopay Successful - RD COMPLETED!
+[SUCCESS] RD Autopay Successful - RD COMPLETED!
 RD: {self.rd_number}
 Installment: {self.installments_paid}/{self.tenure_months}
 Amount: Rs. {self.monthly_installment:,.2f}
@@ -223,7 +223,7 @@ You can now mature your RD to receive the funds.
                     self.next_autopay_date = self._calculate_next_autopay_date()
 
                     message = f"""
-✅ RD Autopay Successful
+[SUCCESS] RD Autopay Successful
 RD: {self.rd_number}
 Installment: {self.installments_paid}/{self.tenure_months}
 Amount: Rs. {self.monthly_installment:,.2f}
@@ -286,7 +286,7 @@ Next Autopay: {self.next_autopay_date.strftime("%d-%m-%Y")}
         self.total_deposited += self.monthly_installment
 
         # Create transaction in account
-        from Transaction import Transaction
+        from .Transaction import Transaction
 
         txn = Transaction(
             type="RD_PAYMENT",
@@ -424,11 +424,11 @@ Final Payout: Rs. {final_amount:,.2f}
     def get_payment_status(self) -> str:
         """Get payment status string"""
         if self.status == "Matured":
-            return "✅ Matured"
+            return "[SUCCESS] Matured"
         elif self.status == "Completed":
-            return "✅ Completed (Ready for Maturity)"
+            return "[SUCCESS] Completed (Ready for Maturity)"
         elif self.status.startswith("Closed"):
-            return "❌ Closed"
+            return "[FAIL] Closed"
         else:
             autopay_info = " (Autopay)" if self.autopay_enabled else ""
             return f"Active - {self.installments_paid}/{self.tenure_months} paid{autopay_info}"
@@ -524,7 +524,7 @@ Final Payout: Rs. {final_amount:,.2f}
         return base_rate
 
     def __str__(self) -> str:
-        autopay_status = "✓ Autopay" if self.autopay_enabled else "Manual"
+        autopay_status = "[OK] Autopay" if self.autopay_enabled else "Manual"
         return (
             f"RD {self.rd_number}: Rs. {self.monthly_installment:,.2f}/month × {self.tenure_months} months "
             f"@ {self.interest_rate}% (Paid: {self.installments_paid}/{self.tenure_months}) [{autopay_status}]"

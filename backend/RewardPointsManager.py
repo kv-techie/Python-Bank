@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
-    from Card import CreditCard
+    from .Card import CreditCard
 
 
 class RewardPointsManager:
@@ -111,7 +111,7 @@ class RewardPointsManager:
         if not hasattr(card, "redemption_history"):
             card.redemption_history = []
 
-        from BankClock import BankClock
+        from .BankClock import BankClock
 
         card.redemption_history.append(
             {
@@ -226,7 +226,7 @@ class RewardPointsManager:
             limit: Number of recent redemptions to show
         """
         if not hasattr(card, "redemption_history") or not card.redemption_history:
-            print("\n📊 No redemption history available")
+            print("\n[STATS] No redemption history available")
             return
 
         print("\n" + "=" * 70)

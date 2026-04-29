@@ -1,26 +1,56 @@
 from datetime import date
 from typing import Dict, List
+import sys
+import os
 
-from Account import Account
-from Bank import Bank
-from BankClock import BankClock, switch_to_real_mode, switch_to_virtual_mode
-from Card import Card, CreditCard, DebitCard
-from Cheque import ChequeStatus
-from CIBIL import add_credit_inquiry, calculate_cibil_score
-from ClosureFormalities import ClosureFormalities
-from CreditEvaluator import CreditEvaluator
-from Customer import Customer
-from ExpenseSimulator import ExpenseSimulator
-from FixedDeposit import FixedDeposit
-from ITRFiling import ITRFiling
-from PasswordRecovery import PasswordRecoveryUI
-from RDStatement import RDStatement
-from RecurringBill import PaymentMethod, RecurringBill, RecurringBillFactory
-from RecurringDeposit import RecurringDeposit
-from TaxCalculator import TaxCalculator
-from TaxDeductionAnalyzer import TaxDeductionAnalyzer
-from TaxExemption import DeductionStatus, DeductionType, TaxExemption
-from Transaction import Transaction
+# Add parent directory to sys.path to support both direct execution and package imports
+if __name__ == "__main__" and __package__ is None:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    sys.path.append(parent_dir)
+    from backend.Account import Account
+    from backend.AdminControlPanel import AdminControlPanel
+    from backend.Bank import Bank
+    from backend.BankClock import BankClock, switch_to_real_mode, switch_to_virtual_mode
+    from backend.Card import Card, CreditCard, DebitCard
+    from backend.Cheque import ChequeStatus
+    from backend.CIBIL import add_credit_inquiry, calculate_cibil_score
+    from backend.ClosureFormalities import ClosureFormalities
+    from backend.CreditEvaluator import CreditEvaluator
+    from backend.Customer import Customer
+    from backend.ExpenseSimulator import ExpenseSimulator
+    from backend.FixedDeposit import FixedDeposit
+    from backend.ITRFiling import ITRFiling, ITRStatus
+    from backend.PasswordRecovery import PasswordRecoveryUI
+    from backend.RDStatement import RDStatement
+    from backend.RecurringBill import PaymentMethod, RecurringBill, RecurringBillFactory
+    from backend.RecurringDeposit import RecurringDeposit
+    from backend.TaxCalculator import TaxCalculator
+    from backend.TaxDeductionAnalyzer import TaxDeductionAnalyzer
+    from backend.TaxExemption import DeductionStatus, DeductionType, TaxExemption
+    from backend.Transaction import Transaction
+else:
+    from .Account import Account
+    from .AdminControlPanel import AdminControlPanel
+    from .Bank import Bank
+    from .BankClock import BankClock, switch_to_real_mode, switch_to_virtual_mode
+    from .Card import Card, CreditCard, DebitCard
+    from .Cheque import ChequeStatus
+    from .CIBIL import add_credit_inquiry, calculate_cibil_score
+    from .ClosureFormalities import ClosureFormalities
+    from .CreditEvaluator import CreditEvaluator
+    from .Customer import Customer
+    from .ExpenseSimulator import ExpenseSimulator
+    from .FixedDeposit import FixedDeposit
+    from .ITRFiling import ITRFiling, ITRStatus
+    from .PasswordRecovery import PasswordRecoveryUI
+    from .RDStatement import RDStatement
+    from .RecurringBill import PaymentMethod, RecurringBill, RecurringBillFactory
+    from .RecurringDeposit import RecurringDeposit
+    from .TaxCalculator import TaxCalculator
+    from .TaxDeductionAnalyzer import TaxDeductionAnalyzer
+    from .TaxExemption import DeductionStatus, DeductionType, TaxExemption
+    from .Transaction import Transaction
 
 
 class BankingApp:
@@ -204,7 +234,7 @@ You can now login!
         # NEW: Check if customer needs to set up security question
         if not customer.has_security_question():
             print("\n" + "=" * 70)
-            print("🔒 SECURITY SETUP REQUIRED")
+            print("[SECURE] SECURITY SETUP REQUIRED")
             print("=" * 70)
             print("For account security, please set up a security question.")
             print("This helps you recover your password if you forget it.")
@@ -286,13 +316,14 @@ Customer ID: {customer.customer_id}
     18  Close Account
     19  Fixed Deposit and Recurring Deposit
     20  Change Clock Mode
-    21  Tax Planning & Exemptions 📊
-    22  Logout
+    21  Tax Planning & Exemptions [STATS]
+    22  Manage Beneficiaries
+    23  Logout
             """)
             menu_choice = self.read_valid_choice(
                 "Enter your choice: ",
-                [str(i) for i in range(1, 23)],
-                "Invalid choice. Please enter a number from 1 to 22.",
+                [str(i) for i in range(1, 24)],
+                "Invalid choice. Please enter a number from 1 to 23.",
             )
 
             if menu_choice == "1":
@@ -302,7 +333,7 @@ Customer ID: {customer.customer_id}
             elif menu_choice == "3":
                 self.withdraw_money(selected_account)
             elif menu_choice == "4":
-                self.transfer_funds(selected_account, accounts)
+                self.transfer_funds(customer, selected_account, accounts)
             elif menu_choice == "5":
                 self.view_transaction_history_menu(selected_account)
             elif menu_choice == "6":
@@ -337,14 +368,94 @@ Customer ID: {customer.customer_id}
                     # Account was closed, exit to main menu
                     active = False
             elif menu_choice == "19":
-                self.fd_rd_menu(customer, selected_account)  # ✅ FIX: Added ()
+                self.fd_rd_menu(customer, selected_account)  # [SUCCESS] FIX: Added ()
             elif menu_choice == "20":
                 self.change_clock_mode()
             elif menu_choice == "21":
                 self.tax_planning_menu(customer, selected_account)
             elif menu_choice == "22":
+                self.manage_beneficiaries_menu(customer)
+            elif menu_choice == "23":
                 print("Logged out successfully.")
                 active = False
+
+
+    # ========== BENEFICIARY MANAGEMENT ==========
+    
+    def manage_beneficiaries_menu(self, customer: Customer):
+        """Beneficiary management submenu"""
+        from .Beneficiary import IFSCValidator
+        
+        while True:
+            print("\n" + "=" * 50)
+            print("MANAGE BENEFICIARIES")
+            print("=" * 50)
+            print("1. View All Beneficiaries")
+            print("2. Add New Beneficiary")
+            print("3. Remove Beneficiary")
+            print("4. Back to Main Menu")
+            print("=" * 50)
+
+            choice = input("Enter your choice: ").strip()
+
+            if choice == "1":
+                beneficiaries = customer.beneficiary_manager.list_all()
+                if not beneficiaries:
+                    print("\nNo beneficiaries found.")
+                else:
+                    print("\n" + "-" * 70)
+                    print(f"{'Name':<20} {'Account Number':<20} {'Bank':<20} {'Status'}")
+                    print("-" * 70)
+                    for b in beneficiaries:
+                        print(f"{b.beneficiary_name:<20} {b.account_number:<20} {b.bank_name[:18]:<20} {b.status}")
+                    print("-" * 70)
+
+            elif choice == "2":
+                print("\n--- Add New Beneficiary ---")
+                name = input("Beneficiary Name: ").strip()
+                account_num = input("Account Number: ").strip()
+                ifsc = input("IFSC Code: ").strip().upper()
+                
+                print("\n[INFO] Validating IFSC Code...")
+                bank_details = IFSCValidator.get_bank_details(ifsc)
+                
+                if bank_details:
+                    bank_name = bank_details['bank_name']
+                    branch = bank_details['branch']
+                    print(f"[SUCCESS] Bank Found: {bank_name} ({branch})")
+                else:
+                    print("[WARN] Could not verify IFSC. Please enter details manually.")
+                    bank_name = input("Bank Name: ").strip()
+                    
+                account_type = input("Account Type (Savings/Current) [Savings]: ").strip() or "Savings"
+                
+                b = customer.beneficiary_manager.add_beneficiary(name, account_num, ifsc, bank_name, account_type)
+                self.bank.save()
+                print(f"\n[SUCCESS] Beneficiary '{b.beneficiary_name}' added successfully!")
+
+            elif choice == "3":
+                beneficiaries = customer.beneficiary_manager.list_all()
+                if not beneficiaries:
+                    print("\nNo beneficiaries found.")
+                    continue
+                    
+                print("\nSelect beneficiary to remove:")
+                for idx, b in enumerate(beneficiaries, 1):
+                    print(f"{idx}. {b.beneficiary_name} - {b.account_number}")
+                    
+                idx_choice = input("Enter number to remove (or 0 to cancel): ").strip()
+                if idx_choice.isdigit() and 1 <= int(idx_choice) <= len(beneficiaries):
+                    b = beneficiaries[int(idx_choice) - 1]
+                    confirm = input(f"Are you sure you want to remove {b.beneficiary_name}? (yes/no): ").strip().lower()
+                    if confirm in ['yes', 'y']:
+                        customer.beneficiary_manager.remove_beneficiary(b.beneficiary_id)
+                        self.bank.save()
+                        print(f"\n[SUCCESS] Beneficiary '{b.beneficiary_name}' removed.")
+                
+            elif choice == "4":
+                break
+            else:
+                print("Invalid choice")
 
     # ========== CARD MANAGEMENT ==========
 
@@ -364,7 +475,9 @@ Customer ID: {customer.customer_id}
             print("8. Block Card")
             print("9. Unblock Card")
             print("10.Credit Limit Enhancement Request")
-            print("11. Back to Main Menu")
+            print("11. Manage Auto-Pay Settings")
+            print("12. Set/Change Card PIN")
+            print("13. Back to Main Menu")
             print("=" * 50)
 
             choice = input("Enter your choice: ").strip()
@@ -400,6 +513,12 @@ Customer ID: {customer.customer_id}
                 self.request_credit_limit_enhancement(account)
 
             elif choice == "11":
+                self.manage_card_auto_pay(account)
+
+            elif choice == "12":
+                self.set_card_pin(account)
+
+            elif choice == "13":
                 break
 
             else:
@@ -502,7 +621,6 @@ Customer ID: {customer.customer_id}
             date_choice = input("Enter choice (1 or 2): ").strip()
 
             if date_choice == "1":
-                from BankClock import BankClock
 
                 date_presentable = BankClock.today().isoformat()
             elif date_choice == "2":
@@ -989,17 +1107,15 @@ Customer ID: {customer.customer_id}
 
     def request_credit_limit_enhancement(self, account: Account):
         """Request credit limit enhancement for a credit card"""
-        from Card import CreditCard
-        from CreditLimitEnhancement import CreditLimitEnhancement
 
         credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
 
         if not credit_cards:
-            print("\n❌ No credit cards found")
+            print("\n[FAIL] No credit cards found")
             return
 
         print("\n" + "=" * 70)
-        print("CREDIT LIMIT ENHANCEMENT REQUEST 📈")
+        print("CREDIT LIMIT ENHANCEMENT REQUEST [UP]")
         print("=" * 70)
 
         # Show all credit cards
@@ -1019,16 +1135,16 @@ Customer ID: {customer.customer_id}
                 if 0 <= idx < len(credit_cards):
                     selected_card = credit_cards[idx]
                 else:
-                    print("❌ Invalid choice")
+                    print("[FAIL] Invalid choice")
                     return
             except ValueError:
-                print("❌ Invalid input")
+                print("[FAIL] Invalid input")
                 return
 
         # Get customer object
         customer = self.bank.get_customer_by_id(account.customer_id)
         if not customer:
-            print("❌ Error: Customer not found")
+            print("[FAIL] Error: Customer not found")
             return
 
         print(f"\n{'=' * 70}")
@@ -1041,39 +1157,39 @@ Customer ID: {customer.customer_id}
         )
 
         # Display eligibility details
-        print("\n📊 ELIGIBILITY CRITERIA:")
+        print("\n[STATS] ELIGIBILITY CRITERIA:")
         print(f"{'=' * 70}")
 
         if "card_age_months" in details:
-            status = "✅" if details["card_age_months"] >= 6 else "❌"
+            status = "[SUCCESS]" if details["card_age_months"] >= 6 else "[FAIL]"
             print(
                 f"{status} Card Age: {details['card_age_months']} months (Required: 6+)"
             )
 
         if "cibil_score" in details:
-            status = "✅" if details["cibil_score"] >= 700 else "❌"
+            status = "[SUCCESS]" if details["cibil_score"] >= 700 else "[FAIL]"
             print(
                 f"{status} CIBIL Score: {details['cibil_score']:.0f} (Required: 700+)"
             )
 
         if "utilization" in details:
             util = details["utilization"]
-            status = "✅" if 30 <= util <= 90 else "❌"
+            status = "[SUCCESS]" if 30 <= util <= 90 else "[FAIL]"
             print(f"{status} Credit Utilization: {util:.1f}% (Required: 30-90%)")
 
         if "total_payments" in details:
-            status = "✅" if details["total_payments"] >= 3 else "❌"
+            status = "[SUCCESS]" if details["total_payments"] >= 3 else "[FAIL]"
             print(
                 f"{status} Payment History: {details['total_payments']} payments (Required: 3+)"
             )
 
         if "on_time_ratio" in details:
             ratio = details["on_time_ratio"] * 100
-            status = "✅" if details["on_time_ratio"] >= 0.95 else "❌"
+            status = "[SUCCESS]" if details["on_time_ratio"] >= 0.95 else "[FAIL]"
             print(f"{status} On-Time Payments: {ratio:.0f}% (Required: 95%+)")
 
         if "defaulted_loans" in details:
-            status = "✅" if details["defaulted_loans"] == 0 else "❌"
+            status = "[SUCCESS]" if details["defaulted_loans"] == 0 else "[FAIL]"
             print(
                 f"{status} Defaulted Loans: {details['defaulted_loans']} (Required: 0)"
             )
@@ -1081,7 +1197,7 @@ Customer ID: {customer.customer_id}
         print(f"{'=' * 70}")
 
         if not eligible:
-            print(f"\n❌ INELIGIBLE: {reason}")
+            print(f"\n[FAIL] INELIGIBLE: {reason}")
             print("\n💡 Tips to become eligible:")
             print("   • Maintain good payment history (pay bills on time)")
             print("   • Use your credit card regularly (30-75% utilization)")
@@ -1089,7 +1205,7 @@ Customer ID: {customer.customer_id}
             print("   • Wait for 6 months between enhancement requests")
             return
 
-        print(f"\n✅ ELIGIBLE: {reason}")
+        print(f"\n[SUCCESS] ELIGIBLE: {reason}")
 
         # Calculate and show potential new limit
         annual_income = 0
@@ -1108,7 +1224,7 @@ Customer ID: {customer.customer_id}
         increase = potential_new_limit - selected_card.credit_limit
         increase_pct = (increase / selected_card.credit_limit) * 100
 
-        print("\n💰 POTENTIAL ENHANCEMENT:")
+        print("\n[MONEY] POTENTIAL ENHANCEMENT:")
         print(f"{'=' * 70}")
         print(f"Current Limit:     Rs. {selected_card.credit_limit:>15,.2f}")
         print(f"Proposed New Limit: Rs. {potential_new_limit:>15,.2f}")
@@ -1121,7 +1237,7 @@ Customer ID: {customer.customer_id}
         )
 
         if confirm not in ["yes", "y"]:
-            print("❌ Request cancelled")
+            print("[FAIL] Request cancelled")
             return
 
         # Process enhancement
@@ -1139,7 +1255,7 @@ Customer ID: {customer.customer_id}
             )
             self.bank.save()
         else:
-            print("❌ ENHANCEMENT DENIED")
+            print("[FAIL] ENHANCEMENT DENIED")
             print(f"{'=' * 70}")
             print(message)
 
@@ -1184,7 +1300,7 @@ Customer ID: {customer.customer_id}
         debit_card = DebitCard(account.customer_id, account.account_number, network)
         account.add_card(debit_card)
         self.bank.save()
-        print(f"\n✓ {network} Debit card issued successfully!")
+        print(f"\n[OK] {network} Debit card issued successfully!")
         print(
             f"Total debit cards: {len([c for c in account.cards if isinstance(c, DebitCard)])}"
         )
@@ -1241,7 +1357,7 @@ Customer ID: {customer.customer_id}
             print(f"✗ Not eligible for credit card: {reason}")
             return
 
-        print(f"✓ {reason}")
+        print(f"[OK] {reason}")
         print(f"CIBIL Score: {cibil_score:.0f}")
         print(f"Annual Income: Rs. {annual_income:,.2f} INR")
 
@@ -1294,11 +1410,40 @@ Customer ID: {customer.customer_id}
         )
         account.add_card(credit_card)
         self.bank.save()
-        print(f"\n✓ {network} Credit card issued successfully!")
+        print(f"\n[OK] {network} Credit card issued successfully!")
         print(f"Billing Day: {billing_day} of each month")
         print(
             f"Total credit cards: {len([c for c in account.cards if isinstance(c, CreditCard)])}"
         )
+
+        # Ask about auto-pay policy
+        print("\n" + "=" * 60)
+        print("AUTO-PAY POLICY CONFIGURATION")
+        print("=" * 60)
+        print("Set how your credit card bill should be paid automatically:")
+        print("1. NONE - Manual payment only (default)")
+        print("2. MINIMUM - Auto-pay minimum due amount")
+        print("3. FULL - Auto-pay full outstanding balance")
+        print("=" * 60)
+
+        policy_choice = self.read_valid_choice(
+            "Select auto-pay policy (1-3): ", ["1", "2", "3"]
+        )
+        policy_map = {"1": "NONE", "2": "MINIMUM", "3": "FULL"}
+        auto_pay_policy = policy_map[policy_choice]
+        credit_card.auto_pay_policy = auto_pay_policy
+        self.bank.save()
+
+        if auto_pay_policy == "NONE":
+            print("\n[OK] Auto-pay disabled. You'll pay manually each month.")
+        elif auto_pay_policy == "MINIMUM":
+            print(
+                "\n[OK] Auto-pay enabled: Minimum due will be paid automatically from your account."
+            )
+        else:
+            print(
+                "\n[OK] Auto-pay enabled: Full outstanding balance will be paid automatically from your account."
+            )
 
     def make_card_purchase(self, account: Account):
         """Make a purchase using a card"""
@@ -1334,7 +1479,6 @@ Customer ID: {customer.customer_id}
 
     def pay_credit_card(self, account: Account):
         """Pay credit card bill with option to use reward points"""
-        from RewardPointsManager import RewardPointsManager
 
         credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
 
@@ -1364,7 +1508,7 @@ Customer ID: {customer.customer_id}
         outstanding = card.credit_used if card.credit_used > 0 else 0
 
         if outstanding == 0:
-            print("\n✅ No outstanding balance!")
+            print("\n[SUCCESS] No outstanding balance!")
             return
 
         print(f"\n{'=' * 70}")
@@ -1429,10 +1573,10 @@ Customer ID: {customer.customer_id}
                                 )
                             )
                         else:
-                            print("❌ Invalid option")
+                            print("[FAIL] Invalid option")
                             return
                     except ValueError:
-                        print("❌ Invalid input")
+                        print("[FAIL] Invalid input")
                         return
                 else:
                     try:
@@ -1442,7 +1586,7 @@ Customer ID: {customer.customer_id}
                             )
                         )
                     except ValueError:
-                        print("❌ Invalid input")
+                        print("[FAIL] Invalid input")
                         return
 
         # Calculate amounts
@@ -1455,7 +1599,7 @@ Customer ID: {customer.customer_id}
                 card, reward_points_to_use
             )
             if not can_redeem:
-                print(f"\n❌ {reason}")
+                print(f"\n[FAIL] {reason}")
                 return
 
             reward_value = RewardPointsManager.calculate_points_value(
@@ -1466,7 +1610,7 @@ Customer ID: {customer.customer_id}
             print(
                 f"\n💎 Redeeming: {reward_points_to_use:.0f} points → Rs. {reward_value:.2f}"
             )
-            print(f"💰 Remaining to pay: Rs. {remaining_balance:.2f}")
+            print(f"[MONEY] Remaining to pay: Rs. {remaining_balance:.2f}")
 
         # Get cash amount
         cash_amount = 0
@@ -1480,16 +1624,16 @@ Customer ID: {customer.customer_id}
                 cash_amount = float(cash_input) if cash_input else 0
 
                 if cash_amount < 0 or cash_amount > remaining_balance:
-                    print("❌ Invalid amount")
+                    print("[FAIL] Invalid amount")
                     return
             except ValueError:
-                print("❌ Invalid amount")
+                print("[FAIL] Invalid amount")
                 return
 
         # Validate total payment
         total_payment = cash_amount + reward_value
         if total_payment == 0:
-            print("❌ No payment amount entered")
+            print("[FAIL] No payment amount entered")
             return
 
         # Process payment
@@ -1504,7 +1648,7 @@ Customer ID: {customer.customer_id}
             )
 
             if success:
-                print("\n✅ PAYMENT SUCCESSFUL!")
+                print("\n[SUCCESS] PAYMENT SUCCESSFUL!")
                 print(f"{'=' * 70}")
 
                 # Show breakdown
@@ -1515,7 +1659,7 @@ Customer ID: {customer.customer_id}
                         f"💎 Rewards:        Rs. {reward_value:>12,.2f} ({reward_points_to_use:.0f} pts)"
                     )
                 print(f"{'─' * 70}")
-                print(f"📊 Total:          Rs. {total_payment:>12,.2f}")
+                print(f"[STATS] Total:          Rs. {total_payment:>12,.2f}")
                 print(f"{'=' * 70}")
                 print(f"💳 New Balance:    Rs. {card.credit_used:>12,.2f}")
                 print(f"💎 Remaining Pts:  {card.reward_points:>15,.0f}")
@@ -1523,10 +1667,10 @@ Customer ID: {customer.customer_id}
 
                 self.bank.save()
             else:
-                print(f"\n❌ Payment failed: {message}")
+                print(f"\n[FAIL] Payment failed: {message}")
 
         except Exception as e:
-            print(f"\n❌ Error: {e}")
+            print(f"\n[FAIL] Error: {e}")
 
     def view_credit_statement(self, account: Account):
         """View credit card statement"""
@@ -1574,6 +1718,44 @@ Customer ID: {customer.customer_id}
         account.unblock_card(card_id)
         self.bank.save()
 
+    def set_card_pin(self, account: Account):
+        """Set or change the PIN for a card"""
+        if not account.cards:
+            print("\n[FAIL] No cards found for this account.")
+            return
+
+        print("\n" + "=" * 50)
+        print("SET/CHANGE CARD PIN")
+        print("=" * 50)
+        
+        # List all cards
+        account.list_cards()
+        
+        card_id = input("\nEnter Card ID or last 4 digits: ").strip()
+        card = account.get_card_by_id(card_id) or account.get_card_by_number(card_id)
+        
+        if not card:
+            print("[FAIL] Card not found.")
+            return
+            
+        print(f"\nSetting PIN for: {card.network} **** **** **** {card.card_number[-4:]}")
+        
+        new_pin = input("Enter new 4-digit PIN: ").strip()
+        if not new_pin.isdigit() or len(new_pin) != 4:
+            print("[FAIL] Invalid PIN. Must be exactly 4 digits.")
+            return
+            
+        confirm_pin = input("Confirm new 4-digit PIN: ").strip()
+        if new_pin != confirm_pin:
+            print("[FAIL] PINs do not match.")
+            return
+            
+        if card.set_pin(new_pin):
+            print(f"\n[SUCCESS] PIN set successfully for card ending in {card.card_number[-4:]}!")
+            self.bank.save()
+        else:
+            print("[FAIL] Failed to set PIN.")
+
     # ========== LOAN MENU AND OPERATIONS ==========
 
     def loan_menu(self, customer: Customer, account: Account):
@@ -1589,11 +1771,11 @@ Customer ID: {customer.customer_id}
         ]
 
         if loans_needing_type:
-            print("\n" + "⚠" * 30)
-            print("⚠️  IMPORTANT: LOAN TYPE UPDATE RECOMMENDED")
-            print("⚠" * 30)
+            print("\n" + "[WARN]" * 30)
+            print("[WARN]  IMPORTANT: LOAN TYPE UPDATE RECOMMENDED")
+            print("[WARN]" * 30)
             print(
-                f"\n📋 You have {len(loans_needing_type)} large loan(s) (₹10L+) marked as PERSONAL."
+                f"\n[INFO] You have {len(loans_needing_type)} large loan(s) (₹10L+) marked as PERSONAL."
             )
             print("   If any of these are HOME loans, you can claim tax benefits:")
             print("   • HOME loans: Up to ₹2,00,000 interest deduction (Section 24)")
@@ -1611,18 +1793,12 @@ Customer ID: {customer.customer_id}
 
         while True:
             print("""
-Loan Menu:
-1  Apply for Loan
-2  View My Loans
-3  Pay Loan EMI
-4  CIBIL Score Report
-5  Generate Loan Closure Certificate
-6  NACH Mandate Management
-7  Update Loan Type (for tax deductions)
-8  Back to Account Menu
+9  Update Loan Type (for tax deductions)
+10 Download Loan Statement of Account (PDF)
+11 Back to Account Menu
             """)
             choice = self.read_valid_choice(
-                "Enter choice: ", ["1", "2", "3", "4", "5", "6", "7", "8"]
+                "Enter choice: ", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]
             )
             if choice == "1":
                 self.apply_for_loan(customer, account)
@@ -1633,12 +1809,18 @@ Loan Menu:
             elif choice == "4":
                 self.view_cibil_report(customer)
             elif choice == "5":
-                self.generate_loan_closure_certificate(customer, account)
+                self.prepay_loan_early(customer, account)
             elif choice == "6":
-                self.loan_nach_mandate_menu(customer, account)
+                self.generate_loan_closure_certificate(customer, account)
             elif choice == "7":
-                self.update_loan_type(customer, account)
+                self.loan_nach_mandate_menu(customer, account)
             elif choice == "8":
+                self.update_loan_type(customer, account)
+            elif choice == "9":
+                break
+            elif choice == "10":
+                self.download_loan_statement(customer, account)
+            elif choice == "11":
                 break
 
     def update_loan_type(self, customer: Customer, account: Account):
@@ -1657,12 +1839,12 @@ Loan Menu:
         # Get all loans for customer
         loans = self.bank.get_loans_for_customer(customer.customer_id)
         if not loans:
-            print("❌ You have no loans on record.")
+            print("[FAIL] You have no loans on record.")
             input("\nPress Enter to continue...")
             return
 
         # Show all loans with their current types
-        print("\n📋 YOUR LOANS:")
+        print("\n[INFO] YOUR LOANS:")
         print("=" * 60)
         for idx, loan in enumerate(loans, 1):
             loan_type = getattr(loan, "loan_type", "PERSONAL")
@@ -1722,7 +1904,7 @@ Loan Menu:
         self.bank.save()
 
         print("\n" + "=" * 60)
-        print("✅ LOAN TYPE UPDATED SUCCESSFULLY!")
+        print("[SUCCESS] LOAN TYPE UPDATED SUCCESSFULLY!")
         print("=" * 60)
         print(f"Loan ID: {selected_loan.loan_id}")
         print(f"Previous Type: {current_type}")
@@ -1739,7 +1921,7 @@ Loan Menu:
             annual_interest = monthly_interest * 12
             deduction = min(annual_interest, 200000)
 
-            print("\n💰 TAX BENEFIT ESTIMATE (Section 24):")
+            print("\n[MONEY] TAX BENEFIT ESTIMATE (Section 24):")
             print(f"   Annual Interest: ₹{annual_interest:,.2f}")
             print(f"   Deduction Eligible: ₹{deduction:,.2f}")
             print(f"   Tax Savings (30% bracket): ₹{deduction * 0.30:,.2f}/year")
@@ -1755,7 +1937,7 @@ Loan Menu:
         # Get salary from account's salary profile if available
         if account.salary_profile:
             customer.salary = account.salary_profile.gross_salary
-            print(f"✓ Salary Profile Found: Rs {customer.salary:,.2f}/month")
+            print(f"[OK] Salary Profile Found: Rs {customer.salary:,.2f}/month")
         else:
             customer.salary = self.read_positive_double(
                 "Enter your Net Monthly Salary: "
@@ -1781,7 +1963,7 @@ Loan Menu:
         add_credit_inquiry(customer)
 
         # Automatically calculate CIBIL score based on customer's credit history
-        print("\n🔍 Calculating your CIBIL score based on credit history...")
+        print("\n[SEARCH] Calculating your CIBIL score based on credit history...")
         customer.cibil_score = calculate_cibil_score(customer, self.bank)
 
         # Determine rating for display
@@ -1794,7 +1976,7 @@ Loan Menu:
         else:
             rating = "Poor ⭐⭐"
 
-        print(f"✓ Your current CIBIL Score: {customer.cibil_score} ({rating})")
+        print(f"[OK] Your current CIBIL Score: {customer.cibil_score} ({rating})")
 
         # Ask for loan type
         print("\nSelect Loan Type:")
@@ -1807,7 +1989,7 @@ Loan Menu:
         )
         loan_type_map = {"1": "PERSONAL", "2": "HOME", "3": "CAR", "4": "EDUCATION"}
         loan_type = loan_type_map[loan_type_choice]
-        print(f"✓ Loan Type: {loan_type}")
+        print(f"[OK] Loan Type: {loan_type}")
 
         principal = self.read_positive_double("\nEnter principal amount (Rs): ")
         interest_rate = self.read_positive_double("Enter annual interest rate (%): ")
@@ -1823,7 +2005,7 @@ Loan Menu:
             print(f"Loan ID: {loan.loan_id} | EMI: Rs.{loan.calculate_emi():.2f}/month")
             print(f"Interest Rate: {loan.interest_rate:.2f}% p.a.")
         else:
-            print(f"\n❌ Loan denied: {msg}")
+            print(f"\n[FAIL] Loan denied: {msg}")
 
     def pay_loan_emi_flow(self, customer: Customer, account: Account):
         loans = self.bank.get_loans_for_customer(customer.customer_id)
@@ -1870,7 +2052,133 @@ Loan Menu:
         )
         print(f"\nSuccessfully paid {count} EMI(s) for loan {selected_loan.loan_id}.")
 
-    # ========== ORIGINAL BANKING METHODS CONTINUE BELOW ==========
+    def prepay_loan_early(self, customer: Customer, account: Account):
+        """Prepay loan early and close it (with prepayment penalty)"""
+        
+        loans = self.bank.get_loans_for_customer(customer.customer_id)
+        active_loans = [loan for loan in loans if loan.status == "Active"]
+        
+        if not active_loans:
+            print("[FAIL] You have no active loans to prepay.")
+            return
+        
+        print("\n" + "=" * 70)
+        print("LOAN PREPAYMENT (EARLY CLOSURE)")
+        print("=" * 70)
+        print("\n[INFO] YOUR ACTIVE LOANS:")
+        
+        for idx, loan in enumerate(active_loans, 1):
+            remaining = loan.get_remaining_balance()
+            emi = loan.calculate_emi()
+            outstanding_emis = loan.tenure_months - loan.emis_paid
+            print(f"\n{idx}. Loan ID: {loan.loan_id}")
+            print(f"   Type: {loan.loan_type} | Status: {loan.status}")
+            print(f"   Principal: ₹{loan.principal:,.2f} | Rate: {loan.interest_rate}% p.a.")
+            print(f"   EMI: ₹{emi:,.2f}/month | Paid: {loan.emis_paid}/{loan.tenure_months}")
+            print(f"   Remaining Balance: ₹{remaining:,.2f}")
+        
+        choice = self.read_valid_choice(
+            f"\nSelect loan to prepay (1-{len(active_loans)}): ",
+            [str(i) for i in range(1, len(active_loans) + 1)],
+        )
+        selected_loan = active_loans[int(choice) - 1]
+        
+        # Get closure details
+        closure_details = selected_loan.get_closure_details()
+        
+        print("\n" + "=" * 70)
+        print("PREPAYMENT CALCULATION")
+        print("=" * 70)
+        print(f"Loan ID: {selected_loan.loan_id}")
+        print(f"Loan Type: {selected_loan.loan_type}")
+        print(f"EMIs Paid: {selected_loan.emis_paid}/{selected_loan.tenure_months}")
+        print(f"\nOutstanding Principal: ₹{closure_details['remaining_balance']:,.2f}")
+        print(f"Prepayment Penalty Rate: {closure_details['penalty_rate']}%")
+        print(f"Prepayment Penalty: ₹{closure_details['penalty_amount']:,.2f}")
+        print("-" * 70)
+        print(f"TOTAL AMOUNT DUE: ₹{closure_details['total_payment']:,.2f}")
+        print("=" * 70)
+        
+        if closure_details['penalty_amount'] == 0:
+            print(f"\n[SUCCESS] Good news! No prepayment penalty for {selected_loan.loan_type} loans.")
+        else:
+            print(f"\n[WARN]  Note: Prepayment penalty of ₹{closure_details['penalty_amount']:,.2f} will be charged.")
+        
+        # Confirmation
+        confirm = input("\nProceed with loan closure? (yes/no): ").strip().lower()
+        if confirm not in ["yes", "y"]:
+            print("[FAIL] Loan prepayment cancelled.")
+            return
+        
+        # Check account balance
+        min_balance = account._min_operational_balance
+        required_amount = closure_details['total_payment']
+        
+        if account.balance - required_amount < min_balance:
+            print(f"\n[FAIL] Insufficient balance!")
+            print(f"   Required: ₹{required_amount:,.2f}")
+            print(f"   Available: ₹{account.balance - min_balance:,.2f}")
+            print(f"   (Must maintain minimum balance of ₹{min_balance:,.2f})")
+            return
+        
+        # Process prepayment
+        account.balance -= required_amount
+        selected_loan.status = "Closed"
+        selected_loan.closure_date = BankClock.today()
+        selected_loan.prepayment_penalty_charged = closure_details['penalty_amount']
+        
+        # Log main payment transaction
+        main_txn = Transaction(
+            type="LOAN_PREPAYMENT",
+            amount=closure_details['remaining_balance'],
+            resulting_balance=account.balance,
+            metadata={"loanId": selected_loan.loan_id, "loanType": selected_loan.loan_type},
+        )
+        account.transactions.append(main_txn)
+        
+        # Log penalty transaction separately
+        if closure_details['penalty_amount'] > 0:
+            penalty_txn = Transaction(
+                type="LOAN_PREPAYMENT_PENALTY",
+                amount=closure_details['penalty_amount'],
+                resulting_balance=account.balance,
+                metadata={
+                    "loanId": selected_loan.loan_id,
+                    "loanType": selected_loan.loan_type,
+                    "penaltyRate": closure_details['penalty_rate'],
+                },
+            )
+            account.transactions.append(penalty_txn)
+        
+        # Log to activity
+        DataStore.append_activity(
+            timestamp=BankClock.get_formatted_datetime(),
+            username=account.username,
+            account_number=account.account_number,
+            action="LOAN_PREPAYMENT",
+            amount=required_amount,
+            resulting_balance=account.balance,
+            txn_id=main_txn.id,
+            metadata=f"loanId={selected_loan.loan_id};principal={closure_details['remaining_balance']:.2f};penalty={closure_details['penalty_amount']:.2f}",
+        )
+        
+        self.bank.save()
+        
+        # Display confirmation
+        print("\n" + "=" * 70)
+        print("[SUCCESS] LOAN PREPAYMENT SUCCESSFUL")
+        print("=" * 70)
+        print(f"Loan ID: {selected_loan.loan_id}")
+        print(f"Status: CLOSED")
+        print(f"\nPayment Breakdown:")
+        print(f"  Principal Outstanding: ₹{closure_details['remaining_balance']:,.2f}")
+        print(f"  Prepayment Penalty: ₹{closure_details['penalty_amount']:,.2f}")
+        print(f"  Total Deducted: ₹{required_amount:,.2f}")
+        print(f"\nNew Account Balance: ₹{account.balance:,.2f}")
+        print("=" * 70)
+        print("\n📄 You can view your Loan Closure Certificate from Loan Menu option 6.")
+
+    # ========== ORIGINAL BANKING METHODS CONTINUE BELOW ===========
 
     def view_balance(self, account: Account):
         """Display account balance and details"""
@@ -1895,7 +2203,7 @@ Current Balance: Rs. {account.balance:.2f} INR
         debit_cards = [c for c in account.cards if isinstance(c, DebitCard)]
 
         if not debit_cards:
-            print("\n❌ No debit card found. You need a debit card to deposit money.")
+            print("\n[FAIL] No debit card found. You need a debit card to deposit money.")
             print("Please apply for a debit card first from Card Management menu.")
             return
 
@@ -1925,7 +2233,11 @@ Current Balance: Rs. {account.balance:.2f} INR
             selected_card = debit_cards[int(choice) - 1]
 
         amount = self.read_positive_double("\nEnter amount to deposit: Rs. ")
-        account.deposit(amount, card=selected_card)
+        
+        # PIN Prompt
+        pin = input("Enter 4-digit Card PIN: ").strip()
+        
+        account.deposit(amount, card=selected_card, pin=pin)
         self.bank.save()
 
     def withdraw_money(self, account: Account):
@@ -1934,7 +2246,7 @@ Current Balance: Rs. {account.balance:.2f} INR
         debit_cards = [c for c in account.cards if isinstance(c, DebitCard)]
 
         if not debit_cards:
-            print("\n❌ No debit card found. You need a debit card to withdraw money.")
+            print("\n[FAIL] No debit card found. You need a debit card to withdraw money.")
             print("Please apply for a debit card first from Card Management menu.")
             return
 
@@ -1964,10 +2276,14 @@ Current Balance: Rs. {account.balance:.2f} INR
             selected_card = debit_cards[int(choice) - 1]
 
         amount = self.read_positive_double("\nEnter amount to withdraw: Rs. ")
-        account.withdraw(amount, card=selected_card)
+        
+        # PIN Prompt
+        pin = input("Enter 4-digit Card PIN: ").strip()
+        
+        account.withdraw(amount, card=selected_card, pin=pin)
         self.bank.save()
 
-    def transfer_funds(self, account: Account, accounts: List[Account]):
+    def transfer_funds(self, customer: Customer, account: Account, accounts: List[Account]):
         """Handle fund transfer (Inter-Account, NEFT, RTGS, International)"""
         if len(accounts) > 1:
             print("""
@@ -1984,9 +2300,9 @@ Current Balance: Rs. {account.balance:.2f} INR
             if transfer_choice == "1":
                 self.inter_account_transfer(account, accounts)
             elif transfer_choice == "2":
-                self.external_transfer(account, "NEFT")
+                self.external_transfer(customer, account, "NEFT")
             elif transfer_choice == "3":
-                self.external_transfer(account, "RTGS")
+                self.external_transfer(customer, account, "RTGS")
             elif transfer_choice == "4":
                 self.international_transfer(account)  # NEW
         else:
@@ -2001,9 +2317,9 @@ Choose transfer mode:
             )
 
             if transfer_choice == "1":
-                self.external_transfer(account, "NEFT")
+                self.external_transfer(customer, account, "NEFT")
             elif transfer_choice == "2":
-                self.external_transfer(account, "RTGS")
+                self.external_transfer(customer, account, "RTGS")
             elif transfer_choice == "3":
                 self.international_transfer(account)  # NEW
 
@@ -2026,33 +2342,282 @@ Choose transfer mode:
         account.transfer(recipient, amount, "INTER_ACCOUNT")
         self.bank.save()
 
-    def external_transfer(self, account: Account, mode: str):
+    def external_transfer(self, customer: Customer, account: Account, mode: str):
         """Handle external transfer (NEFT/RTGS)"""
+        beneficiaries = customer.beneficiary_manager.list_all()
+        
+        print("\n" + "=" * 50)
+        print(f"EXTERNAL TRANSFER ({mode})")
+        print("=" * 50)
+        
+        if beneficiaries:
+            print("\n1. Transfer to Saved Beneficiary")
+            print("2. Transfer to New Account")
+            choice = input("Enter choice (1-2) [default: 1]: ").strip() or "1"
+        else:
+            print("\n[INFO] No saved beneficiaries found. Proceeding with manual entry.")
+            choice = "2"
+            
+        if choice == "1":
+            print("\n--- Saved Beneficiaries ---")
+            recent = customer.beneficiary_manager.get_recent(3)
+            frequent = customer.beneficiary_manager.get_frequent(3)
+            
+            # Print recent/frequent suggestions if available
+            if recent:
+                print("\nRecently Used:")
+                for b in recent:
+                    print(f"  - {b.beneficiary_name} ({b.account_number})")
+                    
+            print("\nAll Beneficiaries:")
+            for idx, b in enumerate(beneficiaries, 1):
+                print(f"{idx}. {b.beneficiary_name} - {b.account_number} ({b.bank_name})")
+                
+            idx_choice = input("\nSelect beneficiary number (or 0 to cancel): ").strip()
+            if idx_choice.isdigit() and 1 <= int(idx_choice) <= len(beneficiaries):
+                b = beneficiaries[int(idx_choice) - 1]
+                amount = self.read_positive_double(f"Enter amount to transfer to {b.beneficiary_name}: Rs. ")
+                success = account.pay_to_beneficiary(b.beneficiary_id, amount, mode, customer.beneficiary_manager)
+                if success:
+                    self.bank.save()
+            return
+            
+        # Proceed with manual entry (Choice 2)
         while True:
-            recipient_acc_num = input("Enter recipient's account number: ").strip()
+            recipient_acc_num = input("\nEnter recipient's account number: ").strip()
             if not recipient_acc_num:
                 print("Account number cannot be empty. Please try again.")
                 continue
 
             recipient = self.bank.find_account_by_number(recipient_acc_num)
-            if recipient and recipient.account_number != account.account_number:
-                print(f"Recipient Name: {recipient.first_name} {recipient.last_name}")
+            if recipient:
+                if recipient.account_number == account.account_number:
+                    print("Cannot transfer to your own account. Please enter a different account number.")
+                    continue
+                print(f"Recipient Name: {recipient.first_name} {recipient.last_name} (Internal Account)")
                 amount = self.read_positive_double("Enter amount to transfer: Rs. ")
                 account.transfer(recipient, amount, mode)
                 self.bank.save()
                 break
-            elif recipient:
-                print(
-                    "Cannot transfer to your own account. Please enter a different account number."
-                )
             else:
-                print(
-                    "Recipient account not found. Please check the account number and try again."
+                if not recipient_acc_num.isdigit() or not (9 <= len(recipient_acc_num) <= 18):
+                    print("[ERROR] External account numbers must be numeric and between 9 and 18 digits. Please try again.")
+                    continue
+                    
+                print("\n[EXTERNAL ACCOUNT DETECTED]")
+                recipient_name = input("Enter recipient's name: ").strip()
+                
+                from .Beneficiary import IFSCValidator
+                bank_name = ""
+                ifsc = ""
+                while True:
+                    ifsc = input("Enter recipient's IFSC Code (MANDATORY): ").strip().upper()
+                    if not ifsc:
+                        print("[ERROR] IFSC code is mandatory for external transfers.")
+                        continue
+                    
+                    if not IFSCValidator.validate_format(ifsc):
+                        print("Invalid IFSC format. Expected 4 letters, '0', 6 alphanumeric characters.")
+                        continue
+                        
+                    print(f"Validating IFSC Code '{ifsc}' via Razorpay API...")
+                    bank_details = IFSCValidator.get_bank_details(ifsc)
+                    
+                    if bank_details:
+                        bank_name = bank_details['bank_name']
+                        branch = bank_details.get('branch', '')
+                        swift = bank_details.get('swift', '')
+                        if swift:
+                            print(f"[OK] Bank Found: {bank_name}, {branch} (SWIFT: {swift})")
+                        else:
+                            print(f"[OK] Bank Found: {bank_name}, {branch}")
+                        break
+
+                    else:
+                        print("[WARN] Could not validate IFSC via API.")
+                        bank_name = input("Enter recipient's bank name manually: ").strip()
+                        if not bank_name:
+                            print("[ERROR] Bank name is required if IFSC validation fails.")
+                            continue
+                        break
+                
+                amount = self.read_positive_double("Enter amount to transfer: Rs. ")
+                
+                # Check minor account limits
+                if account.is_minor_account:
+                    today_transactions = account.get_today_transactions()
+                    if today_transactions + amount > account._minor_daily_transaction_limit:
+                        remaining = account._minor_daily_transaction_limit - today_transactions
+                        print("Transfer amount exceeds daily transaction limit for minor accounts.")
+                        print(f"Remaining limit: Rs. {remaining:.2f} INR")
+                        continue
+                
+                # Check operational balance
+                if account.balance - amount < account._min_operational_balance:
+                    print(f"Insufficient funds. Must keep at least Rs. {account._min_operational_balance:.2f} INR.")
+                    continue
+                
+                import random
+                from .Transaction import Transaction
+                from .DataStore import DataStore
+                
+                account.balance -= amount
+                cheque_id = f"CHQ{random.randint(1000000000, 9999999999)}"
+                
+                txn = Transaction(
+                    type=f"{mode}_SENT",
+                    amount=amount,
+                    resulting_balance=account.balance,
+                    cheque_id=cheque_id,
                 )
+                account.transactions.append(txn)
+                
+                metadata = f"requestedMode={mode};recipientName={recipient_name};recipientAccount={recipient_acc_num};recipientBank={bank_name}"
+                if account.is_minor_account:
+                    metadata += ";minorAccount=true"
+                    
+                DataStore.append_activity(
+                    timestamp=txn.timestamp,
+                    username=account.username,
+                    account_number=account.account_number,
+                    action=f"{mode}_SENT_EXTERNAL",
+                    amount=amount,
+                    resulting_balance=account.balance,
+                    txn_id=txn.id,
+                    cheque_id=cheque_id,
+                    metadata=metadata,
+                )
+                
+                print(f"{mode} payment to {recipient_name} at {bank_name} successful.")
+                print(f"Sent: Rs. {amount:.2f} INR | Transaction ID: {txn.id}")
+                print(f"Cheque ID: {cheque_id}")
+                
+                account._check_and_apply_amb_fee()
+                self.bank.save()
+                
+                # Generate receipt for external transfer
+                self._generate_transfer_receipt(
+                    account, recipient_name, recipient_acc_num, bank_name, ifsc, amount, mode, txn.id
+                )
+                break
+
+
+    def _generate_transfer_receipt(
+        self, sender_acc, recipient_name, recipient_acc, bank_name, ifsc, amount, mode, txn_id
+    ):
+        """Generates both text and PDF receipts for the external transfer"""
+        import os
+        from datetime import datetime
+        
+        # Ensure data directory exists for receipts
+        receipt_dir = os.path.join(os.getcwd(), "receipts")
+        if not os.path.exists(receipt_dir):
+            os.makedirs(receipt_dir)
+            
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_filename = f"Receipt_{txn_id}_{timestamp}"
+        
+        # --- Generate PDF Receipt ---
+        pdf_filepath = os.path.join(receipt_dir, f"{base_filename}.pdf")
+
+        try:
+            from fpdf import FPDF
+            
+            class ReceiptPDF(FPDF):
+                def header(self):
+                    self.set_font("helvetica", "B", 20)
+                    self.set_text_color(0, 51, 102) # Dark blue
+                    self.cell(0, 10, "SCALA BANK", ln=True, align="C")
+                    self.set_font("helvetica", "B", 12)
+                    self.cell(0, 10, "OFFICIAL TRANSACTION RECEIPT", ln=True, align="C")
+                    self.ln(5)
+                    self.set_draw_color(0, 51, 102)
+                    self.line(10, self.get_y(), 200, self.get_y())
+                    self.ln(10)
+
+                def footer(self):
+                    self.set_y(-15)
+                    self.set_font("helvetica", "I", 8)
+                    self.set_text_color(128, 128, 128)
+                    self.cell(0, 10, f"Page {self.page_no()} | Generated by Scala Bank v5.0", align="C")
+
+            pdf = ReceiptPDF()
+            pdf.add_page()
+            
+            # Transaction Header
+            pdf.set_font("helvetica", "B", 12)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(0, 10, f" Transaction Details: {txn_id}", ln=True, fill=True)
+            pdf.ln(2)
+            
+            pdf.set_font("helvetica", "", 10)
+            pdf.cell(50, 8, "Date/Time:", border=0)
+            pdf.cell(0, 8, datetime.now().strftime("%d-%m-%Y %H:%M:%S"), ln=True)
+            pdf.cell(50, 8, "Transaction Status:", border=0)
+            pdf.set_text_color(0, 128, 0) # Green
+            pdf.set_font("helvetica", "B", 10)
+            pdf.cell(0, 8, "SUCCESSFUL", ln=True)
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font("helvetica", "", 10)
+            pdf.cell(50, 8, "Transfer Mode:", border=0)
+            pdf.cell(0, 8, f"{mode}", ln=True)
+            pdf.ln(5)
+            
+            # Details Table
+            pdf.set_font("helvetica", "B", 11)
+            pdf.set_text_color(0, 51, 102)
+            pdf.cell(0, 10, "SENDER & RECIPIENT INFORMATION", ln=True)
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font("helvetica", "", 10)
+            
+            # Simple 2-column layout
+            y_start = pdf.get_y()
+            pdf.set_font("helvetica", "B", 10)
+            pdf.cell(95, 8, "SENDER DETAILS", border="B", ln=False)
+            pdf.cell(5, 8, "", ln=False)
+            pdf.cell(90, 8, "RECIPIENT DETAILS", border="B", ln=True)
+            
+            pdf.set_font("helvetica", "", 10)
+            pdf.cell(95, 8, f"Name: {sender_acc.first_name} {sender_acc.last_name}", ln=False)
+            pdf.cell(5, 8, "", ln=False)
+            pdf.cell(90, 8, f"Name: {recipient_name}", ln=True)
+            
+            pdf.cell(95, 8, f"Account: {sender_acc.account_number}", ln=False)
+            pdf.cell(5, 8, "", ln=False)
+            pdf.cell(90, 8, f"Account: {recipient_acc}", ln=True)
+            
+            pdf.cell(95, 8, "Bank: SCALA BANK (INTERNAL)", ln=False)
+            pdf.cell(5, 8, "", ln=False)
+            pdf.cell(90, 8, f"Bank: {bank_name}", ln=True)
+            
+            pdf.cell(95, 8, f"IFSC: {sender_acc.BRANCH_IFSC}", ln=False)
+            pdf.cell(5, 8, "", ln=False)
+            pdf.cell(90, 8, f"IFSC: {ifsc}", ln=True)
+            pdf.ln(10)
+            
+            # Amount Section
+            pdf.set_fill_color(0, 51, 102)
+            pdf.set_text_color(255, 255, 255)
+            pdf.set_font("helvetica", "B", 14)
+            pdf.cell(0, 15, f" TOTAL AMOUNT SENT: Rs. {amount:,.2f} INR ", align="R", fill=True, ln=True)
+            
+            pdf.set_text_color(0, 0, 0)
+            pdf.set_font("helvetica", "I", 9)
+            pdf.ln(20)
+            pdf.multi_cell(0, 5, "Note: This is a computer-generated receipt for a simulated banking transaction and does not require a physical signature.", align="C")
+            
+            pdf.output(pdf_filepath)
+            
+            print(f"\n[SUCCESS] Transaction PDF receipt generated: {pdf_filepath}")
+            print("The receipt has been 'downloaded' to the 'receipts' folder in your workspace.")
+
+            
+        except Exception as e:
+            print(f"[WARN] Could not generate PDF receipt: {e}")
+
 
     def international_transfer(self, account: Account):
         """Handle international wire transfer"""
-        from InternationalTransfer import InternationalTransfer
 
         print("\n" + "=" * 70)
         print("INTERNATIONAL WIRE TRANSFER (SWIFT)")
@@ -2074,7 +2639,7 @@ Choose transfer mode:
         )
 
         if view_samples in ["yes", "y"]:
-            print("\n📋 SAMPLE INTERNATIONAL ACCOUNTS")
+            print("\n[INFO] SAMPLE INTERNATIONAL ACCOUNTS")
             print("=" * 120)
             print(f"{'Holder':<30} {'Country':<12} {'Bank':<35} {'Account':<35}")
             print("-" * 120)
@@ -2105,7 +2670,7 @@ Choose transfer mode:
         )
 
         if foreign_account:
-            print("\n✓ Found recipient account:")
+            print("\n[OK] Found recipient account:")
             print(f"  Holder: {foreign_account.account_holder}")
             print(f"  Bank: {foreign_account.bank_name}")
             print(f"  Country: {foreign_account.country}")
@@ -2116,7 +2681,7 @@ Choose transfer mode:
             recipient_country = foreign_account.country
             currency = foreign_account.currency
         else:
-            print("\n⚠️  Account not found in registry. Please enter details manually.")
+            print("\n[WARN]  Account not found in registry. Please enter details manually.")
             recipient_bank = input("Recipient Bank Name: ").strip()
             swift_code = input("SWIFT/BIC Code: ").strip().upper()
 
@@ -2243,7 +2808,7 @@ Choose transfer mode:
 
         if success:
             print("\n" + "=" * 70)
-            print("✅ TRANSFER SUCCESSFUL")
+            print("[SUCCESS] TRANSFER SUCCESSFUL")
             print("=" * 70)
             print(message)
 
@@ -2251,7 +2816,7 @@ Choose transfer mode:
                 # Load transactions if needed
                 foreign_account._load_transactions_if_needed()
 
-                print("\n💰 Foreign account credited successfully")
+                print("\n[MONEY] Foreign account credited successfully")
                 print(
                     f"   New balance: {foreign_account.balance:,.2f} {foreign_account.currency}"
                 )
@@ -2270,7 +2835,6 @@ Choose transfer mode:
 
     def track_swift_transfer_menu(self):
         """Track international SWIFT transfer"""
-        from InternationalTransfer import InternationalTransfer
 
         swift_ref = input("\nEnter SWIFT Reference Number: ").strip()
 
@@ -2300,7 +2864,7 @@ Choose transfer mode:
             print(f"Transaction ID: {result['transaction_id']}")
             print("=" * 80)
         else:
-            print(f"\n❌ SWIFT transfer with reference '{swift_ref}' not found")
+            print(f"\n[FAIL] SWIFT transfer with reference '{swift_ref}' not found")
 
     def view_international_accounts_menu(self):
         """View international accounts registry"""
@@ -2350,7 +2914,6 @@ Choose transfer mode:
 
     def view_accounts_by_country(self):
         """View accounts filtered by country"""
-        from InternationalBankRegistry import InternationalBankRegistry
 
         countries = list(InternationalBankRegistry.BANKS.keys())
 
@@ -2389,7 +2952,7 @@ Choose transfer mode:
             # Load transactions if needed
             account._load_transactions_if_needed()
 
-            print("\n✓ ACCOUNT FOUND")
+            print("\n[OK] ACCOUNT FOUND")
             print("=" * 70)
             print(f"Holder: {account.account_holder}")
             print(f"Account: {account.account_number}")
@@ -2409,7 +2972,7 @@ Choose transfer mode:
 
             print("=" * 70)
         else:
-            print("\n❌ Account not found")
+            print("\n[FAIL] Account not found")
 
     def search_transaction(self):
         """Search for a transaction by ID"""
@@ -2518,7 +3081,7 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
     def view_recurring_bills(self, account: Account):
         """View recurring bills with payment methods and rewards"""
         if not account.recurring_bills:
-            print("\n📋 No recurring bills found.")
+            print("\n[INFO] No recurring bills found.")
             input("\nPress Enter to continue...")
             return
 
@@ -2578,7 +3141,7 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
                     rewards_str = f"💎 {rewards} pts"
 
             auto_marker = " 🤖" if bill.auto_debit else ""
-            dynamic_marker = " 📊" if bill.is_dynamic else ""
+            dynamic_marker = " [STATS]" if bill.is_dynamic else ""
 
             print(
                 f"{bill.name:<35} Rs. {bill.base_amount:<12,.2f} {bill.frequency:<10} "
@@ -2588,7 +3151,7 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
         print("=" * 130)
 
         # Summary
-        print("\n📊 SUMMARY")
+        print("\n[STATS] SUMMARY")
         print(f"   Total bills: {len(account.recurring_bills)}")
         print(f"   Bills paid via credit card: {len(bills_on_card)}")
 
@@ -2634,7 +3197,7 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
 
         print("\n" + "=" * 130)
         print(
-            "Legend: 🤖 Auto-pay | 📊 Dynamic amount | 💳 Card payment | 💰 Bank payment"
+            "Legend: 🤖 Auto-pay | [STATS] Dynamic amount | 💳 Card payment | [MONEY] Bank payment"
         )
         print("=" * 130)
 
@@ -2654,28 +3217,36 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
         rewards_by_card = {}
         transaction_count = 0
 
-        # Helper function to extract reward points from metadata
-        def get_reward_points(metadata):
-            """Extract reward points from metadata (string or dict)"""
-            if not metadata:
-                return 0
+    def _parse_metadata(self, metadata) -> dict:
+        """Parse metadata into a dictionary regardless of format (dict or semi-colon string)"""
+        if not metadata:
+            return {}
+        if isinstance(metadata, dict):
+            return metadata
+        if isinstance(metadata, str):
+            try:
+                # If it's empty string
+                if not metadata.strip():
+                    return {}
+                # Handle semicolon-separated key=value pairs
+                pairs = metadata.split(";")
+                result = {}
+                for pair in pairs:
+                    if "=" in pair:
+                        k, v = pair.split("=", 1)
+                        result[k.strip()] = v.strip()
+                return result
+            except:
+                return {}
+        return {}
 
-            if isinstance(metadata, dict):
-                return metadata.get("reward_points_earned", 0) or metadata.get(
-                    "rewardPoints", 0
-                )
-
-            if isinstance(metadata, str):
-                # Parse metadata string like "billId=BILL1001;cardId=CARD670795177;rewardPoints=14;nachId=..."
-                try:
-                    pairs = metadata.split(";")
-                    for pair in pairs:
-                        if "=" in pair:
-                            key, value = pair.split("=", 1)
-                            if key.strip() == "rewardPoints":
-                                return int(value.strip())
-                except:
-                    pass
+    # Helper function to extract reward points from metadata
+    def get_reward_points(self, metadata):
+        """Extract reward points from metadata (string or dict)"""
+        parsed = self._parse_metadata(metadata)
+        try:
+            return int(parsed.get("reward_points_earned", 0) or parsed.get("rewardPoints", 0) or 0)
+        except:
             return 0
 
         # Analyze transactions - look for CREDIT_CARD_PURCHASE and CREDIT_CARD_BILL_PAYMENT transactions
@@ -2684,23 +3255,15 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
 
             # Check for purchase rewards OR bill payment rewards
             if txn.type in ["CREDIT_CARD_PURCHASE", "CREDIT_CARD_BILL_PAYMENT"]:
-                points = get_reward_points(txn.metadata)
+                points = self.get_reward_points(txn.metadata)
                 if points > 0:
                     transaction_count += 1
                     total_lifetime_rewards += points
 
                     # Try to extract card_id from metadata
                     card_id = "Unknown"
-                    if isinstance(txn.metadata, dict):
-                        card_id = txn.metadata.get("cardId", "Unknown")
-                    elif isinstance(txn.metadata, str):
-                        try:
-                            pairs = txn.metadata.split(";")
-                            for pair in pairs:
-                                if "cardId=" in pair:
-                                    card_id = pair.split("=")[1].strip()
-                        except:
-                            pass
+                    parsed_meta = self._parse_metadata(txn.metadata)
+                    card_id = parsed_meta.get("cardId", "Unknown")
 
                     if card_id not in rewards_by_card:
                         rewards_by_card[card_id] = {"points": 0, "count": 0}
@@ -2720,13 +3283,13 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
                     txn_date_part = txn.timestamp.split()[0]  # Get "DD-MM-YYYY"
                     txn_month = txn_date_part[3:10]  # Get "MM-YYYY"
                     if txn_month == current_month:
-                        points = get_reward_points(txn.metadata)
+                        points = self.get_reward_points(txn.metadata)
                         if points > 0:
                             monthly_rewards += points
                 except:
                     pass
 
-        print("\n📊 LIFETIME REWARDS FROM PURCHASES")
+        print("\n[STATS] LIFETIME REWARDS FROM PURCHASES")
         print(f"   Total points earned: {int(total_lifetime_rewards)}")
         print(f"   Estimated value: Rs. {int(total_lifetime_rewards):,.2f}")
         if transaction_count > 0:
@@ -2755,7 +3318,7 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
 
         # Value breakdown
         if total_lifetime_rewards > 0:
-            print("\n💰 REWARDS VALUE")
+            print("\n[MONEY] REWARDS VALUE")
             print(f"   Value @ Rs. 1.00/point: Rs. {int(total_lifetime_rewards):,.2f}")
             print(f"   💎 Total benefit: Rs. {int(total_lifetime_rewards):,.2f}")
         else:
@@ -2824,7 +3387,7 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
             credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
 
             if not credit_cards:
-                print("\n❌ No credit cards available.")
+                print("\n[FAIL] No credit cards available.")
                 print("   Defaulting to bank account payment.")
             else:
                 print("\n--- Select Credit Card ---")
@@ -2849,7 +3412,7 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
                     estimated_rewards = amount * selected_card.reward_rate
 
                     print(
-                        f"\n✅ Selected: {selected_card.network} ****{selected_card.card_number[-4:]}"
+                        f"\n[SUCCESS] Selected: {selected_card.network} ****{selected_card.card_number[-4:]}"
                     )
                     print(
                         f"💎 Estimated rewards per payment: {int(estimated_rewards)} points"
@@ -2861,7 +3424,7 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
                             f"💎 Annual rewards potential: {int(annual_rewards)} points!"
                         )
                 else:
-                    print("❌ Invalid choice. Using bank account.")
+                    print("[FAIL] Invalid choice. Using bank account.")
 
         # Create the bill with payment method
         if int(template_choice) <= len(common_bills):
@@ -2889,14 +3452,14 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
         self.bank.save()
 
         print("\n" + "=" * 60)
-        print("✅ RECURRING BILL ADDED")
+        print("[SUCCESS] RECURRING BILL ADDED")
         print("=" * 60)
         print(f"Bill Name: {bill.name}")
         print(f"Amount: Rs. {bill.base_amount:,.2f}")
         print(f"Frequency: {bill.frequency}")
         print(f"Due Day: {bill.day_of_month}")
         print(f"Payment Method: {bill.get_payment_description(account)}")
-        print(f"Auto-pay: {'✅ Enabled' if bill.auto_debit else '❌ Disabled'}")
+        print(f"Auto-pay: {'[SUCCESS] Enabled' if bill.auto_debit else '[FAIL] Disabled'}")
         print("=" * 60)
 
         input("\nPress Enter to continue...")
@@ -2906,7 +3469,7 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
         credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
 
         if not credit_cards:
-            print("\n❌ No credit cards linked to this account.")
+            print("\n[FAIL] No credit cards linked to this account.")
             print("Add a credit card first from Card Management menu.")
             input("\nPress Enter to continue...")
             return
@@ -2942,12 +3505,12 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
             is_dynamic = True
 
             print(
-                f"\n✅ Linked to {selected_card.network} ****{selected_card.card_number[-4:]}"
+                f"\n[SUCCESS] Linked to {selected_card.network} ****{selected_card.card_number[-4:]}"
             )
             print("💡 Bill amount will auto-update from card statement")
 
         else:
-            print("❌ Invalid choice")
+            print("[FAIL] Invalid choice")
             input("\nPress Enter...")
             return
 
@@ -2982,14 +3545,14 @@ You now have {customer.account_count} account(s) linked to your Customer ID.
         self.bank.save()
 
         print("\n" + "=" * 60)
-        print("✅ CREDIT CARD BILL ADDED")
+        print("[SUCCESS] CREDIT CARD BILL ADDED")
         print("=" * 60)
         print(f"Bill: {bill.name}")
         print(f"Amount: Rs. {bill.base_amount:,.2f}")
         print(f"Due Day: {bill.day_of_month}")
-        print(f"Auto-pay: {'✅ Enabled' if bill.auto_debit else '❌ Disabled'}")
+        print(f"Auto-pay: {'[SUCCESS] Enabled' if bill.auto_debit else '[FAIL] Disabled'}")
         if is_dynamic:
-            print("📊 Amount will auto-update from card")
+            print("[STATS] Amount will auto-update from card")
         print("=" * 60)
 
         input("\nPress Enter to continue...")
@@ -3058,7 +3621,7 @@ Salary Management
         """Simulate time passage with recurring bills and expenses"""
         # Check if clock is in REAL mode
         if BankClock._mode == "REAL":
-            print("\n⚠️  Time Simulation Not Possible")
+            print("\n[WARN]  Time Simulation Not Possible")
             print("Time simulation is only available in VIRTUAL mode.")
             print("\nTo enable time simulation:")
             print("1. Go to main menu (option 20 from account menu)")
@@ -3152,13 +3715,14 @@ Choose an option:
 2  Login to Existing Account
 3  Forgot Password
 4  Track Cheque ID
-5  Exit
+5  Admin Dashboard
+6  Exit
             """)
 
             choice = self.read_valid_choice(
                 "Enter your choice: ",
-                ["1", "2", "3", "4", "5"],
-                "Invalid option. Please enter 1, 2, 3, 4, or 5.",
+                ["1", "2", "3", "4", "5", "6"],
+                "Invalid option. Please enter 1, 2, 3, 4, 5, or 6.",
             )
 
             if choice == "1":
@@ -3170,8 +3734,29 @@ Choose an option:
             elif choice == "4":
                 self.track_cheque()
             elif choice == "5":
+                self.access_admin_dashboard()
+            elif choice == "6":
                 print("Thank you for using Scala Bank!")
                 self.running = False
+
+    def access_admin_dashboard(self):
+        """Access admin dashboard with PIN authentication"""
+        print("\n" + "="*80)
+        print("🔐 ADMIN DASHBOARD ACCESS".center(80))
+        print("="*80)
+        
+        admin_panel = AdminControlPanel(self.bank)
+        
+        # Prompt for PIN
+        pin = input("\nEnter Admin PIN: ").strip()
+        
+        if admin_panel.authenticate(pin):
+            print("[OK] Authentication successful!")
+            input("Press Enter to access dashboard...")
+            admin_panel.display_dashboard()
+        else:
+            print("\n[FAIL] Invalid PIN. Access denied.")
+            print("[OK] Returning to main menu...")
 
     def view_cibil_report(self, customer: Customer):
         """View detailed CIBIL score report with history"""
@@ -3212,7 +3797,7 @@ Choose an option:
         today = BankClock.today()
 
         # 1. Repayment History Analysis
-        print("\n📊 REPAYMENT HISTORY")
+        print("\n[STATS] REPAYMENT HISTORY")
         total_emis = 0
         late_payments = 0
         on_time_payments = 0
@@ -3238,11 +3823,11 @@ Choose an option:
 
             if late_payments == 0:
                 impact = "Excellent (+100 points)"
-                status = "✅ No late payments"
+                status = "[SUCCESS] No late payments"
             else:
                 penalty = min(200, 50 * late_payments)
                 impact = f"Poor (-{penalty} points)"
-                status = f"❌ {late_payments} late payment(s)"
+                status = f"[FAIL] {late_payments} late payment(s)"
 
             print(f"  Status: {status}")
             print(f"  Total EMIs Paid: {on_time_payments}")
@@ -3289,10 +3874,11 @@ Choose an option:
             print("  Impact: Neutral")
 
         # 3. Credit Accounts
-        print("\n📋 CREDIT ACCOUNTS")
-        n_loans = len(loans)
+        print("\n[INFO] CREDIT ACCOUNTS")
+        active_loans = [l for l in loans if l.status == "Active"]
+        n_active_loans = len(active_loans)
         n_cards = len(credit_cards)  # Use the credit_cards list from above
-        total_accounts = n_loans + n_cards
+        total_accounts = n_active_loans + n_cards
 
         if total_accounts > 7:
             impact = "Too many accounts (-20 points)"
@@ -3301,13 +3887,13 @@ Choose an option:
         else:
             impact = "Neutral"
 
-        print(f"  Active Loans: {n_loans}")
+        print(f"  Active Loans: {n_active_loans}")
         print(f"  Credit Cards: {n_cards}")
         print(f"  Total Accounts: {total_accounts}")
         print(f"  Impact: {impact}")
 
         # 4. Recent Hard Inquiries
-        print("\n🔍 CREDIT INQUIRIES (Last 12 Months)")
+        print("\n[SEARCH] CREDIT INQUIRIES (Last 12 Months)")
         hard_inquiries = getattr(customer, "recent_hard_inquiries", [])
         recent_inquiries = [d for d in hard_inquiries if (today - d).days <= 365]
         n_recent = len(recent_inquiries)
@@ -3397,9 +3983,9 @@ Choose an option:
                 print(f"   EMIs Paid: {emis_paid}/{total_emi}")
                 if loan.status == "Closed" or emis_paid >= total_emi:
                     if hasattr(loan, "closure_date"):
-                        print(f"   ✅ Loan Closed On: {loan.closure_date}")
+                        print(f"   [SUCCESS] Loan Closed On: {loan.closure_date}")
                     else:
-                        print("   ✅ All EMIs Paid - Loan Fully Repaid")
+                        print("   [SUCCESS] All EMIs Paid - Loan Fully Repaid")
                 elif outstanding > 0:
                     print(f"   Outstanding EMIs: {outstanding}")
                     if hasattr(loan, "start_date"):
@@ -3409,7 +3995,7 @@ Choose an option:
                         expected_emis = min(months_elapsed + 1, loan.tenure_months)
                         if emis_paid < expected_emis:
                             missed = expected_emis - emis_paid
-                            print(f"   ⚠️  Overdue EMIs: {missed}")
+                            print(f"   [WARN]  Overdue EMIs: {missed}")
 
         # Score Range Guide
         print("\n" + "-" * 70)
@@ -3427,18 +4013,18 @@ Choose an option:
         recommendations = []
 
         if late_payments > 0:
-            recommendations.append("✓ Pay all pending EMIs on time")
+            recommendations.append("[OK] Pay all pending EMIs on time")
         if credit_cards and utilization > 50:
-            recommendations.append("✓ Reduce credit card utilization below 30%")
+            recommendations.append("[OK] Reduce credit card utilization below 30%")
         if n_recent > 3:
-            recommendations.append("✓ Avoid applying for new credit for 6 months")
+            recommendations.append("[OK] Avoid applying for new credit for 6 months")
         if total_accounts < 2:
             recommendations.append(
-                "✓ Consider diversifying credit types (loans + cards)"
+                "[OK] Consider diversifying credit types (loans + cards)"
             )
         if not recommendations:
-            recommendations.append("✓ Maintain current excellent credit behavior")
-            recommendations.append("✓ Continue making timely payments")
+            recommendations.append("[OK] Maintain current excellent credit behavior")
+            recommendations.append("[OK] Continue making timely payments")
 
         for rec in recommendations:
             print(f"  {rec}")
@@ -3449,13 +4035,13 @@ Choose an option:
         self.bank.save()
 
     def generate_loan_closure_certificate(self, customer: Customer, account: Account):
-        """Generate loan closure certificate for closed loans"""
+        """Generate loan closure certificate for closed loans as PDF"""
         loans = self.bank.get_loans_for_customer(customer.customer_id)
         closed_loans = [loan for loan in loans if loan.status == "Closed"]
 
         if not closed_loans:
             print(
-                "\n❌ No closed loans found. You can only generate certificates for fully repaid loans."
+                "\n[FAIL] No closed loans found. You can only generate certificates for fully repaid loans."
             )
             return
 
@@ -3475,198 +4061,22 @@ Choose an option:
 
         selected_loan = closed_loans[int(choice) - 1]
 
-        # Calculate total amount paid
-        total_emi_payments = selected_loan.tenure_months * selected_loan.calculate_emi()
-        total_interest = total_emi_payments - selected_loan.principal
-
-        # Format dates
-        start_date = getattr(selected_loan, "start_date", "Not available")
-        if start_date != "Not available" and hasattr(start_date, "strftime"):
-            start_date_str = start_date.strftime("%d-%m-%Y")
-        else:
-            start_date_str = "Not available"
-
-        closure_date = getattr(selected_loan, "closure_date", "Not recorded")
-        if closure_date != "Not recorded" and hasattr(closure_date, "strftime"):
-            closure_date_str = closure_date.strftime("%d-%m-%Y")
-        else:
-            closure_date_str = "Not recorded"
-
-        # Generate certificate
-        print("\n")
-        print("=" * 80)
-        print(" " * 20 + "SCALA BANK - LOAN CLOSURE CERTIFICATE")
-        print("=" * 80)
-        print(f"\n{Account.get_branch_details()}")
-        print("\n" + "-" * 80)
-        print("CUSTOMER INFORMATION")
-        print("-" * 80)
-        print(f"Customer Name          : {customer.first_name} {customer.last_name}")
-        print(f"Customer ID            : {customer.customer_id}")
-        print(f"Date of Birth          : {customer.dob}")
-        print(f"Contact Number         : {customer.phone_number}")
-        print(f"Email Address          : {customer.email}")
-
-        print("\n" + "-" * 80)
-        print("LOAN DETAILS")
-        print("-" * 80)
-        print(f"Loan ID                : {selected_loan.loan_id}")
-        print(f"Loan Account Number    : {account.account_number}")
-        print(f"Loan Sanction Date     : {start_date_str}")
-        print(f"Loan Closure Date      : {closure_date_str}")
-        print(f"Loan Status            : {selected_loan.status}")
-
-        print("\n" + "-" * 80)
-        print("FINANCIAL DETAILS")
-        print("-" * 80)
-        print(f"Principal Amount       : Rs. {selected_loan.principal:>15,.2f} INR")
-        print(
-            f"Interest Rate          : {selected_loan.interest_rate:>15.2f}% per annum"
-        )
-        print(f"Loan Tenure            : {selected_loan.tenure_months:>15} months")
-        print(
-            f"Monthly EMI            : Rs. {selected_loan.calculate_emi():>15,.2f} INR"
-        )
-        print(
-            f"Total EMIs Paid        : {selected_loan.tenure_months:>15} / {selected_loan.tenure_months}"
-        )
-        print(f"\nTotal Interest Paid    : Rs. {total_interest:>15,.2f} INR")
-        print(f"Total Amount Paid      : Rs. {total_emi_payments:>15,.2f} INR")
-        print("                         (Principal + Interest)")
-
-        print("\n" + "-" * 80)
-        print("CLOSURE CONFIRMATION")
-        print("-" * 80)
-        print(
-            "\nThis is to certify that the above-mentioned loan has been fully repaid and"
-        )
-        print(
-            "closed. All outstanding dues, including principal and interest, have been"
-        )
-        print("settled in full. No further payments are due on this loan account.")
-
-        print(
-            f"\nThe customer, {customer.first_name} {customer.last_name}, has no liability"
-        )
-        print(
-            f"with respect to this loan (ID: {selected_loan.loan_id}) as of {closure_date_str}."
-        )
-
-        print("\n" + "-" * 80)
-        print("AUTHORIZATION")
-        print("-" * 80)
-        print(f"\nIssued by              : Scala Bank, {Account.BRANCH_NAME} Branch")
-        print(f"Certificate Date       : {BankClock.get_formatted_date()}")
-        print(f"Generated At           : {BankClock.get_formatted_datetime()}")
-        print(
-            f"Reference Number       : CLOSURE/{selected_loan.loan_id}/{BankClock.today().strftime('%Y%m%d')}"
-        )
-
-        print("\n" + "=" * 80)
-        print(" " * 15 + "*** This is a system-generated certificate ***")
-        print(" " * 20 + "No signature required")
-        print("=" * 80)
-        print("\n")
-
-        # Ask if user wants to save
-        save = (
-            input("Would you like to save this certificate? (yes/no): ").strip().lower()
-        )
+        # Preview on console
+        print("\n[INFO] Generating Official Loan Closure Certificate...")
+        
+        # Generate PDF
+        save = input("\nDownload Loan Closure Certificate (NOC) as PDF? (yes/no): ").strip().lower()
         if save in ["yes", "y"]:
-            filename = (
-                f"loan_closure_{selected_loan.loan_id}_{customer.customer_id}.txt"
-            )
             try:
-                with open(filename, "w", encoding="utf-8") as f:
-                    f.write("=" * 80 + "\n")
-                    f.write(" " * 20 + "SCALA BANK - LOAN CLOSURE CERTIFICATE\n")
-                    f.write("=" * 80 + "\n")
-                    f.write(f"\n{Account.get_branch_details()}\n")
-                    f.write("\n" + "-" * 80 + "\n")
-                    f.write("CUSTOMER INFORMATION\n")
-                    f.write("-" * 80 + "\n")
-                    f.write(
-                        f"Customer Name          : {customer.first_name} {customer.last_name}\n"
-                    )
-                    f.write(f"Customer ID            : {customer.customer_id}\n")
-                    f.write(f"Date of Birth          : {customer.dob}\n")
-                    f.write(f"Contact Number         : {customer.phone_number}\n")
-                    f.write(f"Email Address          : {customer.email}\n")
-                    f.write("\n" + "-" * 80 + "\n")
-                    f.write("LOAN DETAILS\n")
-                    f.write("-" * 80 + "\n")
-                    f.write(f"Loan ID                : {selected_loan.loan_id}\n")
-                    f.write(f"Loan Account Number    : {account.account_number}\n")
-                    f.write(f"Loan Sanction Date     : {start_date_str}\n")
-                    f.write(f"Loan Closure Date      : {closure_date_str}\n")
-                    f.write(f"Loan Status            : {selected_loan.status}\n")
-                    f.write("\n" + "-" * 80 + "\n")
-                    f.write("FINANCIAL DETAILS\n")
-                    f.write("-" * 80 + "\n")
-                    f.write(
-                        f"Principal Amount       : Rs. {selected_loan.principal:>15,.2f} INR\n"
-                    )
-                    f.write(
-                        f"Interest Rate          : {selected_loan.interest_rate:>15.2f}% per annum\n"
-                    )
-                    f.write(
-                        f"Loan Tenure            : {selected_loan.tenure_months:>15} months\n"
-                    )
-                    f.write(
-                        f"Monthly EMI            : Rs. {selected_loan.calculate_emi():>15,.2f} INR\n"
-                    )
-                    f.write(
-                        f"Total EMIs Paid        : {selected_loan.tenure_months:>15} / {selected_loan.tenure_months}\n"
-                    )
-                    f.write(
-                        f"\nTotal Interest Paid    : Rs. {total_interest:>15,.2f} INR\n"
-                    )
-                    f.write(
-                        f"Total Amount Paid      : Rs. {total_emi_payments:>15,.2f} INR\n"
-                    )
-                    f.write("                         (Principal + Interest)\n")
-                    f.write("\n" + "-" * 80 + "\n")
-                    f.write("CLOSURE CONFIRMATION\n")
-                    f.write("-" * 80 + "\n")
-                    f.write(
-                        "\nThis is to certify that the above-mentioned loan has been fully repaid and\n"
-                    )
-                    f.write(
-                        "closed. All outstanding dues, including principal and interest, have been\n"
-                    )
-                    f.write(
-                        "settled in full. No further payments are due on this loan account.\n"
-                    )
-                    f.write(
-                        f"\nThe customer, {customer.first_name} {customer.last_name}, has no liability\n"
-                    )
-                    f.write(
-                        f"with respect to this loan (ID: {selected_loan.loan_id}) as of {closure_date_str}.\n"
-                    )
-                    f.write("\n" + "-" * 80 + "\n")
-                    f.write("AUTHORIZATION\n")
-                    f.write("-" * 80 + "\n")
-                    f.write(
-                        f"\nIssued by              : Scala Bank, {Account.BRANCH_NAME} Branch\n"
-                    )
-                    f.write(
-                        f"Certificate Date       : {BankClock.get_formatted_date()}\n"
-                    )
-                    f.write(
-                        f"Generated At           : {BankClock.get_formatted_datetime()}\n"
-                    )
-                    f.write(
-                        f"Reference Number       : CLOSURE/{selected_loan.loan_id}/{BankClock.today().strftime('%Y%m%d')}\n"
-                    )
-                    f.write("\n" + "=" * 80 + "\n")
-                    f.write(
-                        " " * 15 + "*** This is a system-generated certificate ***\n"
-                    )
-                    f.write(" " * 20 + "No signature required\n")
-                    f.write("=" * 80 + "\n")
-                print(f"\n✓ Certificate saved as: {filename}")
+                from .StatementGenerator import StatementGenerator
+                branch_details = Account.get_branch_details()
+                filepath = StatementGenerator.generate_loan_closure_pdf(selected_loan, customer, branch_details)
+                print(f"\n[SUCCESS] Official Loan Closure Certificate (NOC) generated: {filepath}")
             except Exception as e:
-                print(f"\n❌ Error saving certificate: {e}")
+                print(f"[FAIL] Error generating certificate: {e}")
+        else:
+            print("[INFO] Download skipped.")
+
 
     def view_card_details(self, account: Account):
         """View detailed information about a specific card"""
@@ -3717,7 +4127,6 @@ Choose an option:
                 print(f"Outstanding Balance: Rs. {card.outstanding_balance:,.2f} INR")
                 print(f"Minimum Due: Rs. {card.minimum_due:,.2f} INR")
                 if card.due_date:
-                    from BankClock import BankClock
 
                     days_remaining = (card.due_date - BankClock.today()).days
                     print(
@@ -3730,9 +4139,103 @@ Choose an option:
         is_valid = Card.validate_card_number(card.card_number)
         detected_network = Card.get_card_network(card.card_number)
         print(
-            f"\n✓ Card Number Validation: {'Valid' if is_valid else 'Invalid'} (Luhn Check)"
+            f"\n[OK] Card Number Validation: {'Valid' if is_valid else 'Invalid'} (Luhn Check)"
         )
-        print(f"✓ Detected Network from Number: {detected_network}")
+        print(f"[OK] Detected Network from Number: {detected_network}")
+        print("=" * 60)
+
+    def manage_card_auto_pay(self, account: Account):
+        """Manage auto-pay settings for credit cards"""
+
+        credit_cards = [c for c in account.cards if isinstance(c, CreditCard)]
+
+        if not credit_cards:
+            print("\n[FAIL] No credit cards available")
+            return
+
+        print("\n" + "=" * 60)
+        print("CREDIT CARD AUTO-PAY MANAGEMENT")
+        print("=" * 60)
+        print("\nYour Credit Cards:")
+
+        for idx, card in enumerate(credit_cards, 1):
+            policy = getattr(card, "auto_pay_policy", "NONE")
+            policy_display = {
+                "NONE": "[FAIL] Manual Payment",
+                "MINIMUM": "[INFO] Auto-pay Minimum Due",
+                "FULL": "[SUCCESS] Auto-pay Full Balance",
+            }
+            print(f"{idx}. **** **** **** {card.card_number[-4:]} ({card.network})")
+            print(f"   Current: {policy_display.get(policy, 'Unknown')}")
+
+        if len(credit_cards) == 1:
+            selected_card = credit_cards[0]
+        else:
+            choice = input(
+                f"\nSelect card to configure (1-{len(credit_cards)}): "
+            ).strip()
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(credit_cards):
+                    selected_card = credit_cards[idx]
+                else:
+                    print("Invalid selection")
+                    return
+            except ValueError:
+                print("Invalid input")
+                return
+
+        print("\n" + "=" * 60)
+        print("AUTO-PAY POLICY OPTIONS")
+        print("=" * 60)
+        print("1. NONE - Manual payment only")
+        print("   └─ You'll pay manually each month")
+        print("2. MINIMUM - Auto-pay minimum due")
+        print(
+            "   └─ Minimum due automatically paid from your account when bill is generated"
+        )
+        print("3. FULL - Auto-pay full balance")
+        print("   └─ Complete outstanding balance automatically paid from your account")
+        print("=" * 60)
+
+        policy_choice = self.read_valid_choice("Select policy (1-3): ", ["1", "2", "3"])
+        policy_map = {"1": "NONE", "2": "MINIMUM", "3": "FULL"}
+        new_policy = policy_map[policy_choice]
+
+        old_policy = getattr(selected_card, "auto_pay_policy", "NONE")
+        if old_policy == new_policy:
+            print(f"\n[WARN]  Policy is already set to {new_policy}")
+            return
+
+        selected_card.auto_pay_policy = new_policy
+        self.bank.save()
+
+        print("\n" + "=" * 60)
+        policy_display = {
+            "NONE": "[FAIL] Manual Payment",
+            "MINIMUM": "[INFO] Auto-pay Minimum Due",
+            "FULL": "[SUCCESS] Auto-pay Full Balance",
+        }
+
+        print("[SUCCESS] AUTO-PAY POLICY UPDATED")
+        print(
+            f"Card: **** **** **** {selected_card.card_number[-4:]} ({selected_card.network})"
+        )
+        print(f"New Policy: {policy_display[new_policy]}")
+        print("=" * 60)
+
+        if new_policy == "NONE":
+            print("\nℹ️  You'll need to pay your credit card bill manually each month.")
+        elif new_policy == "MINIMUM":
+            print("\nℹ️  Minimum due will be automatically deducted from your account")
+            print("   when your monthly bill is generated (on billing day).")
+            print("   Make sure you have sufficient balance in your account.")
+        else:  # FULL
+            print(
+                "\nℹ️  Your complete outstanding balance will be automatically deducted"
+            )
+            print("   from your account when the bill is generated.")
+            print("   This helps avoid interest charges and late payment fees.")
         print("=" * 60)
 
     def _get_loan_by_id(self, loan_id: str):
@@ -3748,7 +4251,7 @@ Choose an option:
 
         while True:
             print("\n" + "=" * 60)
-            print("🏦 NACH MANDATE MANAGEMENT (Automatic EMI Deduction)")
+            print("[BANK] NACH MANDATE MANAGEMENT (Automatic EMI Deduction)")
             print("=" * 60)
 
             # Check if customer has any active loans
@@ -3758,7 +4261,7 @@ Choose an option:
                 if loan.status == "Active"
             ]
             if not active_loans:
-                print("\n⚠️  You don't have any active loans.")
+                print("\n[WARN]  You don't have any active loans.")
                 print("NACH mandates can only be created for active loans.\n")
                 input("Press Enter to continue...")
                 break
@@ -3791,16 +4294,15 @@ Choose an option:
             elif choice == "8":
                 break
             else:
-                print("❌ Invalid option. Please try again.")
+                print("[FAIL] Invalid option. Please try again.")
 
     def create_loan_nach_mandate(self):
         """Create a new NACH mandate for automatic EMI deduction"""
-        from LoanNachMandate import LoanNachMandateManager
 
         customer = self.current_customer
 
         print("\n" + "=" * 60)
-        print("📋 CREATE NACH MANDATE FOR AUTOMATIC EMI DEDUCTION")
+        print("[INFO] CREATE NACH MANDATE FOR AUTOMATIC EMI DEDUCTION")
         print("=" * 60)
 
         # Display active loans
@@ -3811,7 +4313,7 @@ Choose an option:
         ]
 
         if not active_loans:
-            print("\n⚠️  No active loans available.")
+            print("\n[WARN]  No active loans available.")
             input("Press Enter to continue...")
             return
 
@@ -3833,10 +4335,10 @@ Choose an option:
             if 0 <= loan_idx < len(active_loans):
                 selected_loan = active_loans[loan_idx]
             else:
-                print("❌ Invalid loan selection.")
+                print("[FAIL] Invalid loan selection.")
                 return
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("[FAIL] Please enter a valid number.")
             return
 
         # Check if mandate already exists
@@ -3844,7 +4346,7 @@ Choose an option:
             selected_loan.loan_id
         )
         if existing_mandate:
-            print("\n⚠️  A NACH mandate already exists for this loan.")
+            print("\n[WARN]  A NACH mandate already exists for this loan.")
             print(f"   Current Status: {existing_mandate.status}")
             if existing_mandate.status in ["Pending", "OTP_Verified"]:
                 proceed = (
@@ -3873,12 +4375,12 @@ Choose an option:
                 break
 
         if not selected_account:
-            print("❌ Invalid account selection.")
+            print("[FAIL] Invalid account selection.")
             return
 
         # Confirm NACH mandate details
         print("\n" + "=" * 60)
-        print("📋 NACH MANDATE DETAILS")
+        print("[INFO] NACH MANDATE DETAILS")
         print("=" * 60)
         print(f"\nLoan ID: {selected_loan.loan_id}")
         print(f"Loan Amount: ₹{selected_loan.principal:,.2f}")
@@ -3890,10 +4392,10 @@ Choose an option:
         print(f"Debit Account: {selected_account.account_number}")
 
         confirm = (
-            input("\n✓ Proceed with NACH mandate creation? (yes/no): ").strip().lower()
+            input("\n[OK] Proceed with NACH mandate creation? (yes/no): ").strip().lower()
         )
         if confirm != "yes":
-            print("❌ Mandate creation cancelled.")
+            print("[FAIL] Mandate creation cancelled.")
             return
 
         # Calculate mandate end date (when loan EMI payments end)
@@ -3919,7 +4421,7 @@ Choose an option:
 
         if success:
             print("\n" + "=" * 60)
-            print("✅ NACH MANDATE CREATED SUCCESSFULLY")
+            print("[SUCCESS] NACH MANDATE CREATED SUCCESSFULLY")
             print("=" * 60)
             print(f"\nMandate ID: {mandate_id}")
             print("Status: Pending (OTP Verification Required)")
@@ -3931,13 +4433,12 @@ Choose an option:
             selected_loan.nach_mandate_id = mandate_id
             self.bank.save_data()
         else:
-            print(f"\n❌ {message}")
+            print(f"\n[FAIL] {message}")
 
         input("\nPress Enter to continue...")
 
     def verify_loan_nach_mandate_otp(self):
         """Verify NACH mandate with OTP"""
-        from LoanNachMandate import LoanNachMandateManager
 
         customer = self.current_customer
 
@@ -3958,7 +4459,7 @@ Choose an option:
                     pending_mandates.append((loan, mandate))
 
         if not pending_mandates:
-            print("\n⚠️  No pending NACH mandates to verify.")
+            print("\n[WARN]  No pending NACH mandates to verify.")
             input("Press Enter to continue...")
             return
 
@@ -3976,14 +4477,14 @@ Choose an option:
             if 0 <= idx < len(pending_mandates):
                 selected_loan, selected_mandate = pending_mandates[idx]
             else:
-                print("❌ Invalid selection.")
+                print("[FAIL] Invalid selection.")
                 return
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("[FAIL] Please enter a valid number.")
             return
 
         # Request OTP
-        print(f"\n📋 Mandate ID: {selected_mandate.mandate_id}")
+        print(f"\n[INFO] Mandate ID: {selected_mandate.mandate_id}")
         print("🔐 Enter the OTP sent to your registered mobile number:")
 
         otp_attempts = 0
@@ -3998,27 +4499,27 @@ Choose an option:
 
             if success:
                 print("\n" + "=" * 60)
-                print("✅ OTP VERIFIED SUCCESSFULLY")
+                print("[SUCCESS] OTP VERIFIED SUCCESSFULLY")
                 print("=" * 60)
                 print(f"\nMandate ID: {selected_mandate.mandate_id}")
                 print("Status: ACTIVE")
                 print(f"EMI Amount: ₹{selected_mandate.emi_amount:,.2f}")
                 print(f"Account: {selected_mandate.bank_account_number}")
-                print("\n✓ NACH mandate is now active.")
-                print("✓ EMI will be deducted automatically from your account.")
-                print("✓ Deduction History: Available in 'View Mandate Details' menu")
+                print("\n[OK] NACH mandate is now active.")
+                print("[OK] EMI will be deducted automatically from your account.")
+                print("[OK] Deduction History: Available in 'View Mandate Details' menu")
 
                 break
             else:
                 otp_attempts += 1
                 remaining = max_attempts - otp_attempts
                 if remaining > 0:
-                    print(f"\n❌ {message}")
-                    print(f"⚠️  Remaining attempts: {remaining}")
+                    print(f"\n[FAIL] {message}")
+                    print(f"[WARN]  Remaining attempts: {remaining}")
                 else:
-                    print(f"\n❌ {message}")
+                    print(f"\n[FAIL] {message}")
                     print(
-                        "❌ Maximum OTP attempts exceeded. Mandate creation cancelled."
+                        "[FAIL] Maximum OTP attempts exceeded. Mandate creation cancelled."
                     )
                     # Reset mandate status
                     selected_mandate.status = "Revoked"
@@ -4028,12 +4529,11 @@ Choose an option:
 
     def view_loan_mandates(self):
         """View all NACH mandates for customer"""
-        from LoanNachMandate import LoanNachMandateManager, NachMandateStatus
 
         customer = self.current_customer
 
         print("\n" + "=" * 60)
-        print("📋 YOUR NACH MANDATES")
+        print("[INFO] YOUR NACH MANDATES")
         print("=" * 60)
 
         # Get all mandates using the manager
@@ -4042,7 +4542,7 @@ Choose an option:
         )
 
         if not all_mandates:
-            print("\n⚠️  You don't have any NACH mandates.")
+            print("\n[WARN]  You don't have any NACH mandates.")
             print("\n💡 Create a NACH mandate to set up automatic EMI deductions.")
         else:
             print("\n")
@@ -4053,13 +4553,13 @@ Choose an option:
 
                 # Status icon
                 status_icon = (
-                    "✅"
+                    "[SUCCESS]"
                     if status == NachMandateStatus.ACTIVE
                     else "⏳"
                     if status == NachMandateStatus.PENDING
-                    else "❌"
+                    else "[FAIL]"
                     if status == NachMandateStatus.REVOKED
-                    else "⚠️"
+                    else "[WARN]"
                 )
 
                 # Get loan details
@@ -4076,7 +4576,7 @@ Choose an option:
                 print()
 
             print("=" * 60)
-            print("📊 MANDATE SUMMARY")
+            print("[STATS] MANDATE SUMMARY")
             print("=" * 60)
             for status, count in mandate_count.items():
                 if count > 0:
@@ -4086,7 +4586,6 @@ Choose an option:
 
     def revoke_loan_nach_mandate(self):
         """Revoke a NACH mandate"""
-        from LoanNachMandate import LoanNachMandateManager, NachMandateStatus
 
         customer = self.current_customer
 
@@ -4105,7 +4604,7 @@ Choose an option:
         ]
 
         if not revokable_mandates:
-            print("\n⚠️  No active NACH mandates to revoke.")
+            print("\n[WARN]  No active NACH mandates to revoke.")
             input("Press Enter to continue...")
             return
 
@@ -4124,21 +4623,21 @@ Choose an option:
             if 0 <= idx < len(revokable_mandates):
                 selected_mandate, selected_loan = revokable_mandates[idx]
             else:
-                print("❌ Invalid selection.")
+                print("[FAIL] Invalid selection.")
                 return
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("[FAIL] Please enter a valid number.")
             return
 
         # Confirm revocation
         print(
-            "\n⚠️  IMPORTANT: Revoking this mandate will stop automatic EMI deductions."
+            "\n[WARN]  IMPORTANT: Revoking this mandate will stop automatic EMI deductions."
         )
         print("   You will need to pay EMIs manually.")
         confirm = input("\nProceed with mandate revocation? (yes/no): ").strip().lower()
 
         if confirm != "yes":
-            print("❌ Revocation cancelled.")
+            print("[FAIL] Revocation cancelled.")
             return
 
         # Revoke mandate
@@ -4147,22 +4646,21 @@ Choose an option:
         )
 
         if success:
-            print(f"\n✅ {message}")
+            print(f"\n[SUCCESS] {message}")
             print(f"   Mandate ID: {selected_mandate.mandate_id}")
             print("   Status: REVOKED")
         else:
-            print(f"\n❌ {message}")
+            print(f"\n[FAIL] {message}")
 
         input("\nPress Enter to continue...")
 
     def suspend_loan_nach_mandate(self):
         """Suspend a NACH mandate temporarily"""
-        from LoanNachMandate import LoanNachMandateManager, NachMandateStatus
 
         customer = self.current_customer
 
         print("\n" + "=" * 60)
-        print("⏸️  SUSPEND NACH MANDATE")
+        print("[VIRTUAL]  SUSPEND NACH MANDATE")
         print("=" * 60)
 
         # Get active mandates
@@ -4176,7 +4674,7 @@ Choose an option:
         ]
 
         if not suspendable_mandates:
-            print("\n⚠️  No active NACH mandates to suspend.")
+            print("\n[WARN]  No active NACH mandates to suspend.")
             input("Press Enter to continue...")
             return
 
@@ -4194,17 +4692,17 @@ Choose an option:
             if 0 <= idx < len(suspendable_mandates):
                 selected_mandate, selected_loan = suspendable_mandates[idx]
             else:
-                print("❌ Invalid selection.")
+                print("[FAIL] Invalid selection.")
                 return
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("[FAIL] Please enter a valid number.")
             return
 
-        print("\n⚠️  Suspending this mandate will temporarily stop EMI deductions.")
+        print("\n[WARN]  Suspending this mandate will temporarily stop EMI deductions.")
         confirm = input("Proceed? (yes/no): ").strip().lower()
 
         if confirm != "yes":
-            print("❌ Suspension cancelled.")
+            print("[FAIL] Suspension cancelled.")
             return
 
         # Suspend mandate
@@ -4213,18 +4711,17 @@ Choose an option:
         )
 
         if success:
-            print(f"\n✅ {message}")
+            print(f"\n[SUCCESS] {message}")
             print(f"   Mandate ID: {selected_mandate.mandate_id}")
             print("   Status: SUSPENDED")
             print("\n💡 Use 'Resume NACH Mandate' to reactivate it.")
         else:
-            print(f"\n❌ {message}")
+            print(f"\n[FAIL] {message}")
 
         input("\nPress Enter to continue...")
 
     def resume_loan_nach_mandate(self):
         """Resume a suspended NACH mandate"""
-        from LoanNachMandate import LoanNachMandateManager, NachMandateStatus
 
         customer = self.current_customer
 
@@ -4243,7 +4740,7 @@ Choose an option:
         ]
 
         if not suspended_mandates:
-            print("\n⚠️  No suspended NACH mandates to resume.")
+            print("\n[WARN]  No suspended NACH mandates to resume.")
             input("Press Enter to continue...")
             return
 
@@ -4261,10 +4758,10 @@ Choose an option:
             if 0 <= idx < len(suspended_mandates):
                 selected_mandate, selected_loan = suspended_mandates[idx]
             else:
-                print("❌ Invalid selection.")
+                print("[FAIL] Invalid selection.")
                 return
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("[FAIL] Please enter a valid number.")
             return
 
         confirm = (
@@ -4272,7 +4769,7 @@ Choose an option:
         )
 
         if confirm != "yes":
-            print("❌ Resume cancelled.")
+            print("[FAIL] Resume cancelled.")
             return
 
         # Resume mandate
@@ -4281,23 +4778,22 @@ Choose an option:
         )
 
         if success:
-            print(f"\n✅ {message}")
+            print(f"\n[SUCCESS] {message}")
             print(f"   Mandate ID: {selected_mandate.mandate_id}")
             print("   Status: ACTIVE")
-            print("\n✓ EMI deductions will resume automatically.")
+            print("\n[OK] EMI deductions will resume automatically.")
         else:
-            print(f"\n❌ {message}")
+            print(f"\n[FAIL] {message}")
 
         input("\nPress Enter to continue...")
 
     def view_mandate_details(self):
         """View detailed information about a NACH mandate including deduction history"""
-        from LoanNachMandate import LoanNachMandateManager
 
         customer = self.current_customer
 
         print("\n" + "=" * 60)
-        print("📊 NACH MANDATE DETAILS & DEDUCTION HISTORY")
+        print("[STATS] NACH MANDATE DETAILS & DEDUCTION HISTORY")
         print("=" * 60)
 
         # Get all mandates
@@ -4311,7 +4807,7 @@ Choose an option:
                 all_mandates.append((loan, mandate))
 
         if not all_mandates:
-            print("\n⚠️  No NACH mandates found.")
+            print("\n[WARN]  No NACH mandates found.")
             input("Press Enter to continue...")
             return
 
@@ -4326,21 +4822,21 @@ Choose an option:
             if 0 <= idx < len(all_mandates):
                 selected_loan, selected_mandate = all_mandates[idx]
             else:
-                print("❌ Invalid selection.")
+                print("[FAIL] Invalid selection.")
                 return
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("[FAIL] Please enter a valid number.")
             return
 
         # Display mandate details
         print("\n" + "=" * 60)
-        print("📋 MANDATE INFORMATION")
+        print("[INFO] MANDATE INFORMATION")
         print("=" * 60)
         print(f"\nMandate ID: {selected_mandate.mandate_id}")
         print(f"Loan ID: {selected_loan.loan_id}")
         print(f"Status: {selected_mandate.status}")
         print(f"Created: {selected_mandate.creation_timestamp}")
-        print("\n💰 AMOUNT DETAILS")
+        print("\n[MONEY] AMOUNT DETAILS")
         print(f"EMI Amount: ₹{selected_mandate.emi_amount:,.2f}")
         print(f"Max Debit Limit: ₹{selected_mandate.max_debit_amount:,.2f}")
         print("\n📅 PERIOD")
@@ -4352,7 +4848,7 @@ Choose an option:
         # Display deduction history
         if selected_mandate.deduction_history:
             print(
-                f"\n📊 DEDUCTION HISTORY ({len(selected_mandate.deduction_history)} deductions)"
+                f"\n[STATS] DEDUCTION HISTORY ({len(selected_mandate.deduction_history)} deductions)"
             )
             print("=" * 60)
 
@@ -4361,9 +4857,9 @@ Choose an option:
                 selected_mandate.deduction_history[:20], 1
             ):  # Show last 20
                 status_icon = (
-                    "✅"
+                    "[SUCCESS]"
                     if deduction["status"] == "Success"
-                    else "❌"
+                    else "[FAIL]"
                     if deduction["status"] == "Failed"
                     else "⏳"
                 )
@@ -4394,7 +4890,7 @@ Choose an option:
             print("=" * 60)
 
             # Quick View Options
-            print("\n📊 QUICK VIEW:")
+            print("\n[STATS] QUICK VIEW:")
             print("1. Mini Statement (Last 10 transactions)")
             print("2. Last 20 transactions")
             print("3. Last 30 transactions")
@@ -4402,7 +4898,7 @@ Choose an option:
             print("5. All transactions")
 
             # Filter by Category
-            print("\n🔍 FILTER BY CATEGORY:")
+            print("\n[SEARCH] FILTER BY CATEGORY:")
             print("6. Deposits")
             print("7. Withdrawals")
             print("8. NEFT Transactions")
@@ -4435,7 +4931,7 @@ Choose an option:
                 account.show_transactions(limit=None)
             elif choice == "6":
                 limit = self._get_transaction_limit()
-                print("\n💰 Deposits:")
+                print("\n[MONEY] Deposits:")
                 account.show_transactions(
                     limit=limit, transaction_type_filter="DEPOSIT"
                 )
@@ -4469,7 +4965,7 @@ Choose an option:
                 self.view_credit_card_transactions(account)
             elif choice == "17":
                 limit = self._get_transaction_limit()
-                print("\n📋 Bill Payments:")
+                print("\n[INFO] Bill Payments:")
                 account.show_transactions(
                     limit=limit, transaction_type_filter="BILL_PAYMENT"
                 )
@@ -4485,7 +4981,6 @@ Choose an option:
 
     def view_debit_card_transactions(self, account: Account):
         """View transactions by specific debit card"""
-        from Card import DebitCard
 
         # Load transactions if needed
         account._load_transactions_if_needed()
@@ -4493,7 +4988,7 @@ Choose an option:
         debit_cards = [c for c in account.cards if isinstance(c, DebitCard)]
 
         if not debit_cards:
-            print("\n❌ No debit cards found")
+            print("\n[FAIL] No debit cards found")
             return
 
         print("\n--- Select Debit Card ---")
@@ -4521,7 +5016,7 @@ Choose an option:
                         break
 
             if not selected_card:
-                print("❌ Card not found")
+                print("[FAIL] Card not found")
                 return
 
             print(
@@ -4551,7 +5046,7 @@ Choose an option:
     def view_loan_emi_transactions(self, account: Account):
         """View only loan EMI transactions"""
         limit = self._get_transaction_limit()
-        print("\n🏦 Loan EMI Payments:")
+        print("\n[BANK] Loan EMI Payments:")
         account.show_transactions(limit=limit, transaction_type_filter="LOAN_EMI")
 
     def view_neft_transactions(self, account: Account):
@@ -4563,7 +5058,7 @@ Choose an option:
     def view_rtgs_transactions(self, account: Account):
         """View RTGS transactions"""
         limit = self._get_transaction_limit()
-        print("\n💰 RTGS Transactions:")
+        print("\n[MONEY] RTGS Transactions:")
         account.show_transactions(limit=limit, transaction_type_filter="RTGS")
 
     def view_inter_account_transactions(self, account: Account):
@@ -4608,7 +5103,7 @@ Choose an option:
             f"Total Balance (USD Equivalent): ${stats['total_balance_usd_equivalent']:,.2f}"
         )
 
-        print("\n📊 Accounts by Country:")
+        print("\n[STATS] Accounts by Country:")
         for country, count in sorted(stats["by_country"].items()):
             print(f"   {country}: {count} accounts")
 
@@ -4643,11 +5138,18 @@ Choose an option:
         print("-" * 100)
 
         for idx, txn in enumerate(swift_transfers, 1):
-            if hasattr(txn, "metadata") and isinstance(txn.metadata, dict):
-                swift_ref = txn.metadata.get("swift_reference", "N/A")
-                recipient = txn.metadata.get("recipient_name", "N/A")[:25]
-                currency = txn.metadata.get("currency", "INR")
-                amount = txn.metadata.get("amount_foreign", abs(txn.amount))
+            metadata = self._parse_metadata(txn.metadata)
+            
+            if metadata:
+                swift_ref = metadata.get("swift_reference", metadata.get("swiftRef", "N/A"))
+                recipient = metadata.get("recipient_name", "N/A")[:25]
+                currency = metadata.get("currency", "INR")
+                
+                try:
+                    amount = float(metadata.get("amount_foreign", metadata.get("foreignAmt", abs(txn.amount))))
+                except:
+                    amount = abs(txn.amount)
+                    
                 amount_str = f"{amount:,.2f} {currency}"
             else:
                 swift_ref = "N/A"
@@ -4680,45 +5182,45 @@ Choose an option:
         print(f"Resulting Balance:  Rs. {txn.resulting_balance:,.2f}")
 
         # Show metadata for international transfers
-        if (
-            txn.type == "SWIFT_SENT"
-            and hasattr(txn, "metadata")
-            and isinstance(txn.metadata, dict)
-        ):
+        metadata = self._parse_metadata(txn.metadata)
+        
+        if txn.type == "SWIFT_SENT" and metadata:
             print("\n" + "-" * 80)
             print("INTERNATIONAL TRANSFER DETAILS")
             print("-" * 80)
-            print(f"SWIFT Reference:    {txn.metadata.get('swift_reference', 'N/A')}")
-            print(f"Recipient Name:     {txn.metadata.get('recipient_name', 'N/A')}")
-            print(f"Recipient Account:  {txn.metadata.get('recipient_account', 'N/A')}")
-            print(f"Bank:               {txn.metadata.get('recipient_bank', 'N/A')}")
-            print(f"SWIFT Code:         {txn.metadata.get('swift_code', 'N/A')}")
-            print(f"Country:            {txn.metadata.get('country', 'N/A')}")
+            print(f"SWIFT Reference:    {metadata.get('swift_reference', metadata.get('swiftRef', 'N/A'))}")
+            print(f"Recipient Name:     {metadata.get('recipient_name', 'N/A')}")
+            print(f"Recipient Account:  {metadata.get('recipient_account', 'N/A')}")
+            print(f"Bank:               {metadata.get('recipient_bank', 'N/A')}")
+            print(f"SWIFT Code:         {metadata.get('swift_code', 'N/A')}")
+            print(f"Country:            {metadata.get('country', 'N/A')}")
 
-            currency = txn.metadata.get("currency", "")
-            amount_foreign = txn.metadata.get("amount_foreign", 0)
-            exchange_rate = txn.metadata.get("exchange_rate", 0)
+            currency = metadata.get("currency", "")
+            try:
+                amount_foreign = float(metadata.get("amount_foreign", metadata.get("foreignAmt", 0)))
+                exchange_rate = float(metadata.get("exchange_rate", metadata.get("rate", 0)))
+            except:
+                amount_foreign = 0
+                exchange_rate = 0
 
             print(f"\nAmount Sent:        {amount_foreign:,.2f} {currency}")
             print(f"Exchange Rate:      1 {currency} = Rs. {exchange_rate:,.2f}")
             print(f"Amount in INR:      Rs. {amount_foreign * exchange_rate:,.2f}")
             print(
-                f"SWIFT Charges:      Rs. {txn.metadata.get('swift_charges', 0):,.2f}"
+                f"SWIFT Charges:      Rs. {float(metadata.get('swift_charges', metadata.get('charges', 0))):,.2f}"
             )
-            print(f"Purpose:            {txn.metadata.get('purpose', 'N/A')}")
-            print(f"Expected Arrival:   {txn.metadata.get('expected_arrival', 'N/A')}")
+            print(f"Purpose:            {metadata.get('purpose', 'N/A')}")
+            print(f"Expected Arrival:   {metadata.get('expected_arrival', 'N/A')}")
 
-            if txn.metadata.get("recipient_address"):
-                print(f"Recipient Address:  {txn.metadata.get('recipient_address')}")
+            if metadata.get("recipient_address"):
+                print(f"Recipient Address:  {metadata.get('recipient_address')}")
 
         # Show metadata for other transaction types if available
-        elif (
-            hasattr(txn, "metadata") and isinstance(txn.metadata, dict) and txn.metadata
-        ):
+        elif metadata:
             print("\n" + "-" * 80)
             print("ADDITIONAL DETAILS")
             print("-" * 80)
-            for key, value in txn.metadata.items():
+            for key, value in metadata.items():
                 # Format key nicely
                 formatted_key = key.replace("_", " ").title()
                 print(f"{formatted_key:<20}: {value}")
@@ -4749,13 +5251,15 @@ Choose an option:
 12 View RD Details
 13 RD Authorization Management
 14 View RD Statement of Account
-15 Back to Main Menu
+15 Download FD Statement (PDF)
+16 Download RD Statement (PDF)
+17 Back to Main Menu
             """)
 
             choice = self.read_valid_choice(
                 "Enter your choice: ",
-                [str(i) for i in range(1, 16)],
-                "Invalid choice. Please enter a number from 1 to 15.",
+                [str(i) for i in range(1, 18)],
+                "Invalid choice. Please enter a number from 1 to 17.",
             )
 
             if choice == "1":
@@ -4787,7 +5291,79 @@ Choose an option:
             elif choice == "14":
                 self.view_rd_statement(customer, account)
             elif choice == "15":
+                self.download_fd_statement(customer, account)
+            elif choice == "16":
+                self.download_rd_statement(customer, account)
+            elif choice == "17":
                 break
+
+    def download_loan_statement(self, customer: Customer, account: Account):
+        """Download Loan Statement as PDF"""
+        loans = self.bank.get_loans_for_customer(customer.customer_id)
+        if not loans:
+            print("\n[INFO] No active loans found.")
+            return
+
+        print("\nSelect Loan for Statement:")
+        for idx, loan in enumerate(loans, 1):
+            print(f"{idx}. {loan.loan_id} ({loan.loan_type}) - Rs. {loan.principal:,.2f}")
+
+        choice = input(f"\nEnter choice (1-{len(loans)}): ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(loans):
+            selected_loan = loans[int(choice) - 1]
+            from .StatementGenerator import StatementGenerator
+            filepath = StatementGenerator.generate_loan_soa(selected_loan, customer)
+            print(f"\n[SUCCESS] Loan Statement generated: {filepath}")
+        else:
+            print("[FAIL] Invalid selection.")
+
+    def download_fd_statement(self, customer: Customer, account: Account):
+        """Download FD Statement as PDF"""
+        if not hasattr(self.bank, "fixed_deposits"):
+            print("\n[INFO] No FDs found.")
+            return
+            
+        my_fds = [fd for fd in self.bank.fixed_deposits.values() if fd.account_number == account.account_number]
+        if not my_fds:
+            print("\n[INFO] No active FDs found for this account.")
+            return
+
+        print("\nSelect FD for Statement:")
+        for idx, fd in enumerate(my_fds, 1):
+            print(f"{idx}. {fd.fd_number} - Rs. {fd.principal_amount:,.2f} ({fd.status})")
+
+        choice = input(f"\nEnter choice (1-{len(my_fds)}): ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(my_fds):
+            selected_fd = my_fds[int(choice) - 1]
+            from .StatementGenerator import StatementGenerator
+            filepath = StatementGenerator.generate_fd_soa(selected_fd, customer)
+            print(f"\n[SUCCESS] FD Statement generated: {filepath}")
+        else:
+            print("[FAIL] Invalid selection.")
+
+    def download_rd_statement(self, customer: Customer, account: Account):
+        """Download RD Statement as PDF"""
+        from .RDStatement import RDStatement
+        rd_stmt_helper = RDStatement(self.bank)
+        statements = rd_stmt_helper.get_all_rd_statements(account.account_number)
+        
+        if not statements:
+            print("\n[INFO] No active RDs found for this account.")
+            return
+
+        print("\nSelect RD for Statement:")
+        for idx, stmt in enumerate(statements, 1):
+            print(f"{idx}. {stmt['rd_number']} - Rs. {stmt['monthly_installment']:,.2f} ({stmt['status']})")
+
+        choice = input(f"\nEnter choice (1-{len(statements)}): ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(statements):
+            selected_stmt = statements[int(choice) - 1]
+            from .StatementGenerator import StatementGenerator
+            filepath = StatementGenerator.generate_rd_soa(selected_stmt, customer)
+            print(f"\n[SUCCESS] RD Statement generated: {filepath}")
+        else:
+            print("[FAIL] Invalid selection.")
+
 
     def open_fixed_deposit(self, account: Account):
         """Open a new Fixed Deposit"""
@@ -4832,7 +5408,7 @@ Choose an option:
                 )
             )
         except ValueError:
-            print("❌ Invalid amount")
+            print("[FAIL] Invalid amount")
             return
 
         # Get tenure
@@ -4841,7 +5417,7 @@ Choose an option:
         try:
             tenure = int(input("Enter tenure in months: "))
         except ValueError:
-            print("❌ Invalid tenure")
+            print("[FAIL] Invalid tenure")
             return
 
         # Show calculation
@@ -4866,7 +5442,7 @@ Choose an option:
 
         confirm = input("\nConfirm FD creation? (yes/no): ").strip().lower()
         if confirm not in ["yes", "y"]:
-            print("❌ FD creation cancelled")
+            print("[FAIL] FD creation cancelled")
             return
 
         # Create FD
@@ -4876,7 +5452,7 @@ Choose an option:
             print(message)
             self.bank.save()
         else:
-            print(f"\n❌ Failed to create FD: {message}")
+            print(f"\n[FAIL] Failed to create FD: {message}")
 
     def open_recurring_deposit(self, account: Account):
         """Open a new Recurring Deposit"""
@@ -4920,7 +5496,7 @@ Choose an option:
         try:
             monthly = float(input("\nEnter monthly installment: "))
         except ValueError:
-            print("❌ Invalid amount")
+            print("[FAIL] Invalid amount")
             return
 
         # Get tenure
@@ -4929,7 +5505,7 @@ Choose an option:
         try:
             tenure = int(input("Enter tenure in months: "))
         except ValueError:
-            print("❌ Invalid tenure")
+            print("[FAIL] Invalid tenure")
             return
 
         # Show calculation
@@ -4965,15 +5541,15 @@ Choose an option:
             try:
                 autopay_day = int(input("Enter autopay day (1-28): "))
                 if autopay_day < 1 or autopay_day > 28:
-                    print("❌ Invalid day. Using default day 1")
+                    print("[FAIL] Invalid day. Using default day 1")
                     autopay_day = 1
             except ValueError:
-                print("❌ Invalid input. Using default day 1")
+                print("[FAIL] Invalid input. Using default day 1")
                 autopay_day = 1
 
         confirm = input("\nConfirm RD creation? (yes/no): ").strip().lower()
         if confirm not in ["yes", "y"]:
-            print("❌ RD creation cancelled")
+            print("[FAIL] RD creation cancelled")
             return
 
         # Create RD
@@ -4985,7 +5561,7 @@ Choose an option:
             print(message)
             self.bank.save()
         else:
-            print(f"\n❌ Failed to create RD: {message}")
+            print(f"\n[FAIL] Failed to create RD: {message}")
 
     def view_my_fds(self, account: Account):
         """View all FDs for current account"""
@@ -5031,7 +5607,7 @@ Choose an option:
 
         for rd in rds:
             status = rd.get_payment_status()
-            autopay = "✓ Yes" if rd.autopay_enabled else "No"
+            autopay = "[OK] Yes" if rd.autopay_enabled else "No"
             print(
                 f"{rd.rd_number:<20} Rs. {rd.monthly_installment:>10,.2f} {rd.interest_rate:>5.2f}% {rd.installments_paid:>2d}/{rd.tenure_months:<2d} months {status:<25} {autopay:<10}"
             )
@@ -5062,10 +5638,10 @@ Choose an option:
         try:
             choice = int(input(f"\nSelect RD (1-{len(active_rds)}): "))
             if choice < 1 or choice > len(active_rds):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             return
 
         rd = active_rds[choice - 1]
@@ -5077,17 +5653,17 @@ Choose an option:
 
         confirm = input("\nPay installment? (yes/no): ").strip().lower()
         if confirm not in ["yes", "y"]:
-            print("❌ Payment cancelled")
+            print("[FAIL] Payment cancelled")
             return
 
         success, message = rd.pay_installment_manual(account)
 
         if success:
-            print(f"\n✅ {message}")
+            print(f"\n[SUCCESS] {message}")
             print(f"New Balance: Rs. {account.balance:,.2f}")
             self.bank.save()
         else:
-            print(f"\n❌ {message}")
+            print(f"\n[FAIL] {message}")
 
     def manage_rd_autopay(self, account: Account):
         """Enable/Disable RD Autopay"""
@@ -5104,16 +5680,16 @@ Choose an option:
 
         print("\nActive RDs:")
         for idx, rd in enumerate(active_rds, 1):
-            autopay = "✓ Enabled" if rd.autopay_enabled else "✗ Disabled"
+            autopay = "[OK] Enabled" if rd.autopay_enabled else "✗ Disabled"
             print(f"{idx}. {rd.rd_number} - {autopay}")
 
         try:
             choice = int(input(f"\nSelect RD (1-{len(active_rds)}): "))
             if choice < 1 or choice > len(active_rds):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             return
 
         rd = active_rds[choice - 1]
@@ -5128,7 +5704,7 @@ Choose an option:
             action = input("\nDisable autopay? (yes/no): ").strip().lower()
             if action in ["yes", "y"]:
                 success, message = rd.disable_autopay()
-                print(f"\n{'✅' if success else '❌'} {message}")
+                print(f"\n{'[SUCCESS]' if success else '[FAIL]'} {message}")
                 if success:
                     self.bank.save()
         else:
@@ -5141,7 +5717,7 @@ Choose an option:
                     day = 1
 
                 success, message = rd.enable_autopay(day)
-                print(f"\n{'✅' if success else '❌'} {message}")
+                print(f"\n{'[SUCCESS]' if success else '[FAIL]'} {message}")
                 if success:
                     self.bank.save()
 
@@ -5168,10 +5744,10 @@ Choose an option:
         try:
             choice = int(input(f"\nSelect FD (1-{len(active_fds)}): "))
             if choice < 1 or choice > len(active_fds):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             return
 
         fd = active_fds[choice - 1]
@@ -5186,10 +5762,10 @@ Choose an option:
         print(f"Premature Penalty (1%): Rs. {penalty:,.2f}")
         print(f"Final Payout: Rs. {payout:,.2f}")
 
-        print("\n⚠️  Warning: Premature closure attracts 1% penalty")
+        print("\n[WARN]  Warning: Premature closure attracts 1% penalty")
         confirm = input("Confirm premature closure? (yes/no): ").strip().lower()
         if confirm not in ["yes", "y"]:
-            print("❌ Closure cancelled")
+            print("[FAIL] Closure cancelled")
             return
 
         payout, message = fd.close_prematurely()
@@ -5198,7 +5774,6 @@ Choose an option:
             account.balance += payout
 
             # Create transaction
-            from Transaction import Transaction
 
             txn = Transaction(
                 type="FD_CLOSED_PREMATURE",
@@ -5213,7 +5788,7 @@ Choose an option:
             print(f"New Balance: Rs. {account.balance:,.2f}")
             self.bank.save()
         else:
-            print(f"❌ {message}")
+            print(f"[FAIL] {message}")
 
     def close_rd_premature(self, account: Account):
         """Close RD before maturity"""
@@ -5237,10 +5812,10 @@ Choose an option:
         try:
             choice = int(input(f"\nSelect RD (1-{len(active_rds)}): "))
             if choice < 1 or choice > len(active_rds):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             return
 
         rd = active_rds[choice - 1]
@@ -5255,10 +5830,10 @@ Choose an option:
         print(f"Penalty: Rs. {penalty:,.2f}")
         print(f"Final Payout: Rs. {payout:,.2f}")
 
-        print("\n⚠️  Warning: Premature closure attracts penalty")
+        print("\n[WARN]  Warning: Premature closure attracts penalty")
         confirm = input("Confirm premature closure? (yes/no): ").strip().lower()
         if confirm not in ["yes", "y"]:
-            print("❌ Closure cancelled")
+            print("[FAIL] Closure cancelled")
             return
 
         payout, message = rd.close_prematurely()
@@ -5267,7 +5842,6 @@ Choose an option:
             account.balance += payout
 
             # Create transaction
-            from Transaction import Transaction
 
             txn = Transaction(
                 type="RD_CLOSED_PREMATURE",
@@ -5282,7 +5856,7 @@ Choose an option:
             print(f"New Balance: Rs. {account.balance:,.2f}")
             self.bank.save()
         else:
-            print(f"❌ {message}")
+            print(f"[FAIL] {message}")
 
     def mature_fd(self, account: Account):
         """Mature an FD"""
@@ -5306,10 +5880,10 @@ Choose an option:
         try:
             choice = int(input(f"\nSelect FD (1-{len(matured_fds)}): "))
             if choice < 1 or choice > len(matured_fds):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             return
 
         fd = matured_fds[choice - 1]
@@ -5320,7 +5894,6 @@ Choose an option:
             account.balance += payout
 
             # Create transaction
-            from Transaction import Transaction
 
             txn = Transaction(
                 type="FD_MATURED",
@@ -5335,7 +5908,7 @@ Choose an option:
             print(f"New Balance: Rs. {account.balance:,.2f}")
             self.bank.save()
         else:
-            print(f"❌ {message}")
+            print(f"[FAIL] {message}")
 
     def mature_rd(self, account: Account):
         """Mature an RD"""
@@ -5361,10 +5934,10 @@ Choose an option:
         try:
             choice = int(input(f"\nSelect RD (1-{len(completed_rds)}): "))
             if choice < 1 or choice > len(completed_rds):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             return
 
         rd = completed_rds[choice - 1]
@@ -5375,7 +5948,6 @@ Choose an option:
             account.balance += payout
 
             # Create transaction
-            from Transaction import Transaction
 
             txn = Transaction(
                 type="RD_MATURED",
@@ -5390,7 +5962,7 @@ Choose an option:
             print(f"New Balance: Rs. {account.balance:,.2f}")
             self.bank.save()
         else:
-            print(f"❌ {message}")
+            print(f"[FAIL] {message}")
 
     def view_fd_details(self, account: Account):
         """View detailed FD information"""
@@ -5471,7 +6043,7 @@ Choose an option:
         print(f"Status: {rd.get_payment_status()}")
 
         if rd.autopay_enabled:
-            print("\nAutopay: ✓ Enabled")
+            print("\nAutopay: [OK] Enabled")
             print(f"Autopay Day: {rd.autopay_day}")
             if rd.next_autopay_date:
                 print(f"Next Autopay: {rd.next_autopay_date.strftime('%d-%m-%Y')}")
@@ -5480,7 +6052,7 @@ Choose an option:
             print("\nAutopay: ✗ Disabled")
 
         if rd.missed_payments > 0:
-            print(f"\n⚠️  Missed Payments: {rd.missed_payments}")
+            print(f"\n[WARN]  Missed Payments: {rd.missed_payments}")
             print(
                 f"Penalty at Maturity: Rs. {rd.missed_payments * rd.LATE_PAYMENT_PENALTY:,.2f}"
             )
@@ -5550,7 +6122,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         active_rds = [rd for rd in rds if rd.status == "Active"]
 
         if not active_rds:
-            print("\n❌ No active RDs found")
+            print("\n[FAIL] No active RDs found")
             input("\nPress Enter to continue...")
             return
 
@@ -5562,7 +6134,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             if existing_auth:
                 if existing_auth.is_active():
                     auth_status = (
-                        f" [✓ Authorized by {existing_auth.payer_customer_id}]"
+                        f" [[OK] Authorized by {existing_auth.payer_customer_id}]"
                     )
                 elif existing_auth.is_pending_verification():
                     auth_status = f" [⏳ Pending Verification from {existing_auth.payer_customer_id}]"
@@ -5575,11 +6147,11 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         try:
             rd_choice = int(input(f"\nSelect RD (1-{len(active_rds)}): "))
             if rd_choice < 1 or rd_choice > len(active_rds):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 input("\nPress Enter to continue...")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             input("\nPress Enter to continue...")
             return
 
@@ -5590,11 +6162,11 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         if existing_auth:
             if existing_auth.is_active():
                 print(
-                    f"\n⚠️  This RD already has an ACTIVE authorization from {existing_auth.payer_customer_id}"
+                    f"\n[WARN]  This RD already has an ACTIVE authorization from {existing_auth.payer_customer_id}"
                 )
             elif existing_auth.is_pending_verification():
                 print(
-                    f"\n⚠️  This RD has a PENDING authorization from {existing_auth.payer_customer_id}"
+                    f"\n[WARN]  This RD has a PENDING authorization from {existing_auth.payer_customer_id}"
                 )
                 otp_status = existing_auth.get_otp_status()
                 print(
@@ -5612,9 +6184,9 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                     "Replaced with new authorization",
                     customer.customer_id,
                 )
-                print("✓ Previous authorization revoked")
+                print("[OK] Previous authorization revoked")
             else:
-                print("❌ Authorization cancelled")
+                print("[FAIL] Authorization cancelled")
                 input("\nPress Enter to continue...")
                 return
 
@@ -5628,12 +6200,12 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         payer_customer = self.bank.get_customer_by_id(payer_customer_id)
 
         if not payer_customer:
-            print(f"\n❌ Customer ID '{payer_customer_id}' not found")
+            print(f"\n[FAIL] Customer ID '{payer_customer_id}' not found")
             input("\nPress Enter to continue...")
             return
 
         if payer_customer.customer_id == customer.customer_id:
-            print("\n❌ You cannot authorize yourself")
+            print("\n[FAIL] You cannot authorize yourself")
             input("\nPress Enter to continue...")
             return
 
@@ -5641,11 +6213,11 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         payer_accounts = self.bank.get_customer_accounts(payer_customer)
 
         if not payer_accounts:
-            print(f"\n❌ No accounts found for customer {payer_customer_id}")
+            print(f"\n[FAIL] No accounts found for customer {payer_customer_id}")
             input("\nPress Enter to continue...")
             return
 
-        print(f"\n✓ Payer: {payer_customer.first_name} {payer_customer.last_name}")
+        print(f"\n[OK] Payer: {payer_customer.first_name} {payer_customer.last_name}")
         print(f"  Phone: {payer_customer.phone_number}")
         print(f"  Email: {payer_customer.email}")
 
@@ -5660,11 +6232,11 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                 input(f"\nSelect payer's account (1-{len(payer_accounts)}): ")
             )
             if acc_choice < 1 or acc_choice > len(payer_accounts):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 input("\nPress Enter to continue...")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             input("\nPress Enter to continue...")
             return
 
@@ -5676,7 +6248,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         print("\n" + "=" * 80)
         print("AUTHORIZATION SUMMARY")
         print("=" * 80)
-        print("\n📋 RD Details:")
+        print("\n[INFO] RD Details:")
         print(f"   RD Number: {selected_rd.rd_number}")
         print(f"   Monthly Installment: Rs. {selected_rd.monthly_installment:,.2f}")
         print(f"   Tenure: {selected_rd.tenure_months} months")
@@ -5687,7 +6259,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             f"   Remaining: {selected_rd.tenure_months - selected_rd.installments_paid} installments"
         )
 
-        print("\n💰 Beneficiary (Receives Maturity Amount):")
+        print("\n[MONEY] Beneficiary (Receives Maturity Amount):")
         print(f"   Name: {customer.first_name} {customer.last_name}")
         print(f"   Customer ID: {customer.customer_id}")
         print(f"   Account: {beneficiary_account.account_number}")
@@ -5698,13 +6270,13 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         print(f"   Account: {payer_account.account_number}")
         print(f"   Current Balance: Rs. {payer_account.balance:,.2f}")
 
-        print("\n📊 Authorization Details:")
+        print("\n[STATS] Authorization Details:")
         print(f"   Monthly Payment Limit: Rs. {monthly_limit:,.2f}")
         print(
             f"   Expected Total: Rs. {selected_rd.monthly_installment * (selected_rd.tenure_months - selected_rd.installments_paid):,.2f}"
         )
 
-        print("\n⚠️  Important:")
+        print("\n[WARN]  Important:")
         print("   • Payer's account will be auto-debited monthly")
         print("   • Beneficiary will receive the full maturity amount")
         print("   • Authorization can be revoked anytime by either party")
@@ -5718,7 +6290,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         confirm = input("\nCreate authorization? (yes/no): ").strip().lower()
 
         if confirm not in ["yes", "y"]:
-            print("\n❌ Authorization cancelled")
+            print("\n[FAIL] Authorization cancelled")
             input("\nPress Enter to continue...")
             return
 
@@ -5731,7 +6303,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
         if success:
             print("\n" + "=" * 80)
-            print("✅ AUTHORIZATION REQUEST CREATED")
+            print("[SUCCESS] AUTHORIZATION REQUEST CREATED")
             print("=" * 80)
             print(message)
 
@@ -5742,7 +6314,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             print("║" + " " * 30 + f"{otp}" + " " * 42 + "║")
             print("╚" + "=" * 78 + "╝")
 
-            print("\n⚠️  CRITICAL INSTRUCTIONS:")
+            print("\n[WARN]  CRITICAL INSTRUCTIONS:")
             print("=" * 80)
             print("1. 📞 SHARE this 6-digit code with the PAYER:")
             print(
@@ -5760,7 +6332,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             print("4. 🔢 Maximum 3 verification attempts allowed")
             print()
             print(
-                "5. ✅ Authorization becomes ACTIVE only after successful verification"
+                "5. [SUCCESS] Authorization becomes ACTIVE only after successful verification"
             )
             print()
             print(
@@ -5780,7 +6352,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             print(f"Status: {auth.status}")
             print("=" * 80)
         else:
-            print(f"\n❌ Failed to create authorization: {message}")
+            print(f"\n[FAIL] Failed to create authorization: {message}")
 
         input("\nPress Enter to continue...")
 
@@ -5801,7 +6373,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         pending = self.bank.get_pending_authorizations_for_payer(customer.customer_id)
         if pending:
             print(
-                f"\n⚠️  You have {len(pending)} PENDING authorization(s) awaiting your verification!"
+                f"\n[WARN]  You have {len(pending)} PENDING authorization(s) awaiting your verification!"
             )
             print("   → Go to 'Verify Authorization' menu to activate them")
             print()
@@ -5826,11 +6398,11 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                 otp_status = auth.get_otp_status()
                 status_display = f"⏳ Pending ({otp_status['minutes_remaining']}m left)"
             elif auth.is_active():
-                status_display = "✅ Active"
+                status_display = "[SUCCESS] Active"
             elif auth.status == "Suspended":
-                status_display = "⏸️  Suspended"
+                status_display = "[VIRTUAL]  Suspended"
             elif auth.status == "Revoked":
-                status_display = "❌ Revoked"
+                status_display = "[FAIL] Revoked"
             elif auth.status == "Expired":
                 status_display = "⌛ Expired"
             elif auth.status == "Blocked":
@@ -5850,7 +6422,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         total_limit = sum(auth.monthly_limit for auth in active_auths)
         total_paid = sum(auth.total_amount_paid for auth in auths)
 
-        print("\n📊 Summary:")
+        print("\n[STATS] Summary:")
         print(f"   Active Authorizations: {len(active_auths)}/{len(auths)}")
         if pending_auths:
             print(
@@ -5861,7 +6433,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
         # Payment breakdown by status
         if len(auths) > len(active_auths):
-            print("\n📋 Authorization Status Breakdown:")
+            print("\n[INFO] Authorization Status Breakdown:")
             status_counts = {}
             for auth in auths:
                 status = auth.status
@@ -5869,10 +6441,10 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
             for status, count in sorted(status_counts.items()):
                 icon = {
-                    "Active": "✅",
+                    "Active": "[SUCCESS]",
                     "Pending_Verification": "⏳",
-                    "Suspended": "⏸️",
-                    "Revoked": "❌",
+                    "Suspended": "[VIRTUAL]",
+                    "Revoked": "[FAIL]",
                     "Expired": "⌛",
                     "Blocked": "🚫",
                 }.get(status, "•")
@@ -5919,7 +6491,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         # Summary
         total_received = sum(auth.total_amount_paid for auth in auths)
 
-        print("\n📊 Summary:")
+        print("\n[STATS] Summary:")
         print(f"   Total Amount Received: Rs. {total_received:,.2f}")
         print(
             f"   Active Authorizations: {sum(1 for auth in auths if auth.is_active())}/{len(auths)}"
@@ -5981,10 +6553,10 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                 input(f"Select authorization to revoke (1-{len(all_auths)}): ")
             )
             if choice < 1 or choice > len(all_auths):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             return
 
         auth = all_auths[choice - 1]
@@ -5992,13 +6564,13 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         reason = input("\nReason for revocation: ").strip() or "User requested"
 
         confirm = (
-            input(f"\n⚠️  Revoke authorization {auth.auth_id}? (yes/no): ")
+            input(f"\n[WARN]  Revoke authorization {auth.auth_id}? (yes/no): ")
             .strip()
             .lower()
         )
 
         if confirm not in ["yes", "y"]:
-            print("\n❌ Revocation cancelled")
+            print("\n[FAIL] Revocation cancelled")
             return
 
         success, message = self.bank.revoke_rd_authorization(
@@ -6006,12 +6578,12 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         )
 
         if success:
-            print(f"\n✅ {message}")
+            print(f"\n[SUCCESS] {message}")
             print(
-                "\n⚠️  Note: The RD will revert to manual/autopay from beneficiary's account"
+                "\n[WARN]  Note: The RD will revert to manual/autopay from beneficiary's account"
             )
         else:
-            print(f"\n❌ {message}")
+            print(f"\n[FAIL] {message}")
 
         input("\nPress Enter to continue...")
 
@@ -6045,10 +6617,10 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         try:
             choice = int(input(f"Select authorization (1-{len(active_auths)}): "))
             if choice < 1 or choice > len(active_auths):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             return
 
         auth = active_auths[choice - 1]
@@ -6062,27 +6634,27 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         try:
             new_limit = float(input("\nEnter new monthly limit: Rs. "))
             if new_limit <= 0:
-                print("❌ Limit must be positive")
+                print("[FAIL] Limit must be positive")
                 return
         except ValueError:
-            print("❌ Invalid amount")
+            print("[FAIL] Invalid amount")
             return
 
         if rd and new_limit < rd.monthly_installment:
-            print("\n⚠️  Warning: New limit is below the RD installment amount")
+            print("\n[WARN]  Warning: New limit is below the RD installment amount")
             print("   This may cause autopay failures")
             proceed = input("Continue anyway? (yes/no): ").strip().lower()
             if proceed not in ["yes", "y"]:
-                print("❌ Update cancelled")
+                print("[FAIL] Update cancelled")
                 return
 
         success, message = auth.update_monthly_limit(new_limit, customer.customer_id)
 
         if success:
-            print(f"\n✅ {message}")
+            print(f"\n[SUCCESS] {message}")
             self.bank.save()
         else:
-            print(f"\n❌ {message}")
+            print(f"\n[FAIL] {message}")
 
         input("\nPress Enter to continue...")
 
@@ -6116,10 +6688,10 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         try:
             choice = int(input(f"\nSelect authorization (1-{len(all_auths)}): "))
             if choice < 1 or choice > len(all_auths):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             return
 
         auth = all_auths[choice - 1]
@@ -6137,7 +6709,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
             for payment in auth.payment_history[-10:]:  # Last 10 payments
                 status = (
-                    "✓ Success" if payment["success"] else f"✗ {payment['message']}"
+                    "[OK] Success" if payment["success"] else f"✗ {payment['message']}"
                 )
                 print(
                     f"{payment['date'][:19]:<20} #{payment['installment_number']:<14} "
@@ -6180,7 +6752,6 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             )
 
             # Calculate time remaining
-            from BankClock import BankClock
 
             time_left = auth.otp_expires_at - BankClock.now()
             minutes_left = max(0, int(time_left.total_seconds() / 60))
@@ -6197,10 +6768,10 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                 input(f"\nSelect authorization to verify (1-{len(pending)}): ")
             )
             if choice < 1 or choice > len(pending):
-                print("❌ Invalid choice")
+                print("[FAIL] Invalid choice")
                 return
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
             return
 
         selected_auth = pending[choice - 1]
@@ -6215,7 +6786,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         )
         rd = self.bank.get_rd_by_number(selected_auth.rd_number)
 
-        print("\n📋 RD Details:")
+        print("\n[INFO] RD Details:")
         print(f"   RD Number: {selected_auth.rd_number}")
         if rd:
             print(f"   Monthly Installment: Rs. {rd.monthly_installment:,.2f}")
@@ -6230,7 +6801,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             print(f"   Customer ID: {beneficiary.customer_id}")
             print(f"   Phone: {beneficiary.phone_number}")
 
-        print("\n💰 Payment Details:")
+        print("\n[MONEY] Payment Details:")
         print(f"   Your Monthly Obligation: Rs. {selected_auth.monthly_limit:,.2f}")
         if rd:
             total_remaining = rd.monthly_installment * (
@@ -6245,7 +6816,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         print(f"   Time Remaining: {minutes_left} minutes")
 
         print("\n" + "=" * 80)
-        print("⚠️  By verifying, you agree to:")
+        print("[WARN]  By verifying, you agree to:")
         print("   • Auto-pay the monthly installments from your account")
         print("   • The beneficiary will receive the maturity amount")
         print("   • You can revoke authorization anytime")
@@ -6253,14 +6824,14 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
         proceed = input("\nProceed with verification? (yes/no): ").strip().lower()
         if proceed not in ["yes", "y"]:
-            print("\n❌ Verification cancelled")
+            print("\n[FAIL] Verification cancelled")
             return
 
         # Get OTP
         otp = input("\n🔐 Enter 6-digit verification code: ").strip()
 
         if len(otp) != 6 or not otp.isdigit():
-            print("\n❌ Invalid OTP format. Must be 6 digits.")
+            print("\n[FAIL] Invalid OTP format. Must be 6 digits.")
             return
 
         # Verify
@@ -6292,7 +6863,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         print("\n" + "=" * 80)
         print(
             f"RECURRING DEPOSITS - {account.first_name} {account.last_name}"
-        )  # ✅ FIXED
+        )  # [SUCCESS] FIXED
         print("=" * 80)
 
         for idx, stmt in enumerate(statements, 1):
@@ -6322,15 +6893,15 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                         selectedstatement["rd_number"]
                     )
                     if filename:
-                        print(f"✓ Statement exported to: {filename}")
+                        print(f"[OK] Statement exported to: {filename}")
                     else:
-                        print("❌ Failed to export statement")
+                        print("[FAIL] Failed to export statement")
 
                 input("\nPress Enter to continue...")
             else:
-                print("❌ Invalid selection")
+                print("[FAIL] Invalid selection")
         except ValueError:
-            print("❌ Invalid input")
+            print("[FAIL] Invalid input")
 
     def change_clock_mode(self):
         """Change clock mode during runtime"""
@@ -6348,18 +6919,18 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
         if choice == "1":
             if BankClock.get_mode() == "REAL":
-                print("⚠️  Already in Real-Time Mode")
+                print("[WARN]  Already in Real-Time Mode")
             else:
                 switch_to_real_mode()
-                print("✅ Switched to Real-Time Mode")
-                print("⚠️  Time simulation is now DISABLED")
+                print("[SUCCESS] Switched to Real-Time Mode")
+                print("[WARN]  Time simulation is now DISABLED")
         elif choice == "2":
             if BankClock.get_mode() == "VIRTUAL":
-                print("⚠️  Already in Virtual Mode")
+                print("[WARN]  Already in Virtual Mode")
             else:
                 switch_to_virtual_mode(freeze_at_current=True)
-                print("✅ Switched to Virtual Mode")
-                print("✅ Time simulation is now ENABLED")
+                print("[SUCCESS] Switched to Virtual Mode")
+                print("[SUCCESS] Time simulation is now ENABLED")
 
         input("\nPress Enter to continue...")
 
@@ -6368,7 +6939,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         managing = True
         while managing:
             print("\n" + "=" * 60)
-            print("TAX PLANNING & EXEMPTIONS 📊")
+            print("TAX PLANNING & EXEMPTIONS [STATS]")
             print("=" * 60)
             print(f"Customer: {customer.first_name} {customer.last_name}")
             print(
@@ -6380,7 +6951,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             pan_status = (
                 f"PAN: {customer.pan}"
                 if hasattr(customer, "pan") and customer.pan
-                else "PAN: ❌ Not Registered"
+                else "PAN: [FAIL] Not Registered"
             )
             print(f"{pan_status}")
             print("\n1. View Deduction Summary")
@@ -6423,7 +6994,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         print("=" * 70)
 
         if not account.salary_profile:
-            print("❌ No salary profile found. Cannot calculate deductions.")
+            print("[FAIL] No salary profile found. Cannot calculate deductions.")
             input("\nPress Enter to continue...")
             return
 
@@ -6437,7 +7008,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         )
 
         if not deductions:
-            print("✅ No deductions detected.")
+            print("[SUCCESS] No deductions detected.")
         else:
             print("\n" + "=" * 70)
             print("AUTO-DETECTED DEDUCTIONS")
@@ -6564,7 +7135,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             print("=" * 70)
             for exemption in customer.tax_deductions:
                 status_emoji = (
-                    "✓"
+                    "[OK]"
                     if exemption.status.value == "VERIFIED"
                     else "?"
                     if exemption.status.value == "AUTO_DETECTED"
@@ -6585,7 +7156,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         print("=" * 60)
 
         if not account.salary_profile:
-            print("❌ No salary profile found. Cannot calculate tax.")
+            print("[FAIL] No salary profile found. Cannot calculate tax.")
             input("\nPress Enter to continue...")
             return
 
@@ -6664,7 +7235,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         print("=" * 60)
 
         if not customer.tax_deductions:
-            print("❌ No deductions found to upload proof for.")
+            print("[FAIL] No deductions found to upload proof for.")
             print(
                 "💡 Tip: Declare some deductions first (Option 4 in Tax Planning Menu)"
             )
@@ -6673,7 +7244,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
         print("\nSelect deduction to upload proof for:")
         for i, exemption in enumerate(customer.tax_deductions, 1):
-            status_emoji = "✓" if exemption.status == "VERIFIED" else "?"
+            status_emoji = "[OK]" if exemption.status == "VERIFIED" else "?"
             print(
                 f"  {i}. {status_emoji} {exemption.deduction_type.value} - ₹{exemption.eligible_amount:,.2f}"
             )
@@ -6698,17 +7269,17 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                     # Mark as verified after upload
                     selected.status = "VERIFIED"
 
-                    print("\n✅ Document uploaded successfully!")
+                    print("\n[SUCCESS] Document uploaded successfully!")
                     print(f"   Document: {doc_type}")
                     print(f"   Path: {file_path}")
                     print(f"   Status: {selected.status}")
-                    print("\n📋 Deduction marked as VERIFIED")
+                    print("\n[INFO] Deduction marked as VERIFIED")
                 else:
-                    print("❌ Invalid input. Please try again.")
+                    print("[FAIL] Invalid input. Please try again.")
             else:
-                print("❌ Invalid choice.")
+                print("[FAIL] Invalid choice.")
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("[FAIL] Please enter a valid number.")
 
         input("\nPress Enter to continue...")
 
@@ -6766,7 +7337,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                 )
                 deduction.eligible_amount = min(amount, 200000)
             else:
-                print("❌ Invalid choice.")
+                print("[FAIL] Invalid choice.")
                 return
 
             # Add document if provided
@@ -6779,13 +7350,13 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             customer.tax_deductions.append(deduction)
             self.bank.save()
 
-            print("\n✅ Deduction declared successfully!")
+            print("\n[SUCCESS] Deduction declared successfully!")
             print(f"   Amount: ₹{deduction.eligible_amount:,.2f}")
             print(f"   Status: {deduction.status.value}")
             print(f"   Documents: {len(deduction.documents)} attached")
 
         except ValueError:
-            print("❌ Invalid input. Please enter a valid number.")
+            print("[FAIL] Invalid input. Please enter a valid number.")
 
         input("\nPress Enter to continue...")
 
@@ -6818,7 +7389,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         # Validate PAN format (2 letters + 5 digits + 1 letter + 1 digit + 1 letter)
         if not self.validate_pan(pan):
             print(
-                "❌ Invalid PAN format. PAN should be 10 characters: 2 letters, 5 digits, 1 letter, 1 digit, 1 letter"
+                "[FAIL] Invalid PAN format. PAN should be 10 characters: 2 letters, 5 digits, 1 letter, 1 digit, 1 letter"
             )
             input("\nPress Enter to continue...")
             return
@@ -6827,7 +7398,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         customer.pan = pan
         self.bank.save()
 
-        print(f"\n✅ PAN {pan} registered successfully!")
+        print(f"\n[SUCCESS] PAN {pan} registered successfully!")
         print("You can now file your ITR.")
 
         input("\nPress Enter to continue...")
@@ -6851,12 +7422,12 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         print("=" * 70)
 
         if not account.salary_profile:
-            print("❌ Salary profile not configured. Cannot file ITR.")
+            print("[FAIL] Salary profile not configured. Cannot file ITR.")
             input("\nPress Enter to continue...")
             return
 
         if not hasattr(customer, "pan") or not customer.pan:
-            print("❌ PAN not registered. Cannot file ITR.")
+            print("[FAIL] PAN not registered. Cannot file ITR.")
             input("\nPress Enter to continue...")
             return
 
@@ -6875,7 +7446,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
         if active_fy_filing:
             existing = active_fy_filing[0]
-            print(f"\n⚠️  WARNING: You already have an ITR filing for FY {current_fy}")
+            print(f"\n[WARN]  WARNING: You already have an ITR filing for FY {current_fy}")
             print(f"   Filed Date: {existing.filed_date.strftime('%d-%b-%Y')}")
             print(
                 f"   Status: {ITRFiling.get_status_icon(existing.status)} {existing.status.value}"
@@ -6889,7 +7460,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                 print(f"   Tax Due: ₹{tax_due:,.2f}")
 
             print(
-                "\n⚠️  You CANNOT file another ITR for the same financial year unless:"
+                "\n[WARN]  You CANNOT file another ITR for the same financial year unless:"
             )
             print("   1. You formally AMEND the filing with corrected information")
 
@@ -6900,26 +7471,26 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             )
 
             if amend_choice in ["yes", "y"]:
-                print(f"\n✅ Preparing to amend ITR for FY {current_fy}...")
-                print("⚠️  The previous filing will be marked as AMENDED.")
+                print(f"\n[SUCCESS] Preparing to amend ITR for FY {current_fy}...")
+                print("[WARN]  The previous filing will be marked as AMENDED.")
 
                 if existing.status.value == "Refund Credited":
                     print(
-                        "⚠️  Note: Refund has already been credited. Amendment will require new calculation."
+                        "[WARN]  Note: Refund has already been credited. Amendment will require new calculation."
                     )
 
                 confirm = input("Proceed with amendment? (yes/no): ").strip().lower()
 
                 if confirm in ["yes", "y"]:
                     ITRFiling.void_filing(account, current_fy)
-                    print("✅ Previous ITR filing marked as AMENDED.")
+                    print("[SUCCESS] Previous ITR filing marked as AMENDED.")
                 else:
                     print("Amendment cancelled.")
                     input("\nPress Enter to continue...")
                     return
             else:
                 print(
-                    "\n❌ Cannot file new ITR. Existing filing must be amended first."
+                    "\n[FAIL] Cannot file new ITR. Existing filing must be amended first."
                 )
                 input("\nPress Enter to continue...")
                 return
@@ -6934,7 +7505,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         )
 
         if not success:
-            print(f"❌ {message}")
+            print(f"[FAIL] {message}")
             input("\nPress Enter to continue...")
             return
 
@@ -6947,7 +7518,6 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
         # Store filing record ONLY if not already amended and stored
         # (If amended, it's already stored in generate_itr_report)
-        from ITRFiling import ITRStatus
 
         if filing_record.status != ITRStatus.AMENDED:
             ITRFiling.store_filing(account, filing_record)
@@ -6971,7 +7541,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                 if success:
                     print(f"\n{refund_msg}")
                 else:
-                    print(f"\n❌ {refund_msg}")
+                    print(f"\n[FAIL] {refund_msg}")
 
         # View filing history
         print("\n" + "-" * 70)
@@ -6980,15 +7550,15 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         if view_history in ["yes", "y"]:
             filings = ITRFiling.get_filing_history(account)
             if not filings:
-                print("\n📋 No ITR filings yet")
+                print("\n[INFO] No ITR filings yet")
             else:
-                print("\n📋 ITR FILING HISTORY")
+                print("\n[INFO] ITR FILING HISTORY")
                 print("=" * 70)
                 for idx, filing in enumerate(filings, 1):
                     # Use status field from ITRStatus enum
                     status_icon = {
                         "Filed - Pending": "⏳",
-                        "Refund Credited": "✅",
+                        "Refund Credited": "[SUCCESS]",
                         "Tax Paid": "💳",
                         "Amended": "📝",
                     }.get(filing.status.value, "❓")
@@ -7006,16 +7576,15 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
     def view_itr_filing_history_menu(self, customer: Customer, account: Account):
         """View ITR filing history and process pending refunds"""
-        from ITRFiling import ITRStatus
 
         print("\n" + "=" * 70)
-        print("📋 ITR FILING HISTORY & REFUND PROCESSING")
+        print("[INFO] ITR FILING HISTORY & REFUND PROCESSING")
         print("=" * 70)
 
         filings = ITRFiling.get_filing_history(account)
 
         if not filings:
-            print("\n❌ No ITR filings found.")
+            print("\n[FAIL] No ITR filings found.")
             print("   File your first ITR using option 6 from the Tax Planning menu.")
             input("\nPress Enter to continue...")
             return
@@ -7038,7 +7607,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
             print(f"   TDS Paid: ₹{filing.tds_paid:,.2f}")
 
             if filing.refund_amount > 0:
-                print(f"   💰 Refund Amount: ₹{filing.refund_amount:,.2f}")
+                print(f"   [MONEY] Refund Amount: ₹{filing.refund_amount:,.2f}")
 
                 # Check if refund is pending
                 if (
@@ -7049,11 +7618,11 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                     print("   🔔 ACTION REQUIRED: Refund is pending!")
                 elif filing.refund_credited and filing.refund_date:
                     print(
-                        f"   ✅ Refund Credited on: {filing.refund_date.strftime('%d-%b-%Y')}"
+                        f"   [SUCCESS] Refund Credited on: {filing.refund_date.strftime('%d-%b-%Y')}"
                     )
             else:
                 tax_due = filing.tax_liability - filing.tds_paid
-                print(f"   ⚠️  Tax Due: ₹{tax_due:,.2f}")
+                print(f"   [WARN]  Tax Due: ₹{tax_due:,.2f}")
 
             print("-" * 70)
 
@@ -7081,19 +7650,19 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
                     )
 
                     if success:
-                        print(f"✅ {refund_msg}")
+                        print(f"[SUCCESS] {refund_msg}")
                     else:
-                        print(f"❌ {refund_msg}")
+                        print(f"[FAIL] {refund_msg}")
 
                 # Save updated data
                 self.bank.save()
-                print("\n✅ All pending refunds processed successfully!")
+                print("\n[SUCCESS] All pending refunds processed successfully!")
             else:
                 print(
-                    "\n⚠️  Refunds not processed. You can process them later from this menu."
+                    "\n[WARN]  Refunds not processed. You can process them later from this menu."
                 )
         else:
-            print("\n✅ No pending refunds to process.")
+            print("\n[SUCCESS] No pending refunds to process.")
             print("   All filings are either processed or have no refunds due.")
 
         input("\nPress Enter to continue...")
@@ -7101,7 +7670,7 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
     def generate_itr_report(self, customer: Customer, account: Account, filing_record):
         """Generate and display comprehensive ITR report"""
         print("\n" + "=" * 70)
-        print("📋 COMPREHENSIVE ITR FILING REPORT")
+        print("[INFO] COMPREHENSIVE ITR FILING REPORT")
         print("=" * 70)
 
         # Get deductions breakdown
@@ -7188,18 +7757,18 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
         print(f"  {'-' * 45} {'-' * 17}")
 
         if filing_record.refund_amount > 0:
-            print(f"  💰 REFUND DUE:         ₹{filing_record.refund_amount:>15,.2f}")
+            print(f"  [MONEY] REFUND DUE:         ₹{filing_record.refund_amount:>15,.2f}")
             print("\n  Status: ⏳ Pending (Apply for refund if not auto-credited)")
         else:
             additional_tax = filing_record.tax_liability - filing_record.tds_paid
             print(f"  Additional Tax Owing:  ₹{additional_tax:>15,.2f}")
-            print("\n  Status: ⚠️  No refund due")
+            print("\n  Status: [WARN]  No refund due")
 
         # Summary Section
         print(f"\n{'FILING SUMMARY':^70}")
         print("-" * 70)
-        print("✅ ITR has been successfully filed with Income Tax Department")
-        print(f"✅ Acknowledgment receipt: {filing_record.ack_number}")
+        print("[SUCCESS] ITR has been successfully filed with Income Tax Department")
+        print(f"[SUCCESS] Acknowledgment receipt: {filing_record.ack_number}")
 
         # Show next steps
         print(f"\n{'NEXT STEPS':^70}")
@@ -7225,25 +7794,24 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
 
         if amend_now in ["yes", "y"]:
             print(
-                f"\n✅ Preparing to amend ITR for FY {filing_record.financial_year}..."
+                f"\n[SUCCESS] Preparing to amend ITR for FY {filing_record.financial_year}..."
             )
-            print("⚠️  This filing will be marked as AMENDED.")
+            print("[WARN]  This filing will be marked as AMENDED.")
             print("   You can then file a corrected ITR.")
 
-            from ITRFiling import ITRFiling
 
             confirm = input("Proceed with amendment? (yes/no): ").strip().lower()
 
             if confirm in ["yes", "y"]:
                 # Mark the filing record as AMENDED directly (it hasn't been stored yet)
-                from ITRFiling import ITRFiling, ITRStatus
-
+                from .TaxCalculator import ITRStatus
                 filing_record.status = ITRStatus.AMENDED
                 # Store the AMENDED filing record
+                from .TaxCalculator import ITRFiling
                 ITRFiling.store_filing(account, filing_record)
                 # SAVE to persist the AMENDED status
                 self.bank.save()
-                print("\n✅ ITR filing marked as AMENDED.")
+                print("\n[SUCCESS] ITR filing marked as AMENDED.")
                 print(
                     "💡 You can now file a corrected ITR by selecting 'File ITR' again."
                 )
@@ -7262,106 +7830,14 @@ Authorize someone else to pay for your RD, or view/manage existing authorization
     def save_itr_report_to_file(
         self, customer: Customer, filing_record, deductions: Dict
     ):
-        """Save ITR report to a text file"""
-        import os
-        from datetime import datetime
-
+        """Save ITR report as a professional PDF"""
         try:
-            # Create reports directory if it doesn't exist
-            reports_dir = os.path.join(os.path.dirname(__file__), "..", "reports")
-            if not os.path.exists(reports_dir):
-                os.makedirs(reports_dir)
-
-            # Generate filename
-            filename = f"ITR_{customer.pan}_{filing_record.financial_year.replace('-', '_')}.txt"
-            filepath = os.path.join(reports_dir, filename)
-
-            # Generate report content
-            report_content = f"""
-{"=" * 70}
-                    INCOME TAX RETURN (ITR) FILING REPORT
-{"=" * 70}
-
-TAXPAYER INFORMATION
-{"-" * 70}
-Name:                {customer.first_name} {customer.last_name}
-PAN:                 {customer.pan}
-Financial Year:      {filing_record.financial_year}
-Filing Date:         {filing_record.filed_date.strftime("%d-%b-%Y")}
-Report Generated:    {datetime.now().strftime("%d-%b-%Y %H:%M:%S")}
-Acknowledgment #:    {filing_record.ack_number}
-
-INCOME BREAKDOWN
-{"-" * 70}
-Gross Annual Salary: ₹{filing_record.gross_income:>15,.2f}
-
-DEDUCTIONS CLAIMED
-{"-" * 70}
-"""
-            if deductions:
-                deduction_labels = {
-                    "16": "Section 16 - Standard Deduction",
-                    "10(13A)": "Section 10(13A) - HRA/Rent",
-                    "80C": "Section 80C - Savings/EPF",
-                    "80D": "Section 80D - Medical Insurance",
-                    "24": "Section 24 - Home Loan Interest",
-                }
-
-                for section, amount in sorted(deductions.items()):
-                    label = deduction_labels.get(section, f"Section {section}")
-                    report_content += f"{label:<45} ₹{amount:>15,.2f}\n"
-
-            report_content += f"""
-{"-" * 70}
-Total Deductions:                             ₹{filing_record.total_deductions:>15,.2f}
-
-TAX CALCULATION
-{"-" * 70}
-Gross Income:                                 ₹{filing_record.gross_income:>15,.2f}
-Less: Deductions:                            ₹{filing_record.total_deductions:>15,.2f}
-{"-" * 45} {"-" * 17}
-Taxable Income:                               ₹{filing_record.taxable_income:>15,.2f}
-
-Tax Liability:                                ₹{filing_record.tax_liability:>15,.2f}
-
-REFUND CALCULATION
-{"-" * 70}
-Tax Liability:                                ₹{filing_record.tax_liability:>15,.2f}
-TDS Paid During FY:                          ₹{filing_record.tds_paid:>15,.2f}
-{"-" * 45} {"-" * 17}
-"""
-
-            if filing_record.refund_amount > 0:
-                report_content += f"REFUND DUE:                                   ₹{filing_record.refund_amount:>15,.2f}"
-            else:
-                additional_tax = filing_record.tax_liability - filing_record.tds_paid
-                report_content += f"Additional Tax Owing:                         ₹{additional_tax:>15,.2f}"
-
-            report_content += f"""
-
-{"=" * 70}
-FILING STATUS: SUBMITTED SUCCESSFULLY
-{"=" * 70}
-✅ Your ITR has been filed with the Income Tax Department
-✅ Acknowledgment receipt has been issued
-{"✅ Refund of ₹" + f"{filing_record.refund_amount:,.2f}" + " is due" if filing_record.refund_amount > 0 else "⚠️  No refund due"}
-
-Keep this report for your records. You may need to provide it for
-reference or in case of any tax-related inquiries.
-
-Generated by: Pythonified Bank
-Report Version: 1.0
-{"-" * 70}
-"""
-
-            # Write to file
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(report_content)
-
-            print(f"\n✅ Report saved to: {filepath}")
-
+            from .StatementGenerator import StatementGenerator
+            filepath = StatementGenerator.generate_itr_report_pdf(customer, filing_record, deductions)
+            print(f"\n[SUCCESS] Official ITR Filing Report (PDF) generated: {filepath}")
         except Exception as e:
-            print(f"\n❌ Error saving report: {str(e)}")
+            print(f"\n[FAIL] Error generating tax report: {e}")
+
 
     def compare_tax_regimes(self, customer: Customer, account: Account):
         """Compare Old Regime (with deductions) vs New Regime (no deductions)"""
@@ -7370,7 +7846,7 @@ Report Version: 1.0
         print("=" * 60)
 
         if not account.salary_profile:
-            print("❌ No salary profile found.")
+            print("[FAIL] No salary profile found.")
             input("\nPress Enter to continue...")
             return
 
@@ -7383,7 +7859,7 @@ Report Version: 1.0
         )
 
         if not deductions:
-            print("⚠️  No deductions available. Both regimes would result in same tax.")
+            print("[WARN]  No deductions available. Both regimes would result in same tax.")
             input("\nPress Enter to continue...")
             return
 
@@ -7429,7 +7905,7 @@ Report Version: 1.0
             if switch_choice in ["yes", "y"]:
                 customer.tax_regime = "OLD_REGIME"
                 self.bank.save()
-                print("✅ Tax regime switched to OLD_REGIME")
+                print("[SUCCESS] Tax regime switched to OLD_REGIME")
         elif customer.tax_regime == "OLD_REGIME":
             switch_choice = (
                 input("\nSwitch to New Regime (no deductions)? (yes/no): ")
@@ -7439,7 +7915,7 @@ Report Version: 1.0
             if switch_choice in ["yes", "y"]:
                 customer.tax_regime = "NEW_REGIME"
                 self.bank.save()
-                print("✅ Tax regime switched to NEW_REGIME")
+                print("[SUCCESS] Tax regime switched to NEW_REGIME")
 
         input("\nPress Enter to continue...")
 

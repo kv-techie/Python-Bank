@@ -9,12 +9,12 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
-from Account import Account
-from BankClock import BankClock
-from Form26AS import TaxRefundEntry
-from TaxCalculator import TaxCalculator
-from TaxDeductionAnalyzer import TaxDeductionAnalyzer
-from TaxExemption import DeductionStatus, TaxExemption
+from .Account import Account
+from .BankClock import BankClock
+from .Form26AS import TaxRefundEntry
+from .TaxCalculator import TaxCalculator
+from .TaxDeductionAnalyzer import TaxDeductionAnalyzer
+from .TaxExemption import DeductionStatus, TaxExemption
 
 
 class ITRStatus(Enum):
@@ -166,7 +166,6 @@ class ITRFiling:
         return deductions
 
     @staticmethod
-    @staticmethod
     def file_itr(
         account: Account,
         customer_name: str,
@@ -191,7 +190,7 @@ class ITRFiling:
             return (
                 False,
                 None,
-                "❌ Salary profile not configured. Cannot file ITR.",
+                "[FAIL] Salary profile not configured. Cannot file ITR.",
             )
 
         fy = ITRFiling.calculate_financial_year()
@@ -242,7 +241,7 @@ class ITRFiling:
         )
 
         message = (
-            f"✅ ITR filed successfully for FY {fy}\n"
+            f"[SUCCESS] ITR filed successfully for FY {fy}\n"
             f"   Acknowledgment: {ack_number}\n"
             f"   Gross Income: ₹{gross_annual:,.2f}\n"
             f"   Deductions: ₹{total_deductions:,.2f}\n"
@@ -252,7 +251,7 @@ class ITRFiling:
         )
 
         if refund_amount > 0:
-            message += f"   💰 Refund Due: ₹{refund_amount:,.2f}"
+            message += f"   [MONEY] Refund Due: ₹{refund_amount:,.2f}"
         else:
             message += f"   No refund due (additional tax owing: ₹{tax_liability - tds_paid:,.2f})"
 
@@ -276,17 +275,17 @@ class ITRFiling:
         if filing_record.refund_amount <= 0:
             return (
                 False,
-                "❌ No refund to process (tax liability >= TDS paid)",
+                "[FAIL] No refund to process (tax liability >= TDS paid)",
             )
 
         if filing_record.refund_credited:
             return (
                 False,
-                "⚠️  Refund already credited for this filing",
+                "[WARN]  Refund already credited for this filing",
             )
 
         # Process refund
-        from Transaction import Transaction
+        from .Transaction import Transaction
 
         today = BankClock.today()
         refund_amount = filing_record.refund_amount
@@ -312,7 +311,7 @@ class ITRFiling:
         account.transactions.append(txn)
 
         # Log transaction to CSV for persistence
-        from DataStore import DataStore
+        from .DataStore import DataStore
 
         DataStore.append_activity(
             timestamp=txn.timestamp,
@@ -344,7 +343,7 @@ class ITRFiling:
             account.form_26as.add_refund(refund_entry)
 
         message = (
-            f"✅ Refund processed!\n"
+            f"[SUCCESS] Refund processed!\n"
             f"   Amount: ₹{refund_amount:,.2f}\n"
             f"   Credited to: {account.account_number}\n"
             f"   Date: {today.strftime('%d-%b-%Y')}\n"
@@ -413,7 +412,7 @@ class ITRFiling:
         """
         status_icons = {
             "Filed - Pending": "⏳",
-            "Refund Credited": "✅",
+            "Refund Credited": "[SUCCESS]",
             "Tax Paid": "💳",
             "Amended": "📝",
         }
@@ -454,10 +453,10 @@ class ITRFiling:
         print("-" * 70)
 
         if filing_record.refund_amount > 0:
-            print(f"{'💰 Refund Due':<40} ₹{filing_record.refund_amount:>15,.2f}")
+            print(f"{'[MONEY] Refund Due':<40} ₹{filing_record.refund_amount:>15,.2f}")
         else:
             balance_due = filing_record.tax_liability - filing_record.tds_paid
-            print(f"{'⚠️  Tax Due':<40} ₹{balance_due:>15,.2f}")
+            print(f"{'[WARN]  Tax Due':<40} ₹{balance_due:>15,.2f}")
 
         # Display filing status
         status_icon = ITRFiling.get_status_icon(filing_record.status)

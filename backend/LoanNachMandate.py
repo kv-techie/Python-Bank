@@ -15,8 +15,8 @@ import random
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-from BankClock import BankClock
-from DataStore import DataStore
+from .BankClock import BankClock
+from .DataStore import DataStore
 
 
 class NachMandateStatus:
@@ -166,7 +166,8 @@ class LoanNachMandate:
 class LoanNachMandateManager:
     """Manages NACH mandates for loans"""
 
-    MANDATES_FILE = "data/loan_nach_mandates.json"
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    MANDATES_FILE = os.path.join(_BASE_DIR, "data", "loan_nach_mandates.json")
 
     @staticmethod
     def _load_mandates() -> Dict[str, LoanNachMandate]:

@@ -2,12 +2,12 @@ import random
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
-from Account import Account
-from Bank import Bank
-from BankClock import BankClock
-from DataStore import DataStore
-from InternationalBankRegistry import InternationalBankRegistry
-from Transaction import Transaction
+from .Account import Account
+from .Bank import Bank
+from .BankClock import BankClock
+from .DataStore import DataStore
+from .InternationalBankRegistry import InternationalBankRegistry
+from .Transaction import Transaction
 
 
 class InternationalTransfer:
@@ -36,6 +36,7 @@ class InternationalTransfer:
 
     PROCESSING_DAYS = 3
     DAILY_LIMIT_INR = 2500000.0  # Rs. 25 lakhs per day
+    SCALA_BANK_SWIFT = "SCALAINBB"
 
     @staticmethod
     def generate_swift_reference() -> str:
@@ -78,41 +79,45 @@ class InternationalTransfer:
     def convert_currency(
         amount: float, from_currency: str, to_currency: str
     ) -> Tuple[float, float]:
-        """Convert between currencies - Returns (converted_amount, exchange_rate)"""
-        if (
-            from_currency == "INR"
-            and to_currency in InternationalTransfer.EXCHANGE_RATES
-        ):
-            rate = InternationalTransfer.EXCHANGE_RATES[to_currency]
-            converted = amount / rate
-            return round(converted, 2), rate
-
-        elif (
-            to_currency == "INR"
-            and from_currency in InternationalTransfer.EXCHANGE_RATES
-        ):
-            rate = InternationalTransfer.EXCHANGE_RATES[from_currency]
+        """Convert between currencies using live rates - Returns (converted_amount, exchange_rate)"""
+        from .CurrencyConverter import CurrencyConverter
+        
+        from_currency = from_currency.upper()
+        to_currency = to_currency.upper()
+        
+        if from_currency == to_currency:
+            return amount, 1.0
+            
+        if to_currency == "INR":
+            rate = CurrencyConverter.get_exchange_rate(from_currency)
+            if rate == 0: 
+                # Fallback to hardcoded if API/Cache fails
+                rate = InternationalTransfer.EXCHANGE_RATES.get(from_currency, 0.0)
             converted = amount * rate
             return round(converted, 2), rate
-
+        elif from_currency == "INR":
+            rate = CurrencyConverter.get_exchange_rate(to_currency)
+            if rate == 0:
+                rate = InternationalTransfer.EXCHANGE_RATES.get(to_currency, 0.0)
+            if rate == 0: return 0.0, 0.0
+            converted = amount / rate
+            return round(converted, 2), round(1/rate, 4)
         else:
-            if (
-                from_currency in InternationalTransfer.EXCHANGE_RATES
-                and to_currency in InternationalTransfer.EXCHANGE_RATES
-            ):
-                inr_amount = (
-                    amount * InternationalTransfer.EXCHANGE_RATES[from_currency]
-                )
-                rate_to = InternationalTransfer.EXCHANGE_RATES[to_currency]
-                converted = inr_amount / rate_to
-                effective_rate = (
-                    InternationalTransfer.EXCHANGE_RATES[from_currency] / rate_to
-                )
-                return round(converted, 2), effective_rate
+            # Cross-currency (e.g. USD to EUR)
+            rate_from = CurrencyConverter.get_exchange_rate(from_currency)
+            rate_to = CurrencyConverter.get_exchange_rate(to_currency)
+            
+            if rate_from == 0: rate_from = InternationalTransfer.EXCHANGE_RATES.get(from_currency, 0.0)
+            if rate_to == 0: rate_to = InternationalTransfer.EXCHANGE_RATES.get(to_currency, 0.0)
+            
+            if rate_to == 0: return 0.0, 0.0
+            
+            inr_amount = amount * rate_from
+            converted = inr_amount / rate_to
+            effective_rate = rate_from / rate_to
+            
+            return round(converted, 2), round(effective_rate, 4)
 
-        raise ValueError(
-            f"Unsupported currency conversion: {from_currency} to {to_currency}"
-        )
 
     @staticmethod
     def initiate_international_transfer(
@@ -290,7 +295,7 @@ Transaction ID: {txn.id}
                         ).date()
 
                         if BankClock.today() >= expected_arrival:
-                            status = "Completed ✅"
+                            status = "Completed [SUCCESS]"
                         elif days_elapsed == 0:
                             status = "Processing - Day 1"
                         else:

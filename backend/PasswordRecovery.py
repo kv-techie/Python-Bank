@@ -9,7 +9,7 @@ import string
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 
-from DataStore import DataStore  # ← ADDED THIS IMPORT
+from .DataStore import DataStore
 
 
 class PasswordRecoveryManager:
@@ -46,7 +46,7 @@ class PasswordRecoveryManager:
     @staticmethod
     def get_otp_expiry() -> datetime:
         """Get OTP expiry datetime"""
-        from BankClock import BankClock
+        from .BankClock import BankClock
 
         return BankClock.now() + timedelta(
             minutes=PasswordRecoveryManager.OTP_VALIDITY_MINUTES
@@ -55,7 +55,7 @@ class PasswordRecoveryManager:
     @staticmethod
     def is_otp_expired(expiry: datetime) -> bool:
         """Check if OTP is expired"""
-        from BankClock import BankClock
+        from .BankClock import BankClock
 
         return BankClock.now() > expiry
 
@@ -237,21 +237,21 @@ class PasswordRecoveryUI:
                 if question:
                     break
                 else:
-                    print(f"❌ Please enter a number between 1 and {num_questions}")
+                    print(f"[FAIL] Please enter a number between 1 and {num_questions}")
             except ValueError:
-                print("❌ Invalid input. Please enter a number.")
+                print("[FAIL] Invalid input. Please enter a number.")
 
         answer = input(f"\n{question}\nYour Answer: ").strip()
 
         if not answer:
-            print("❌ Answer cannot be empty")
+            print("[FAIL] Answer cannot be empty")
             return False
 
         if customer.set_security_question(question, answer):
-            print("✅ Security question set successfully")
+            print("[SUCCESS] Security question set successfully")
             return True
         else:
-            print("❌ Failed to set security question")
+            print("[FAIL] Failed to set security question")
             return False
 
     @staticmethod
@@ -267,13 +267,13 @@ class PasswordRecoveryUI:
         # Step 1: Get Customer ID
         customer_id = input("\nEnter your Customer ID: ").strip()
         if not customer_id:
-            print("❌ Customer ID is required")
+            print("[FAIL] Customer ID is required")
             input("\nPress Enter to continue...")
             return False
 
         customer = bank.get_customer(customer_id)
         if not customer:
-            print("❌ Customer not found")
+            print("[FAIL] Customer not found")
             input("\nPress Enter to continue...")
             return False
 
@@ -286,11 +286,11 @@ class PasswordRecoveryUI:
         answer = input("Your Answer: ").strip()
 
         if not customer.verify_security_answer(answer):
-            print("❌ Incorrect answer. Password reset failed.")
+            print("[FAIL] Incorrect answer. Password reset failed.")
             input("\nPress Enter to continue...")
             return False
 
-        print("✅ Security answer verified!")
+        print("[SUCCESS] Security answer verified!")
 
         # Step 4: OTP Verification
         if not PasswordRecoveryUI.otp_verification_flow(customer):
@@ -329,10 +329,10 @@ class PasswordRecoveryUI:
             success, message = customer.verify_password_reset_otp(otp_input)
 
             if success:
-                print(f"✅ {message}")
+                print(f"[SUCCESS] {message}")
                 return True
             else:
-                print(f"❌ {message}")
+                print(f"[FAIL] {message}")
 
         input("\nPress Enter to continue...")
         return False
@@ -356,7 +356,7 @@ class PasswordRecoveryUI:
             confirm_password = input("Confirm new password: ").strip()
 
             if new_password != confirm_password:
-                print("❌ Passwords do not match. Try again.")
+                print("[FAIL] Passwords do not match. Try again.")
                 if attempt < max_attempts - 1:
                     continue
                 else:
@@ -366,12 +366,12 @@ class PasswordRecoveryUI:
             success, message = customer.reset_password(new_password)
 
             if success:
-                print(f"\n✅ {message}")
+                print(f"\n[SUCCESS] {message}")
                 print("You can now login with your new password.")
                 input("\nPress Enter to continue...")
                 return True
             else:
-                print(f"❌ {message}")
+                print(f"[FAIL] {message}")
 
         input("\nPress Enter to continue...")
         return False
@@ -383,7 +383,7 @@ class PasswordRecoveryUI:
         Returns: True if successful
         """
         print("\n" + "=" * 60)
-        print("⚠️  LEGACY ACCOUNT DETECTED")
+        print("[WARN]  LEGACY ACCOUNT DETECTED")
         print("=" * 60)
         print("\nThis account was created before security questions were required.")
         print("\nPassword reset options:")
@@ -417,11 +417,11 @@ class PasswordRecoveryUI:
         admin_code = input("\nEnter admin authorization code: ").strip()
 
         if admin_code != PasswordRecoveryManager.ADMIN_CODE:
-            print("❌ Invalid authorization code")
+            print("[FAIL] Invalid authorization code")
             input("\nPress Enter to continue...")
             return False
 
-        print("✅ Admin authorization successful")
+        print("[SUCCESS] Admin authorization successful")
 
         # OTP verification
         if not PasswordRecoveryUI.otp_verification_flow(customer):
@@ -433,7 +433,7 @@ class PasswordRecoveryUI:
 
         # Prompt to setup security question
         print("\n" + "=" * 60)
-        print("⚠️  SECURITY QUESTION SETUP REQUIRED")
+        print("[WARN]  SECURITY QUESTION SETUP REQUIRED")
         print("=" * 60)
         print("\nTo enable self-service password reset in the future,")
         print("please setup a security question now.")
@@ -443,7 +443,7 @@ class PasswordRecoveryUI:
         if choice in ["y", "yes"]:
             if PasswordRecoveryUI.setup_security_question_flow(customer):
                 DataStore.save_customers(bank.customers)  # ← FIXED
-                print("✅ Account security fully updated!")
+                print("[SUCCESS] Account security fully updated!")
 
         input("\nPress Enter to continue...")
         return True
@@ -459,7 +459,7 @@ class PasswordRecoveryUI:
         print("=" * 60)
 
         if not customer.has_security_question():
-            print("\n⚠️  No security question currently set.")
+            print("\n[WARN]  No security question currently set.")
             return PasswordRecoveryUI.setup_security_question_flow(customer)
 
         print(f"\nCurrent Question: {customer.security_question}")
@@ -467,16 +467,16 @@ class PasswordRecoveryUI:
         # Verify current answer
         answer = input("\nVerify current answer: ").strip()
         if not customer.verify_security_answer(answer):
-            print("❌ Incorrect answer. Cannot change security question.")
+            print("[FAIL] Incorrect answer. Cannot change security question.")
             input("\nPress Enter to continue...")
             return False
 
-        print("✅ Verified!")
+        print("[SUCCESS] Verified!")
 
         # Setup new question
         if PasswordRecoveryUI.setup_security_question_flow(customer):
             DataStore.save_customers(bank.customers)  # ← FIXED
-            print("\n✅ Security question updated successfully!")
+            print("\n[SUCCESS] Security question updated successfully!")
             input("\nPress Enter to continue...")
             return True
 
@@ -489,14 +489,14 @@ class PasswordRecoveryUI:
         Returns: True if setup completed
         """
         print("\n" + "=" * 60)
-        print("🔒 SECURITY SETUP REQUIRED")
+        print("[SECURE] SECURITY SETUP REQUIRED")
         print("=" * 60)
         print("\nFor account security, please set up a security question.")
         print("This helps you recover your password if you forget it.")
         print("=" * 60)
 
         print("\n" + "=" * 60)
-        print("⚠️  SECURITY SETUP REQUIRED")
+        print("[WARN]  SECURITY SETUP REQUIRED")
         print("=" * 60)
         print("\nFor account security, please setup a security question.")
         print("This is required for password recovery.")
@@ -506,17 +506,17 @@ class PasswordRecoveryUI:
         if choice in ["y", "yes"]:
             if PasswordRecoveryUI.setup_security_question_flow(customer):
                 DataStore.save_customers(bank.customers)  # ← FIXED
-                print("\n✅ Security question setup complete!")
+                print("\n[SUCCESS] Security question setup complete!")
                 input("\nPress Enter to continue...")
                 return True
             else:
                 print(
-                    "\n⚠️  You can setup security question later from Account Settings"
+                    "\n[WARN]  You can setup security question later from Account Settings"
                 )
                 input("\nPress Enter to continue...")
                 return False
         else:
-            print("\n⚠️  Reminder: Setup security question from Account Settings")
+            print("\n[WARN]  Reminder: Setup security question from Account Settings")
             print("    to enable password recovery feature.")
             input("\nPress Enter to continue...")
             return False

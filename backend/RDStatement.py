@@ -35,7 +35,7 @@ class RDStatement:
         for acc in self.bank.accounts:
             if acc.account_number == rd.account_number:
                 beneficiary_account = acc
-                beneficiary_name = f"{acc.first_name} {acc.last_name}"  # ✅ FIXED
+                beneficiary_name = f"{acc.first_name} {acc.last_name}"
                 break
 
         # Find who is paying for the RD (payee)
@@ -51,7 +51,7 @@ class RDStatement:
                 # Find payer account details
                 for acc in self.bank.accounts:
                     if acc.account_number == active_auth.payer_account_number:
-                        payee_name = f"{acc.first_name} {acc.last_name}"  # ✅ FIXED
+                        payee_name = f"{acc.first_name} {acc.last_name}"
                         break
 
         # Create statement
@@ -100,89 +100,14 @@ class RDStatement:
 
         return statements
 
-    def print_rd_statement(self, rd_statement: Dict) -> None:
-        """Pretty print RD statement to console"""
-
-        print("\n" + "=" * 100)
-        print("RECURRING DEPOSIT - STATEMENT OF ACCOUNTS")
-        print("=" * 100)
-
-        print(f"\n{'RD DETAILS':^100}")
-        print("-" * 100)
-        print(f"RD Number              : {rd_statement['rd_number']}")
-        print(f"Creation Date          : {rd_statement['rd_creation_date']}")
-        print(f"Status                 : {rd_statement['status']}")
-        print(
-            f"Tenure                 : {rd_statement['installments_paid']}/{rd_statement['tenure_months']} months"
-        )
-
-        print(f"\n{'FINANCIAL DETAILS':^100}")
-        print("-" * 100)
-        print(
-            f"Monthly Installment    : Rs. {rd_statement['monthly_installment']:>15,.2f}"
-        )
-        print(
-            f"Interest Rate          : {rd_statement['interest_rate']:>15.2f}% per annum"
-        )
-        print(f"Total Deposited        : Rs. {rd_statement['total_deposited']:>15,.2f}")
-        print(f"Interest Earned        : Rs. {rd_statement['interest_earned']:>15,.2f}")
-        print(f"Maturity Amount        : Rs. {rd_statement['maturity_amount']:>15,.2f}")
-
-        print(f"\n{'HOLDER DETAILS':^100}")
-        print("-" * 100)
-        print(f"RD Beneficiary         : {rd_statement['beneficiary_name']}")
-        print(f"Payee (Who Pays)       : {rd_statement['payee_name']}")
-
-        if rd_statement["is_authorized"]:
-            print("Payment Type           : Authorized Payment")
-        else:
-            print("Payment Type           : Direct Payment")
-
-        print(f"\n{'AUTOPAY DETAILS':^100}")
-        print("-" * 100)
-        print(
-            f"Autopay Enabled        : {'Yes ✓' if rd_statement['autopay_enabled'] else 'No ✗'}"
-        )
-        if rd_statement["autopay_enabled"] and rd_statement["autopay_day"]:
-            print(
-                f"Autopay Day            : {rd_statement['autopay_day']} of each month"
-            )
-        if rd_statement["last_payment_date"]:
-            print(f"Last Payment Date      : {rd_statement['last_payment_date']}")
-
-        print(f"\n{'PAYMENT HISTORY':^100}")
-        print("-" * 100)
-
-        if not rd_statement["payment_history"]:
-            print("No payments recorded yet")
-        else:
-            print(
-                f"{'#':<4} {'Date':<15} {'Installment':<15} {'Amount':<15} {'Method':<20}"
-            )
-            print("-" * 100)
-
-            for idx, payment in enumerate(rd_statement["payment_history"], 1):
-                payment_date = payment.get("date", "N/A")
-                installment_no = payment.get("installment_number", idx)
-                amount = payment.get("amount", 0)
-                method = payment.get("method", "Manual")
-
-                print(
-                    f"{idx:<4} {payment_date:<15} {installment_no:<15} Rs. {amount:>12,.2f}  {method:<20}"
-                )
-
-        print("\n" + "=" * 100)
-
-    def export_rd_statement_to_text(
-        self, rd_number: str, filename: str = None
-    ) -> Optional[str]:
+    def export_statement(self, rd_number: str, filename: Optional[str] = None) -> Optional[str]:
         """
-        Export RD statement to text file
-
+        Export RD statement as professional PDF
+        
         Args:
             rd_number: RD number to export
-            filename: Optional custom filename (default: RD_[rd_number]_statement.txt)
-
+            filename: Ignored
+            
         Returns:
             Path to created file or None if failed
         """
@@ -190,92 +115,26 @@ class RDStatement:
         if not statement:
             return None
 
-        if not filename:
-            filename = f"RD_{rd_number}_statement.txt"
-
         try:
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write("=" * 100 + "\n")
-                f.write("RECURRING DEPOSIT - STATEMENT OF ACCOUNTS\n")
-                f.write("=" * 100 + "\n")
-
-                f.write("\nRD DETAILS\n")
-                f.write("-" * 100 + "\n")
-                f.write(f"RD Number              : {statement['rd_number']}\n")
-                f.write(f"Creation Date          : {statement['rd_creation_date']}\n")
-                f.write(f"Status                 : {statement['status']}\n")
-                f.write(
-                    f"Tenure                 : {statement['installments_paid']}/{statement['tenure_months']} months\n"
-                )
-
-                f.write("\nFINANCIAL DETAILS\n")
-                f.write("-" * 100 + "\n")
-                f.write(
-                    f"Monthly Installment    : Rs. {statement['monthly_installment']:>15,.2f}\n"
-                )
-                f.write(
-                    f"Interest Rate          : {statement['interest_rate']:>15.2f}% per annum\n"
-                )
-                f.write(
-                    f"Total Deposited        : Rs. {statement['total_deposited']:>15,.2f}\n"
-                )
-                f.write(
-                    f"Interest Earned        : Rs. {statement['interest_earned']:>15,.2f}\n"
-                )
-                f.write(
-                    f"Maturity Amount        : Rs. {statement['maturity_amount']:>15,.2f}\n"
-                )
-
-                f.write("\nHOLDER DETAILS\n")
-                f.write("-" * 100 + "\n")
-                f.write(f"RD Beneficiary         : {statement['beneficiary_name']}\n")
-                f.write(f"Payee (Who Pays)       : {statement['payee_name']}\n")
-                f.write(
-                    f"Payment Type           : {'Authorized Payment' if statement['is_authorized'] else 'Direct Payment'}\n"
-                )
-
-                f.write("\nAUTOPAY DETAILS\n")
-                f.write("-" * 100 + "\n")
-                f.write(
-                    f"Autopay Enabled        : {'Yes' if statement['autopay_enabled'] else 'No'}\n"
-                )
-                if statement["autopay_enabled"] and statement["autopay_day"]:
-                    f.write(
-                        f"Autopay Day            : {statement['autopay_day']} of each month\n"
-                    )
-                if statement["last_payment_date"]:
-                    f.write(
-                        f"Last Payment Date      : {statement['last_payment_date']}\n"
-                    )
-
-                f.write("\nPAYMENT HISTORY\n")
-                f.write("-" * 100 + "\n")
-
-                if not statement["payment_history"]:
-                    f.write("No payments recorded yet\n")
-                else:
-                    f.write(
-                        f"{'#':<4} {'Date':<15} {'Installment':<15} {'Amount':<15} {'Method':<20}\n"
-                    )
-                    f.write("-" * 100 + "\n")
-
-                    for idx, payment in enumerate(statement["payment_history"], 1):
-                        payment_date = payment.get("date", "N/A")
-                        installment_no = payment.get("installment_number", idx)
-                        amount = payment.get("amount", 0)
-                        method = payment.get("method", "Manual")
-
-                        f.write(
-                            f"{idx:<4} {payment_date:<15} {installment_no:<15} Rs. {amount:>12,.2f}  {method:<20}\n"
-                        )
-
-                f.write("\n" + "=" * 100 + "\n")
-                f.write(
-                    f"Statement Generated: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}\n"
-                )
-
-            return filename
-
+            from .StatementGenerator import StatementGenerator
+            
+            # Find the account associated with this RD to get the customer
+            account = None
+            if rd_number in self.bank.recurring_deposits:
+                acc_num = self.bank.recurring_deposits[rd_number].account_number
+                for acc in self.bank.accounts:
+                    if acc.account_number == acc_num:
+                        account = acc
+                        break
+            
+            if not account:
+                return None
+                
+            customer = self.bank.get_customer_by_id(account.customer_id)
+            filepath = StatementGenerator.generate_rd_soa(statement, customer)
+            print(f"[OK] Official RD Statement (PDF) generated: {filepath}")
+            return filepath
+            
         except Exception as e:
-            print(f"❌ Error exporting statement: {e}")
+            print(f"[FAIL] Error generating RD Statement PDF: {e}")
             return None

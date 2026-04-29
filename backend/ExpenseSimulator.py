@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import List, Optional, Tuple
 
-from Card import CreditCard
-from DataStore import DataStore
-from Transaction import Transaction
+from .Card import CreditCard
+from .DataStore import DataStore
+from .Transaction import Transaction
 
 
 @dataclass
@@ -335,10 +335,10 @@ class ExpenseSimulator:
                     )
 
                     print(
-                        f"💰 Salary Credited: ₹{net_salary:.2f} (Gross: ₹{gross_salary:.2f}, Tax: ₹{tax:.2f})"
+                        f"[MONEY] Salary Credited: ₹{net_salary:.2f} (Gross: ₹{gross_salary:.2f}, Tax: ₹{tax:.2f})"
                     )
                 else:
-                    print(f"💰 Salary Credited: ₹{net_salary:.2f} (No tax deduction)")
+                    print(f"[MONEY] Salary Credited: ₹{net_salary:.2f} (No tax deduction)")
 
                 # Update last salary date
                 profile.last_salary_date = simulated_date

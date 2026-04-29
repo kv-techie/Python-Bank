@@ -13,9 +13,9 @@ import random
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-from Account import Account
-from BankClock import BankClock
-from DataStore import DataStore
+from .Account import Account
+from .BankClock import BankClock
+from .DataStore import DataStore
 
 
 class RDAuthorization:
@@ -211,7 +211,7 @@ class RDAuthorization:
 
             return (
                 True,
-                "✅ Authorization verified successfully! RD autopay is now active.",
+                "[SUCCESS] Authorization verified successfully! RD autopay is now active.",
             )
         else:
             # Failed attempt
@@ -238,13 +238,13 @@ class RDAuthorization:
             )
 
             if remaining > 0:
-                return False, f"❌ Incorrect OTP. {remaining} attempt(s) remaining."
+                return False, f"[FAIL] Incorrect OTP. {remaining} attempt(s) remaining."
             else:
                 # This was the last attempt, block it
                 self.status = self.STATUS_BLOCKED
                 return (
                     False,
-                    "❌ Incorrect OTP. Authorization blocked due to too many failed attempts.",
+                    "[FAIL] Incorrect OTP. Authorization blocked due to too many failed attempts.",
                 )
 
     def is_active(self) -> bool:
@@ -417,7 +417,7 @@ class RDAuthorization:
             if otp_status["verified"]:
                 otp_section = f"""
 ┌─ Verification Status ───────────────────────────────────┐
-│ ✅ VERIFIED - Authorization Active
+│ [SUCCESS] VERIFIED - Authorization Active
 │ Verified at: {self.verification_history[-1]["timestamp"] if self.verification_history else "N/A"}
 └─────────────────────────────────────────────────────────┘
 """
@@ -541,7 +541,7 @@ Created: {self.created_date.strftime("%d-%m-%Y %H:%M")}
         return f"AUTH{timestamp}{random_suffix}"
 
     def __str__(self) -> str:
-        verified_marker = "✓" if self.otp_verified else "⏳"
+        verified_marker = "[OK]" if self.otp_verified else "⏳"
         return f"RDAuth {self.auth_id}: {self.payer_customer_id} → {self.beneficiary_customer_id} (RD: {self.rd_number}) [{self.status} {verified_marker}]"
 
     def __repr__(self) -> str:
@@ -643,7 +643,7 @@ class RDAuthorizationManager:
 
         message = f"""
 ╔════════════════════════════════════════════════════════════╗
-║     ✅ RD AUTHORIZATION CREATED SUCCESSFULLY               ║
+║     [SUCCESS] RD AUTHORIZATION CREATED SUCCESSFULLY               ║
 ╚════════════════════════════════════════════════════════════╝
 
 Authorization ID: {auth_id}
@@ -660,7 +660,7 @@ Beneficiary: {beneficiary_customer_id}
 
 Monthly Payment Limit: Rs. {monthly_limit:,.2f}
 
-⚠️  IMPORTANT: This authorization requires verification!
+[WARN]  IMPORTANT: This authorization requires verification!
 """
         return True, message, auth, otp
 
@@ -795,7 +795,7 @@ Monthly Payment Limit: Rs. {monthly_limit:,.2f}
         )
 
         # Create transaction
-        from Transaction import Transaction
+        from .Transaction import Transaction
 
         txn = Transaction(
             type="RD_AUTH_PAYMENT",

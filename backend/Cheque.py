@@ -30,6 +30,7 @@ class Cheque:
     amount: float  # Cheque amount
     payee_name: str  # Who receives the money
     date_presentable: str  # Date cheque can be presented (YYYY-MM-DD)
+    micr_code: str = "560005562"  # 9-digit MICR code (City + Bank + Branch)
     status: ChequeStatus = ChequeStatus.ISSUED
     cheque_id: str = field(default_factory=lambda: f"CHQ{str(uuid4())[:12].upper()}")
     issued_on: datetime = field(default_factory=datetime.now)
@@ -50,6 +51,7 @@ class Cheque:
             "amount": self.amount,
             "payeeName": self.payee_name,
             "datePresentable": self.date_presentable,
+            "micrCode": self.micr_code,
             "status": self.status.value,
             "issuedOn": self.issued_on.isoformat() if self.issued_on else None,
             "clearedOn": self.cleared_on.isoformat() if self.cleared_on else None,
@@ -70,6 +72,7 @@ class Cheque:
             amount=data["amount"],
             payee_name=data["payeeName"],
             date_presentable=data["datePresentable"],
+            micr_code=data.get("micrCode", "560005562"),
             status=ChequeStatus(data["status"]),
             cheque_id=data["chequeId"],
             bounce_reason=data.get("bounceReason"),

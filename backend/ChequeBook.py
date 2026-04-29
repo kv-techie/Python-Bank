@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 from uuid import uuid4
 
-from Cheque import Cheque, ChequeStatus
+from .Cheque import Cheque, ChequeStatus
 
 
 class ChequeBookStatus(Enum):

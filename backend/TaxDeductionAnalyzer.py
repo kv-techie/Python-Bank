@@ -6,7 +6,7 @@ Automatically detects and calculates eligible tax deductions from transactions a
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
-from TaxExemption import DeductionStatus, DeductionType, TaxExemption
+from .TaxExemption import DeductionStatus, DeductionType, TaxExemption
 
 
 class TaxDeductionAnalyzer:
@@ -447,7 +447,7 @@ class TaxDeductionAnalyzer:
         """
         Get formatted deduction summary
         """
-        summary = "\n📊 TAX DEDUCTIONS SUMMARY\n"
+        summary = "\n[STATS] TAX DEDUCTIONS SUMMARY\n"
         summary += "=" * 60 + "\n\n"
 
         section_names = {
@@ -462,7 +462,7 @@ class TaxDeductionAnalyzer:
         for section, amount in deductions.items():
             if amount > 0:
                 name = section_names.get(section, section)
-                summary += f"✅ {name}\n"
+                summary += f"[SUCCESS] {name}\n"
                 summary += f"   ₹{amount:,.2f}/year\n\n"
                 total += amount
 

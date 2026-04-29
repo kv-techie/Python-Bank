@@ -242,9 +242,9 @@ class SalaryProfile:
             (success, message)
         """
         try:
-            from BankClock import BankClock
-            from DataStore import DataStore
-            from Transaction import Transaction
+            from .BankClock import BankClock
+            from .DataStore import DataStore
+            from .Transaction import Transaction
 
             tax = self.calculate_tax()
             net = round(self.gross_salary - tax, 2)
